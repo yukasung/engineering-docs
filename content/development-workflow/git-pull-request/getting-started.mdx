@@ -1,0 +1,96 @@
+---
+title: "Getting Started — เตรียม Git และ Clone โปรเจกต์"
+description: "ตรวจรุ่น ตั้ง Author เฉพาะ Repository Clone และแยก Ignore ออกจากการลบข้อมูลใน History"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Getting Started — เตรียม Git และ Clone โปรเจกต์
+
+## เรื่องนี้คืออะไร?
+
+Repository คือที่เก็บไฟล์และประวัติ Git ส่วน Clone คือการคัด Repository พร้อมประวัติ/Remote configuration มาไว้ในเครื่อง ไม่ใช่ Download ZIP ที่มี Git history เสมอ
+
+## ทำอย่างไร?
+
+### ตรวจรุ่นและสิทธิ์
+
+```bash
+git --version
+```
+
+ตัวอย่างใช้ Git 2.39 ขึ้นไป มี switch/restore แล้ว หากยังไม่มีให้ติดตั้งจาก [Git Downloads](https://git-scm.com/downloads) ตาม Platform ไม่ใช้คำสั่งติดตั้ง Linux บน macOS โดยไม่ตรวจ
+
+ต้องมีสิทธิ์เข้าถึง Repository ที่จะ Clone เลือก HTTPS กับ Credential manager/GitHub CLI หรือ SSH key ตามวิธีของทีม Password บัญชี GitHub ไม่ใช่รหัสสำหรับ Git HTTPS authentication ไม่ฝัง Token ใน URL หรือ Command history ดู [GitHub authentication](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github)
+
+### Clone ด้วย URL ของโปรเจกต์
+
+แทน OWNER/REPOSITORY ด้วยค่าจากหน้าที่เก็บโค้ดจริง และตรวจว่าโฟลเดอร์ task-app ยังไม่มีงานของคุณ:
+
+```bash
+git clone https://github.com/OWNER/REPOSITORY.git task-app
+cd task-app
+git status -sb
+git remote
+git branch -a
+```
+
+clone สร้างโฟลเดอร์และ Remote ชื่อ origin ตามปกติ remote แสดงชื่อที่เก็บกลาง ส่วน branch -a แสดงทั้ง Local และ Remote-tracking branches ไม่ได้สร้าง Local branch ทุกตัวให้แล้ว
+
+หากมี Checkout ของโปรเจกต์อยู่แล้วให้ใช้ของเดิม ไม่ Clone ทับและไม่ git init ทับเพียงเพราะคำสั่งหนึ่ง Error
+
+### ตั้งชื่อผู้เขียน Commit เฉพาะ Repo
+
+แทน YOUR_NAME/YOUR_EMAIL ด้วยตัวตนที่โครงการยอมรับ อาจเลือก GitHub noreply email ตามการตั้ง Privacy ของบัญชี ค่าในตัวอย่างไม่ใช่ผู้รับผิดชอบจริง:
+
+```bash
+git config --local user.name "YOUR_NAME"
+git config --local user.email "YOUR_EMAIL"
+git config --local --get user.name
+git config --local --get user.email
+```
+
+`--local` ใช้กับ Repo นี้ ไม่เปลี่ยนตัวตนทุกโปรเจกต์ ชื่อ/อีเมลใน Commit ไม่ได้ยืนยันสิทธิ์ Login ไป GitHub และไม่รับประกันว่า Commit ถูก Sign แล้ว
+
+### .gitignore ใช้เมื่อไร?
+
+ไฟล์ .gitignore บอกให้ Git ข้ามไฟล์ที่ยังไม่ถูก Track เช่น Dependencies และค่าลับ ตัวอย่าง Fragment ปรับตามโปรเจกต์ ไม่แทนไฟล์เดิมทั้งก้อน:
+
+```gitignore
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+*.log
+```
+
+.env.example ต้องไม่มีค่าลับจริง แม้เป็นไฟล์ที่ยอมให้ Track **Ignore ไม่เอาไฟล์ที่ Track แล้วออกจาก History** ตรวจเหตุผลสำหรับไฟล์ที่ยังไม่ถูก Track ได้ด้วย:
+
+```bash
+git check-ignore -v -- .env
+git ls-files -- .env
+```
+
+check-ignore แสดง Rule ที่ตรง ถ้าไม่ตรง/ถูก Track แล้วอาจไม่มี Output และคืน Non-zero ส่วน ls-files บอกว่า Track อยู่หรือไม่ ไม่แสดงเนื้อหา ถ้าเคย Commit Secret ให้หยุดและทำตาม [Troubleshooting](/development-workflow/git-pull-request/troubleshooting) ไม่จบที่เพิ่ม Ignore
+
+## ขั้นตอนถัดไป
+
+ไป [Inspect Changes](/development-workflow/git-pull-request/inspect-changes) เพื่อดูสิ่งที่แก้ ไม่สมมติว่า Repo ที่ Clone มี Scripts หรือ Checks เหมือน Hub ต้องอ่าน README, AGENTS และ Package configuration ของโปรเจกต์นั้นก่อน
+
+## สรุปสิ่งที่ต้องจำ
+
+- Clone URL จริงลงโฟลเดอร์ใหม่ที่ไม่ทับงาน
+- Author identity กับ Authentication คนละเรื่อง
+- ใช้ `--local` เมื่อตั้งค่าของโปรเจกต์นี้
+- Ignore ไม่ลบ Secret ออกจาก History
+
+## อ่านต่อ
+
+- [GitHub CLI](/development-workflow/git-pull-request/github-cli)
+- [Git clone](https://git-scm.com/docs/git-clone)
+- [Git config](https://git-scm.com/docs/git-config)
+- [Linux SSH](/technology-guides/linux/ssh-and-file-transfer)

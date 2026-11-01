@@ -1,0 +1,83 @@
+---
+title: "Compliance Checklist"
+description: "Checklist ตาม Phase และ Role สำหรับระบุ Source, Scope, Owner, Test, Evidence และ Gap ของแต่ละ Project"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Compliance": "Template กลาง; ต้องปรับตามข้อกำหนดและ Project จริง"}
+---
+
+# Compliance Checklist
+
+## เรื่องนี้คืออะไร?
+
+Checklist นี้เป็นจุดเริ่มต้นสำหรับรวบรวมคำถามและ Evidence ไม่ใช่ผล Audit หรือ Approval แต่ละ Project ต้องกำหนดข้อกำหนด Owner และ Reviewer จริง
+
+## ก่อนเริ่ม Project
+
+- [ ] ระบุ Regulation, Standard, Contract, Customer requirement และ Policy ที่เกี่ยวข้อง
+- [ ] ระบุ Version/Edition และ Effective date
+- [ ] ระบุ Organization, System และ Data scope
+- [ ] ระบุ Requirement owner และ Technical owner
+- [ ] ทำ Data flow และ Integration inventory
+
+## ระหว่าง Design และ Development
+
+- [ ] แปลง Source/Risk เป็น Requirement และ Acceptance criteria
+- [ ] Review Architecture, Threat model, Privacy และ Data lifecycle ตาม Scope
+- [ ] ระบุ Control owner, Exception และ Risk acceptance path
+- [ ] Trace Requirement ไป Design, Code change และ Test
+- [ ] ไม่ใช้ Production data, Secret หรือ Credential จริงในตัวอย่าง/Test
+
+## ก่อน Release
+
+- [ ] Security, Privacy, Functional และ Recovery tests ผ่านตามเกณฑ์ที่อนุมัติ
+- [ ] Finding มี Severity, Owner, Due date และ Risk decision
+- [ ] Artifact, Commit, PR, Test result และ Environment ตามรอยได้
+- [ ] Migration, Rollback/Forward fix และ Incident contact พร้อมตาม Scope
+- [ ] Approval และ Segregation of duties เป็นไปตาม Process จริง
+
+## ระหว่าง Operation และ Review
+
+- [ ] ตรวจ Access, Change, Incident, Supplier และ Service evidence ตามรอบ
+- [ ] ทดสอบ Restore/Continuity ตาม Target ที่ Owner อนุมัติ
+- [ ] ทบทวน Retention, Data subject request และ Secure disposal
+- [ ] บันทึก Gap, Root cause, Corrective action และ Verify closure
+- [ ] ทบทวนเมื่อ Law, Standard, Contract, System หรือ Threat เปลี่ยน
+
+## รูปแบบบันทึกที่แนะนำ
+
+| Source / Requirement ID | Scope | Owner | Control / Test | Evidence reference | Status / Gap |
+| --- | --- | --- | --- | --- | --- |
+| ระบุ Source และ Version จริง | ระบบ/ข้อมูลที่เกี่ยวข้อง | ผู้รับผิดชอบจริง | วิธีทำและ Verify | Link ที่จำกัดสิทธิ์ | Not reviewed / สิ่งที่ต้องยืนยัน |
+
+อย่าใส่ Secret, Personal data หรือ Evidence ที่มีสิทธิ์จำกัดลงใน Hub ให้เก็บ Reference ไปยังระบบที่องค์กรอนุมัติ
+
+## ข้อควรระวัง
+
+- Checklist ครบไม่ได้แปลว่า Compliant หาก Evidence และ Control ไม่ทำงานจริง
+- Automated scan ไม่แทน Policy, Process, Training หรือ Human review
+- ไม่ตั้ง Owner, Due date, Approval หรือ Audit result สมมติ
+- ข้อกำหนดเปลี่ยนได้ ต้อง Review ตามรอบที่องค์กรกำหนด
+
+## สรุป
+
+- เริ่มจาก Source, Scope และ Owner ที่ยืนยันได้
+- เก็บ Evidence อย่างปลอดภัยและตามรอยได้
+- บันทึก Gap ตามจริง
+- แยก Checklist ออกจากผล Audit/Certification
+
+## อ่านตามบทบาท
+
+- Developer: Requirement traceability, Secure coding, Dependency และ Test evidence
+- QA: Positive/Negative tests, Data handling, Finding และ Regression
+- DevOps: Artifact, Change, Access, Logging, Backup/Restore และ Incident evidence
+- SA/Architect: Scope, Data flow, Risk, NFR และ Decision record
+- Manager/Owner: Priority, Risk acceptance, Resource และ Review outcome
+
+## อ่านต่อ
+
+- [ISO Standards](/standards-compliance/iso-standards)
+- [Laws & Regulations](/standards-compliance/laws-regulations)
+- [Customer Management Case Study](/standards-compliance/customer-management-case-study)

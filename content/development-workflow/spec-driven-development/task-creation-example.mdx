@@ -1,0 +1,172 @@
+---
+title: "ตัวอย่าง Spec — Task Creation"
+description: "ตัวอย่าง Requirements, Plan, Prompts และ Validation สำหรับเพิ่มการสร้าง Task ด้วย Django REST Framework, React และ PostgreSQL"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Django REST Framework": "ไม่ระบุ; ตรวจรุ่นที่ Project ใช้", "React": "ไม่ระบุ; ตรวจรุ่นที่ Project ใช้", "PostgreSQL": "ไม่ระบุ; ตรวจรุ่นที่ Project ใช้"}
+---
+
+# ตัวอย่าง Spec — Task Creation
+
+## เรื่องนี้คืออะไร?
+
+ตัวอย่างนี้แสดงเอกสารสำหรับ Feature “ผู้ใช้สร้าง Task” ตั้งแต่ Requirement ถึง Validation ใช้ Django REST Framework, React และ PostgreSQL เป็น Context แต่ **ไม่ได้สร้างหรือทดสอบ Application จริง**
+
+Contract ที่ใช้ในตัวอย่างนี้ต้องปรับกับระบบจริงก่อน Implement ดูแนวทางร่วมของ Hub ที่ [Fullstack Integration](/technology-guides/fullstack)
+
+## `requirements.md`
+
+```markdown
+# Task Creation Requirements
+
+## Objective
+ให้ผู้ใช้ที่ Login แล้วสร้าง Task ของตนเองได้
+
+## Functional Requirements
+- ผู้ใช้ที่ Login แล้วส่ง title เพื่อสร้าง Task ได้
+- title เป็นข้อมูลบังคับและยาวไม่เกิน 200 ตัวอักษร
+- Task ใหม่มี status เป็น pending
+- Task ต้องผูกกับผู้ใช้จาก Session ที่ Backend ยืนยันแล้ว
+- Client ห้ามกำหนด Owner เป็นผู้ใช้อื่น
+
+## Security Requirements
+- Backend ต้องบังคับ Authentication และ Object ownership
+- Input ทุก Field ต้องผ่าน Backend validation
+- Error response ห้ามเปิดเผย Stack trace, SQL หรือ Secret
+- Security-relevant failure ต้อง Log โดยไม่มี Password, Cookie, Token หรือ Request body ลับ
+
+## Acceptance Criteria
+1. ข้อมูลถูกต้อง: API ตอบ 201 และคืน Task ที่มี status=pending
+2. title ว่าง: API ตอบ Validation error และไม่สร้างข้อมูล
+3. title เกิน 200 ตัวอักษร: API ตอบ Validation error
+4. ยังไม่ Login: API ปฏิเสธคำขอ
+5. ส่ง owner หรือ user_id ของคนอื่น: Backend ไม่ใช้ค่านั้นเป็น Owner
+6. Error response และ Log ไม่มีข้อมูลลับหรือรายละเอียดภายใน
+
+## Edge Cases
+- Trim ช่องว่างก่อนตรวจว่า title ว่าง
+- Double submit ต้องไม่เกิดจากปุ่มที่ยังกดซ้ำได้ระหว่าง Request
+
+## Out of Scope
+- Assign Task ให้ผู้อื่น
+- Due date, Attachment และ Notification
+```
+
+Backend ต้องเป็นจุดบังคับ Ownership การซ่อน Field ที่ Frontend อย่างเดียวไม่ใช่ Authorization
+
+## `plan.md`
+
+```markdown
+# Task Creation Plan
+
+## Discovery ก่อน Implement
+- ตรวจ Task model, Serializer, View และ URL ที่มีอยู่
+- ตรวจ Session authentication และ CSRF flow
+- ตรวจ React API client, Form pattern และ Error handling
+- ตรวจ Test commands และ Migration state
+
+## Implementation Order
+1. ยืนยัน API request/response และ Error contract
+2. เพิ่มหรือปรับ Model constraints เฉพาะเมื่อ Schema ปัจจุบันยังไม่รองรับ
+3. ปรับ Serializer ให้ validate title และไม่รับ owner จาก Client
+4. ปรับ View ให้ใช้ authenticated user เป็น owner
+5. เพิ่ม API tests สำหรับ success, validation, unauthenticated และ forged owner
+6. เพิ่ม React form, loading state และ error display
+7. เพิ่ม Frontend tests สำหรับ submit, validation และ double submit
+
+## Database Impact
+- ตรวจว่าต้องสร้าง Migration หรือไม่
+- ถ้ามี Migration ให้ Review Null/default, Lock และ Rollback compatibility
+
+## Security Tasks
+- บังคับ Authentication และ Ownership ที่ Backend
+- Reject/ignore owner fields จาก Client ตาม Contract ที่ Review แล้ว
+- เพิ่ม Tests สำหรับ unauthenticated, forged owner และ cross-user access
+- ตรวจ Error response และ Log ว่าไม่มี Secret หรือรายละเอียดภายใน
+- ตรวจ Secret source และ Database role โดยไม่บันทึกค่าจริงใน Spec
+
+## Validation
+- Backend unit/API tests
+- Frontend component/integration tests
+- Migration check เมื่อ Schema เปลี่ยน
+- TypeScript, lint และ production build ตาม Repository
+
+## Risks
+- เชื่อ owner จาก Request body
+- CSRF หรือ Session configuration ไม่ตรง Origin
+- Error response ไม่ตรงที่ Frontend คาด
+- กด Submit ซ้ำแล้วสร้าง Task ซ้ำ
+```
+
+ชื่อไฟล์จริงต้องมาจากการ Inspect Repository Plan นี้จึงยังไม่ระบุ Path สมมติ
+
+## Example Claude Code prompt
+
+```text
+อ่าน CLAUDE.md, docs/specs/task-creation/requirements.md และ plan.md
+Inspect Django/React implementation ที่มีอยู่ แล้ว Implement เฉพาะ Task Creation
+Backend ต้องกำหนด owner จาก authenticated session และไม่เชื่อ user_id จาก Client
+เพิ่ม Tests ตาม Acceptance criteria รัน Checks ที่ Repository รองรับ
+รายงาน Conflict, ผลตรวจจริง และสิ่งที่ไม่ได้ทดสอบ
+```
+
+## Example Codex prompt
+
+```text
+อ่าน AGENTS.md และ docs/specs/task-creation/{requirements,plan}.md ก่อนแก้ไฟล์
+Implement Task Creation ตาม Scope โดย Inspect Repository จริงและหลีกเลี่ยง Unrelated changes
+เพิ่ม Backend/Frontend tests สำหรับ Acceptance criteria และตรวจ Migration impact
+รัน Validation commands ที่กำหนด แล้วสรุป Diff, ผลตรวจ และ Known limitations
+```
+
+## `validation.md`
+
+ก่อนรันจริงให้เริ่มด้วยสถานะว่าง ไม่เขียน Pass ล่วงหน้า:
+
+```markdown
+# Task Creation Validation
+
+## Acceptance Criteria
+- [ ] ผู้ใช้ที่ Login แล้วสร้าง Task สำเร็จและได้ status=pending
+- [ ] title ว่างถูกปฏิเสธและไม่สร้าง Row
+- [ ] title เกิน 200 ตัวอักษรถูกปฏิเสธ
+- [ ] ผู้ใช้ที่ยังไม่ Login ถูกปฏิเสธ
+- [ ] owner/user_id จาก Client ไม่เปลี่ยน Ownership
+- [ ] ผู้ใช้หนึ่งอ่านหรือแก้ Task ของผู้ใช้อื่นไม่ได้
+- [ ] Error response และ Log ไม่มี Secret หรือรายละเอียดภายใน
+
+## Security Scans
+- Not run
+
+## Commands and Actual Results
+- Not run
+
+## Remaining Issues
+- ยังไม่ระบุ
+
+## Review Status
+- Pending human review
+```
+
+เมื่อรันแล้วให้บันทึก Command, Environment ที่ไม่ Sensitive, ผลสำเร็จ/ล้มเหลว และข้อจำกัด เช่น “ทดสอบด้วย SQLite เท่านั้น ยังไม่ได้ตรวจ PostgreSQL” ห้ามเขียนว่า PostgreSQL ผ่านหากไม่ได้รันกับ PostgreSQL
+
+## ข้อควรระวัง
+
+- ตัวอย่างไม่ได้กำหนด Endpoint เพราะต้องใช้ Contract ของ Project จริง
+- อย่าใช้ Frontend validation แทน Backend validation
+- อย่าทำ Migration ทั้งที่ Schema ปัจจุบันรองรับอยู่แล้ว
+- Tests ผ่านยังไม่พิสูจน์ UX หรือ Acceptance criteria ที่ไม่ได้ Automate
+
+## สรุป
+
+- Ownership มาจากผู้ใช้ที่ Backend ยืนยัน ไม่ใช่ Request body
+- Requirements, Plan, Tests และ Validation อ้างกติกาชุดเดียวกัน
+- Plan ต้องตรวจโค้ดจริงก่อนระบุไฟล์
+- Validation บันทึกผลจริงและสิ่งที่ยังไม่ได้ตรวจ
+
+## อ่านต่อ
+
+- [Authentication Flow](/technology-guides/fullstack/authentication-flow)
+- [PostgreSQL Migrations](/technology-guides/postgresql/migrations)

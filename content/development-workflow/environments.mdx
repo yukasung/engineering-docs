@@ -1,0 +1,52 @@
+---
+title: "DEV / UAT / Production"
+description: "เข้าใจหน้าที่ของ Environment และการส่ง Artifact ที่ผ่านการตรวจไปยังปลายทางถัดไป"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Delivery workflow": "แนวทางกลาง; ใช้ Project runbook และ Environment จริง"}
+---
+
+# DEV / UAT / Production
+
+## เรื่องนี้คืออะไร?
+
+Environment คือชุดระบบ Configuration และข้อมูลที่ใช้ตามวัตถุประสงค์ต่างกัน Branch เป็นประวัติ Code จึงไม่ใช่ Environment และชื่อ `develop` ไม่ได้สร้าง DEV server ขึ้นมา
+
+| Environment | ใช้ทำอะไร | ข้อควรระวัง |
+| --- | --- | --- |
+| DEV | รวมและตรวจ Change ของทีม | ข้อมูล/Secret ต้องแยกจาก Production |
+| UAT | ให้ผู้เกี่ยวข้องตรวจ Requirement | ใช้ Acceptance criteria และรุ่นที่ตามรอยได้ |
+| Production | ให้บริการผู้ใช้จริง | ต้องมี Approval, Monitoring, Backup และ Recovery ตาม Project |
+
+## ทำอย่างไร?
+
+1. Merge Change ตาม Pull Request policy
+2. ให้ CI ตรวจ Commit ที่จะสร้าง Release
+3. Build Artifact หรือ Image ที่ระบุ Version/Digest ได้
+4. Deploy ไป DEV และตรวจ Technical flow
+5. Promote Artifact รุ่นเดิมไป UAT เมื่อทำได้
+6. บันทึกผล UAT และ Approval ที่เกิดขึ้นจริง
+7. Deploy Production ตาม Runbook แล้วเฝ้าดูผล
+
+รายละเอียด Configuration, Secrets และ Approval อยู่ที่ [Environments & Secrets](/technology-guides/devops/environments-and-secrets) ส่วนลำดับ Deploy ใช้ [Deploy Runbook](/technology-guides/devops/deploy-compose) หรือ Project runbook จริง
+
+## ข้อควรระวัง
+
+- ไม่แก้ Code/Database บน UAT หรือ Production โดยตรงเป็นขั้นตอนปกติ
+- Build ใหม่ระหว่าง Environment แล้วอ้างว่าเป็นรุ่นเดียวกับที่ UAT ตรวจไม่ได้
+- Code rollback ไม่ย้อน Migration หรือ Data change ตาม
+- Production incident ต้องใช้ Runbook และเก็บหลักฐาน ไม่ทดลองคำสั่งแบบสุ่ม
+
+## สรุป
+
+- Branch และ Environment เป็นคนละเรื่อง
+- Promote Artifact ที่ผ่านการตรวจเมื่อทำได้
+- แยก Configuration, Secrets และข้อมูลตาม Environment
+- ใช้ Project runbook สำหรับระบบจริง
+
+## อ่านต่อ
+
+- [CI/CD & Operations](/technology-guides/devops)
+- [Release & Rollback](/technology-guides/devops/rollback-and-release)

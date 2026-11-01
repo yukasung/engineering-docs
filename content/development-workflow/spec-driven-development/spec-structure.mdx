@@ -1,0 +1,126 @@
+---
+title: "โครงสร้าง Spec แบบ Lightweight"
+description: "จัด Project context และ Feature spec ให้ Agent กับทีมใช้อ้างอิงร่วมกันโดยไม่สร้างเอกสารเกินจำเป็น"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"SDD": "แนวทางแบบ Lightweight; ไม่ผูกกับเครื่องมือ"}
+---
+
+# โครงสร้าง Spec แบบ Lightweight
+
+## เรื่องนี้คืออะไร?
+
+โครงสร้างนี้แยกข้อมูลระดับ Project ออกจากข้อมูลของ Feature ข้อมูลที่ทุก Feature ใช้ร่วมกันเขียนครั้งเดียว ส่วน `requirements.md`, `plan.md` และ `validation.md` อยู่กับ Feature นั้น
+
+## โครงสร้างแนะนำ
+
+```text
+project/
+├── AGENTS.md
+├── CLAUDE.md
+├── docs/
+│   ├── mission.md
+│   ├── tech.md
+│   ├── architecture.md
+│   └── specs/
+│       └── task-creation/
+│           ├── requirements.md
+│           ├── plan.md
+│           └── validation.md
+└── src/
+```
+
+นี่เป็น **คำแนะนำ** ไม่ใช่โครงสร้างบังคับ ถ้า Repository มีที่เก็บ ADR, RFC หรือ Feature spec อยู่แล้ว ให้ใช้ของเดิมและบอก Path ที่ถูกต้องกับ Agent
+
+## ไฟล์ระดับ Project
+
+### `mission.md`
+
+บอก Project purpose, Business goals, Target users, Main scope และ Out of scope ช่วยป้องกัน Agent แก้ปัญหาที่อยู่นอกเป้าหมายระบบ
+
+### `tech.md`
+
+บอก Technology stack และ Version ที่ Pin, เครื่องมือพัฒนา, Coding conventions, Testing tools และ Deployment environment ห้ามใส่ Secret หรือค่าจริงที่ไม่ควรอยู่ใน Git
+
+### `architecture.md`
+
+บอก Components, หน้าที่, Database, APIs, Integrations และข้อจำกัดทางสถาปัตยกรรม อัปเดตเมื่อ Design เปลี่ยนจริง ไม่คัดลอกลงทุก Feature
+
+## ไฟล์ระดับ Feature
+
+### `requirements.md`
+
+ตอบว่า Feature มีเป้าหมายอะไร ใครใช้ Functional requirements, Business rules, Acceptance criteria, Edge cases และ Non-functional requirements ที่เกี่ยวข้อง
+
+```markdown
+# Task Creation
+
+## Objective
+ให้ผู้ใช้ที่ Login แล้วสร้าง Task ของตนเองได้
+
+## Requirements
+- ต้องมี title
+- title ยาวไม่เกิน 200 ตัวอักษร
+
+## Acceptance Criteria
+- เมื่อข้อมูลถูกต้อง API ตอบ 201 และ Task มี status=pending
+- เมื่อ title ว่าง API ตอบ Validation error
+```
+
+### `plan.md`
+
+แปลง Requirements เป็นลำดับงาน ระบุไฟล์หรือ Component ที่คาดว่าต้องแก้ Dependencies, Tests, Migration impact, Deployment considerations และ Risks แต่ Plan ยังไม่ใช่หลักฐานว่าทำแล้ว
+
+### `validation.md`
+
+บันทึก Acceptance criteria checklist, Tests ที่รันจริง, ผลจริง, ปัญหาค้าง และสถานะ Review ใช้คำว่า “ผ่าน” เฉพาะเมื่อมีผลตรวจจริง
+
+## `AGENTS.md` กับ `CLAUDE.md`
+
+ไฟล์สองชนิดนี้เป็น **Repository instructions** ไม่ใช่ Requirements ของ Feature
+
+- `AGENTS.md` ใช้บอก Codex ถึง Architecture constraints, Coding standards, Tests, Security และ Workflow ของ Repository
+- `CLAUDE.md` ใช้บอก Claude Code ถึง Project context, Commands และข้อตกลงที่ต้องรู้ทุก Session
+- เก็บ Shared standard ไว้ที่แหล่งเดียว แล้วให้ไฟล์ของ Agent ชี้ไปยังแหล่งนั้นตามความสามารถที่รองรับ
+- อย่าสมมติว่า Claude Code และ Codex อ่านไฟล์หรือจัดลำดับ Instruction เหมือนกันทุกกรณี
+
+ตัวอย่างแบบสั้น:
+
+```markdown filename="AGENTS.md"
+# Repository Rules
+- Read docs/specs/<feature>/requirements.md before implementation.
+- Do not change requirements without reporting the conflict.
+- Run the documented lint, test, and build commands.
+- Never commit secrets or real user data.
+```
+
+```markdown filename="CLAUDE.md"
+# Project Context
+- Read docs/tech.md and docs/architecture.md before major changes.
+- Use the active feature requirements and plan as the implementation scope.
+- Report unclear business rules before implementation.
+- Run the repository validation commands before finishing.
+```
+
+ข้อมูลล่าสุดเกี่ยวกับไฟล์ Instruction ให้ตรวจ [Codex workflow จาก OpenAI](https://developers.openai.com/cookbook/examples/codex/iterating-development-workflows-with-codex) และ [Claude Code memory](https://code.claude.com/docs/en/memory) ก่อนนำไปกำหนดเป็นนโยบายทีม
+
+## ข้อควรระวัง
+
+- อย่าคัดลอก Architecture ทั้งระบบลง Feature ทุกอัน
+- อย่าใส่ผล Tests ล่วงหน้าใน `validation.md`
+- อย่าใช้ Plan แทน Requirements เพราะ Plan บอกวิธีทำ ไม่ได้บอก Business outcome
+- งานเล็กไม่จำเป็นต้องสร้างโฟลเดอร์ครบสามไฟล์
+
+## สรุป
+
+- Project context เขียนครั้งเดียว Feature spec เขียนเฉพาะ Change
+- Requirements บอกสิ่งที่ต้องได้ Plan บอกวิธี Validation บอกผลจริง
+- Instruction files กับ Feature spec มีหน้าที่ต่างกัน
+- ลดไฟล์ได้เมื่อความเสี่ยงต่ำ แต่ต้องมี Acceptance Criteria
+
+## อ่านต่อ
+
+- [Workflow ของทีม](/development-workflow/spec-driven-development/workflow)
+- [ตัวอย่าง Task Creation](/development-workflow/spec-driven-development/task-creation-example)

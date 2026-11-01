@@ -1,0 +1,69 @@
+---
+title: "Data Governance"
+description: "กำหนด Ownership, Classification, Quality, Lifecycle และ Access ของข้อมูลให้ทีมทำงานร่วมกันได้"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Data Governance": "version-neutral; organization policy not selected", "PDPA": "Thailand; applicability requires DPO/Legal confirmation"}
+---
+
+# Data Governance
+
+## เรื่องนี้คืออะไร?
+
+Data Governance คือการกำหนดผู้รับผิดชอบ กติกา และ Decision สำหรับข้อมูลตลอด Lifecycle ตั้งแต่สร้าง ใช้ แชร์ เก็บรักษา จนลบ ไม่ใช่เพียงเลือก Database หรือทำ Data catalog
+
+## บทบาทที่ควรแยก
+
+| บทบาท | ความรับผิดชอบหลัก |
+| --- | --- |
+| Data owner | ตัดสิน Purpose, Access, Quality และ Risk ของชุดข้อมูล |
+| Data steward | ดู Definition, Quality rule และการใช้งานประจำวัน |
+| System owner | ดู Capability, Availability และ Change ของระบบ |
+| Custodian/Platform team | ดู Storage, Backup, Access mechanism และ Technical operation |
+| DPO/Legal/Security | ให้คำแนะนำและ Challenge ตามหน้าที่ ไม่รับ Ownership แทนทั้งหมด |
+
+ใช้ชื่อบทบาทตามที่องค์กรอนุมัติจริง ตารางนี้เป็นตัวอย่างเท่านั้น
+
+## ทำอย่างไร?
+
+1. ทำ Data inventory และ Business glossary
+2. ระบุ Classification และ Personal/Sensitive data
+3. กำหนด Source of truth, Owner และ Quality rules
+4. วาด Data lineage ว่าข้อมูลมาจากไหน เปลี่ยนอย่างไร และส่งไปไหน
+5. กำหนด Access, Retention, Archive และ Secure disposal
+6. วัด Quality issue และทบทวนเมื่อ Purpose/Integration เปลี่ยน
+
+## ตัวอย่าง: Customer Management
+
+กำหนด `customer_id` เป็น Identifier ภายใน ไม่ใช้เลขบัตรประชาชนเป็น Primary key ระบุ CRM เป็น Source of truth ของข้อมูลติดต่อ และกำหนดว่าระบบ Billing อ่านข้อมูลใดได้ เมื่อผู้ใช้แก้อีเมลต้องมี Validation, Audit trail และ Sync failure handling
+
+## Checklist สั้น
+
+- [ ] ทุก Critical field มี Definition และ Owner
+- [ ] Classification เชื่อมกับ Access และ Handling
+- [ ] Data flow รวม Export, Analytics, Backup และ Supplier
+- [ ] Retention มี Trigger และ Disposal ที่ทดสอบได้
+- [ ] DEV/UAT ไม่ใช้ Production data โดยไม่มี Approval และ Control
+- [ ] Data quality issue มีช่องทางแก้และติดตาม
+
+## ข้อควรระวัง
+
+- Encryption ไม่แทน Purpose limitation หรือ Access review
+- Backup ไม่ใช่ Archive และ Retention policy ต้องพิจารณาสำเนาด้วย
+- Data lake ไม่ควรเป็นที่เก็บข้อมูล “เผื่อใช้” โดยไม่มี Owner/Purpose
+- ห้ามใส่ Personal data หรือ Secret ใน Evidence ของ Hub
+
+## สรุป
+
+- Data ต้องมี Owner และ Definition
+- จัดการทั้ง Flow และ Lifecycle ไม่ใช่เฉพาะ Table
+- Classification ต้องเปลี่ยนวิธี Access/Handling จริง
+- Retention และ Disposal ต้องทดสอบได้
+
+## อ่านต่อ
+
+- [PDPA](/standards-compliance/laws-regulations/pdpa)
+- [Customer Management Case Study](/standards-compliance/customer-management-case-study)
+- [PostgreSQL Guide](/technology-guides/postgresql)

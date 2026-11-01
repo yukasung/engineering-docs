@@ -1,0 +1,94 @@
+---
+title: "Logs & Resources — อ่าน Log CPU Memory และ Disk"
+description: "ตรวจช่วงเวลาที่เกิดปัญหา แยก Disk/Inodes และเข้าใจ Memory available ก่อนแก้ไข"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Logs & Resources — อ่าน Log CPU Memory และ Disk
+
+## เรื่องนี้คืออะไร?
+
+Logs บอกเหตุการณ์ของโปรแกรม ส่วน Resource metrics บอกการใช้ CPU, Memory และพื้นที่ ใช้เวลาเดียวกันช่วยแยกว่าปัญหาอยู่ในแอปหรือระบบ ไม่สรุปจากตัวเลขครั้งเดียว
+
+## ทำอย่างไร?
+
+### อ่าน Log ช่วงที่เกี่ยวข้อง
+
+ใช้ไฟล์สมมติจาก [Linux Lab](/technology-guides/linux/getting-started):
+
+```bash
+cd "${LINUX_LAB_DIR:?ให้เริ่ม Linux Lab ก่อน}"
+tail -n 20 logs/app.log
+grep -n 'ERROR' logs/app.log
+```
+
+จะเห็น DB_UNAVAILABLE จากข้อมูลตัวอย่าง ไม่ใช่หลักฐานว่า DB จริงเสีย ใช้ less กับไฟล์ใหญ่ และ tail -f เมื่อต้องติดตามไฟล์ที่ยังเขียนอยู่ ใช้ Ctrl+C หยุด ถ้ามี Log rotation และต้องตามชื่อไฟล์ใหม่ GNU tail -F เป็นอีกทางเลือก
+
+สำหรับ Host/VM ที่มี systemd และ nginx.service อยู่จริง:
+
+```bash
+journalctl -u nginx.service --since '30 min ago' -n 100 --no-pager --utc
+journalctl -k --since '30 min ago' -n 100 --no-pager --utc
+```
+
+-u จำกัด Unit, -k ดู Kernel logs เช่น OOM/Device errors และ --utc แสดงเวลา UTC สิทธิ์บัญชีอาจทำให้เห็น Log ไม่ครบ ไม่แปลว่าไม่มีเหตุการณ์ ก่อนแชร์ต้องตัด Password, Cookie, Token และข้อมูลผู้ใช้ออก
+
+ถ้าต้องเทียบช่วงเวลาแบบเจาะจง ให้ระบุ Timezone ใน Input ด้วย ตัวอย่างเวลาสมมติ ไม่ใช่เหตุการณ์ที่ตรวจพบ:
+
+```bash
+journalctl -u nginx.service \
+  --since '2026-11-01 08:00:00 UTC' --until '2026-11-01 08:10:00 UTC' \
+  --no-pager --utc
+```
+
+### CPU และ Memory
+
+```bash
+uptime
+top
+free -h
+```
+
+uptime แสดง Load average ช่วง 1/5/15 นาที ซึ่งรวมงานที่รอ CPU/บาง I/O ไม่ใช่เปอร์เซ็นต์ CPU อย่างเดียว top ดู Process ที่ใช้ Resource และใช้ q ออก ส่วน free ให้ดู **available** ประกอบ เพราะ Linux ใช้ RAM เป็น Cache ได้ free ต่ำอย่างเดียวไม่ยืนยัน Memory leak
+
+ใน Container ข้อมูลที่เห็นอาจอิง Host/VM และไม่สะท้อน cgroup limit ของ Container ทั้งหมด ให้ดู docker stats หรือ kubectl top/Pod limits ตาม Runtime และ Metrics ที่มี อย่าใช้ free สรุปว่า Pod มี RAM ได้เท่าที่รายงานทั้งหมด
+
+### Disk space กับ Inodes
+
+```bash
+df -h .
+df -i .
+du -h --max-depth=1 -- "${LINUX_LAB_DIR:?ให้เริ่ม Linux Lab ก่อน}"
+```
+
+df -h ดูพื้นที่ Filesystem ของตำแหน่งปัจจุบัน ส่วน -i ดู Inodes หรือจำนวนโครงสร้างไฟล์ที่เหลือ ไฟล์เล็กจำนวนมากอาจทำ Inodes เต็มแม้ยังมีพื้นที่ ส่วน du ดูขนาดข้อมูลที่เดินอ่านได้ จำกัด Path ก่อนสแกน ไม่เริ่ม du / บนเครื่องใหญ่
+
+## ตัวอย่างการใช้งานจริง
+
+Backend เขียน Log ไม่ได้: ตรวจ df ทั้งพื้นที่และ Inodes → ดู Permission/Read-only mount → หาว่า Log หรือข้อมูลส่วนใดโต หาก df เต็มแต่ du ดูไม่มาก อาจมีไฟล์ที่ถูกลบแต่ Process ยังเปิดอยู่, Mount scope, Reserved blocks หรือข้อจำกัดการอ่าน ต้องหาสาเหตุก่อนลบเพิ่ม
+
+Log rotation คือการหมุน/จำกัดการเก็บ Log ตาม Retention policy ต้องตั้งตาม Service/Runtime สำหรับ Docker ให้ใช้ Log driver/rotation ที่ทีมเลือก ไม่เข้าไปตัดไฟล์ภายใน Data directory ของ Docker/DB เอง
+
+## ข้อควรระวัง
+
+อย่ารัน rm กับ /var/log, truncate Log หรือ docker system prune --volumes เพื่อแก้ Disk full โดยยังไม่ทราบว่าอะไรต้องเก็บ การลบหลักฐานอาจทำให้ตามเหตุไม่ได้ ส่วน Database/WAL ต้องจัดการผ่านวิธีของ PostgreSQL ไม่ลบไฟล์เอง
+
+ถ้าพบ OOM, Disk I/O errors หรือ Filesystem ถูก Remount เป็น Read-only ต้องประเมินผลกระทบและส่งต่อผู้ดูแลตาม Runbook การ Restart อย่างเดียวอาจทำอาการซ้ำ
+
+## สรุปสิ่งที่ต้องจำ
+
+- เทียบเวลาและ Timezone ของ Log ให้ตรง
+- Load average ไม่ใช่ %CPU และ free ต่ำไม่ใช่ RAM หมดเสมอ
+- ตรวจทั้งพื้นที่และ Inodes
+- เก็บหลักฐาน/วาง Retention ก่อนลบข้อมูล
+
+## อ่านต่อ
+
+- [Troubleshooting](/technology-guides/linux/troubleshooting)
+- [PostgreSQL Troubleshooting](/technology-guides/postgresql/troubleshooting)
+- [journalctl 255](https://manpages.ubuntu.com/manpages/noble/man1/journalctl.1.html)
+- [free](https://manpages.ubuntu.com/manpages/noble/man1/free.1.html) และ [df](https://manpages.ubuntu.com/manpages/noble/man1/df.1.html)

@@ -1,0 +1,111 @@
+---
+title: "Commands — kubectl ที่ใช้บ่อย"
+description: "ตัวอย่างคำสั่งแยก Cluster Nodes Pods Deployments Services Scaling Logs Debugging และ Rollout"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Commands — kubectl ที่ใช้บ่อย
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้รวมคำสั่งสำหรับ Local lab ชื่อ task-lab ทุกตัวอย่างระบุ Context และ Namespace เพื่อให้เห็นปลายทาง ใช้จากพื้นที่ทดลองที่คัดไฟล์ตาม [รายการ](/technology-guides/kubernetes) แล้ว ไม่ใช่คำสั่งที่งานเอกสารนี้ได้รันกับ Cluster
+
+ชื่อ `POD_NAME` เป็น Placeholder ให้แทนชื่อจริง ส่วนชื่อ deployment/backend, frontend และ db ตรงกับทุกบท ตารางแต่ละแถวคือคำสั่งตัวอย่างพร้อมหน้าที่ ไม่ใช่ Script ที่ควร Copy รันรวดเดียว
+
+## Cluster และ Nodes
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl version --client` | ดูรุ่น Client โดยไม่ต่อ Cluster |
+| `kubectl --context kind-task-lab cluster-info` | ดู API/control-plane address |
+| `kubectl --context kind-task-lab get nodes -o wide` | ดู Node Ready รุ่น และ IP |
+| `kubectl --context kind-task-lab get pods -A` | ดู System/แอปทุก Namespace |
+| `kubectl --context kind-task-lab get storageclass` | ตรวจชื่อ Class ก่อนขอ Volume |
+
+## Pods และ Logs
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl --context kind-task-lab -n task-demo get pods -o wide` | ดู READY STATUS RESTARTS Node และ IP |
+| `kubectl --context kind-task-lab -n task-demo describe pod POD_NAME` | ดู Conditions, Last State และ Events |
+| `kubectl --context kind-task-lab -n task-demo logs POD_NAME -c backend --tail=100` | อ่าน 100 บรรทัดท้ายของ Backend ปัจจุบัน |
+| `kubectl --context kind-task-lab -n task-demo logs POD_NAME -c backend --previous --tail=100` | อ่าน Container instance ก่อนหน้าใน Pod เดิม |
+| `kubectl --context kind-task-lab -n task-demo logs deployment/backend --all-pods=true --all-containers=true --tail=50` | ดู Log หลาย Pods ของ Deployment ตาม Client ที่รองรับ |
+
+Container frontend/db ต้องเปลี่ยน -c ให้ตรง ไม่ใช้ Logs เป็นช่องทางส่ง Password/Token ตรวจและตัดข้อมูลลับก่อนแชร์
+
+## Deployments และ Services
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl --context kind-task-lab -n task-demo get deployments` | เทียบ READY, UP-TO-DATE, AVAILABLE |
+| `kubectl --context kind-task-lab -n task-demo describe deployment backend` | ดู Strategy, ReplicaSets และ Conditions |
+| `kubectl --context kind-task-lab -n task-demo get services` | ดู Type/ClusterIP/Ports; ClusterIP ไม่ใช่ Public URL |
+| `kubectl --context kind-task-lab -n task-demo describe service backend` | เทียบ Selector และ Ports |
+| `kubectl --context kind-task-lab -n task-demo get endpointslices -l kubernetes.io/service-name=backend` | ดูปลายทางที่ Service เลือก |
+
+Debug ทางเข้าชั่วคราวด้วยคำสั่งด้านล่างแล้วเปิด localhost:8080 ใช้ Ctrl+C หยุด ไม่เปิด --address 0.0.0.0 โดยไม่มีเหตุจำเป็น:
+
+```bash
+kubectl --context kind-task-lab -n task-demo port-forward service/frontend 8080:8080 --address 127.0.0.1
+```
+
+## Scaling และ Metrics
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl --context kind-task-lab -n task-demo top pods` | ดู CPU/Memory ต้องมี Metrics infrastructure |
+| `kubectl --context kind-task-lab -n task-demo get hpa` | ดู TARGETS MIN/MAX และ Replicas |
+| `kubectl --context kind-task-lab -n task-demo describe hpa backend` | ดู ScalingActive/Limited และเหตุที่ Scale ไม่ได้ |
+
+คำสั่งนี้ **เปลี่ยนจำนวน Pods** ใช้เมื่อไม่มี HPA/Automation เขียนจำนวนแข่งกัน และบันทึกค่าที่เลือกใน Git:
+
+```bash
+kubectl --context kind-task-lab -n task-demo scale deployment backend --replicas=3
+```
+
+## Debugging และ Storage
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl --context kind-task-lab -n task-demo get events --sort-by=.metadata.creationTimestamp` | อ่าน Events ตามเวลา ไม่ใช่ Audit log ถาวร |
+| `kubectl --context kind-task-lab -n task-demo get pvc` | ดู Pending/Bound ของ Claims |
+| `kubectl --context kind-task-lab -n task-demo describe pvc data-db-0` | หาเหตุที่ Provision/Mount ไม่ได้ |
+| `kubectl --context kind-task-lab -n task-demo logs job/backend-migrate-v1` | ตรวจ Migration job โดยไม่รัน Migration ซ้ำ |
+
+## Rollout / Rollback
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร / อ่านผลอย่างไร |
+| --- | --- |
+| `kubectl --context kind-task-lab -n task-demo rollout status deployment/backend --timeout=180s` | รอ Rollout; Timeout ไม่ได้ Undo ให้อัตโนมัติ |
+| `kubectl --context kind-task-lab -n task-demo rollout history deployment/backend` | ดู Revisions ที่ยังเก็บ |
+
+**คำสั่งต่อไปเปลี่ยนแอปที่รัน** อ่าน [Rollout / Rollback](/technology-guides/kubernetes/rollout-rollback) ก่อน ตัวอย่าง v2 ต้อง Build/Test/Load แล้ว และ Undo ต้องเลือก Revision จริงที่ยังใช้กับ Schema/Config ปัจจุบันได้:
+
+```bash
+kubectl --context kind-task-lab -n task-demo set image deployment/backend backend=task-backend:k8s-lab-v2
+kubectl --context kind-task-lab -n task-demo rollout undo deployment/backend --to-revision=1
+```
+
+ห้ามรันสองบรรทัดนี้ตามกันเพื่อ “ทดสอบให้ผ่าน” บรรทัดแรกปล่อยรุ่นใหม่ บรรทัดสองกลับรุ่น ทั้งคู่ต้องตรวจผลและปรับ Git ให้ตรงกับสิ่งที่เลือก Code rollback ไม่ใช่ DB rollback
+
+## คำสั่งที่ทำข้อมูลหายได้
+
+การลบ PVC/Namespace/Cluster อาจทำข้อมูลหาย ดู [Storage](/technology-guides/kubernetes/storage) และ [วิธีเลิกใช้ Local cluster](/technology-guides/kubernetes/getting-started) ก่อน หน้านี้ไม่ให้คำสั่ง Delete แบบเหมาทุก Resource เป็นขั้น Debug เพราะอาจเสียข้อมูลและหลักฐาน
+
+## สรุปสิ่งที่ต้องจำ
+
+- ระบุ Context/Namespace และแทนชื่อ Pod ให้ถูก
+- อ่าน State/Logs ก่อนคำสั่งเปลี่ยนระบบ
+- top/HPA ต้องมี Metrics
+- คำสั่ง Undo/Delete ต้องมีแผนข้อมูลและการตรวจผล
+
+## อ่านต่อ
+
+- [Troubleshooting](/technology-guides/kubernetes/troubleshooting)
+- [kubectl reference](https://kubernetes.io/docs/reference/kubectl/)
+- [Deployments](/technology-guides/kubernetes/deployments)

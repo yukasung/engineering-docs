@@ -1,0 +1,150 @@
+---
+title: "Data Migration — เปลี่ยนข้อมูลเดิมและข้อมูลอ้างอิง"
+description: "แยก Schema Data และ Reference data พร้อม Idempotency, SQL normalization และ Django RunPython"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17", "Django": "5.2 (RunPython ตัวอย่าง ยังต้องทดสอบกับประวัติโปรเจกต์)"}
+---
+
+# Data Migration — เปลี่ยนข้อมูลเดิมและข้อมูลอ้างอิง
+
+## เรื่องนี้คืออะไร?
+
+Data migration คือการเปลี่ยนข้อมูลที่มีอยู่ด้วยกติกาที่ระบุ เช่นปรับ Email ให้เป็นรูปแบบเดียวกัน ส่วน Schema migration เปลี่ยนโครงสร้าง และ Master/Reference data คือข้อมูลอ้างอิงที่ระบบใช้ร่วมกัน ทั้งสามอย่างต้องมีรุ่นและวิธีตรวจที่เหมาะสม
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อเพิ่มช่องที่ต้องเติมข้อมูลเก่า แก้รูปแบบข้อมูล หรือส่งข้อมูลอ้างอิงไปทุก Environment ไม่ใช้การแก้เฉพาะ UAT ผ่าน Editor เป็นขั้นตอนส่งงานตามปกติ
+
+## ทำอย่างไร?
+
+### แยกประเภทก่อนเลือกวิธี
+
+| ประเภท | ตัวอย่าง |
+| --- | --- |
+| Schema | เพิ่ม `customers.phone_number` |
+| Data | ปรับ Email เดิมเป็นตัวเล็กและตัดช่องว่างหลังตกลงกติกา |
+| Master/Reference seeding | เพิ่ม/ปรับ SKU ที่ระบบใช้ โดยระบุ Key คงที่และข้อมูลที่ห้ามทับ |
+
+`orders.status` ใน Schema Lab ถูกกำหนดด้วย CHECK จึงไม่เพิ่มตารางสถานะใหม่เพียงเพื่อ Seed การอนุญาตสถานะใหม่ต้องเปลี่ยน Constraint/กติกาแอปก่อน ส่วนการเปลี่ยนสถานะ Order ที่มีอยู่เป็นงานธุรกิจที่อาจกระทบ Stock ไม่ทำแบบเหมารวม
+
+### 1. SQL Data migration ที่ทำซ้ำได้
+
+**Idempotency** คือรันซ้ำแล้วไม่สร้างผลเพิ่มจากครั้งก่อน ตัวอย่างนี้สมมติว่าทีมตกลงให้ Email ของลูกค้าเป็นตัวเล็กและไม่มีช่องว่างรอบนอกแล้ว ต้องตรวจว่าคนละบัญชีจะกลายเป็นค่าเดียวกันหรือไม่ และควบคุม Writers ระหว่างเปลี่ยนด้วย
+
+ใช้กับ Schema/Seed เดิมได้ เก็บเป็นไฟล์ Migration; ใน Lab เริ่มต้น Email ถูกอยู่แล้วจึงอาจไม่เปลี่ยนแถว:
+
+```sql filename="normalize-customer-email.sql"
+BEGIN;
+SET LOCAL lock_timeout = '3s';
+LOCK TABLE customers IN SHARE ROW EXCLUSIVE MODE;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT lower(btrim(email))
+        FROM customers
+        GROUP BY lower(btrim(email)) HAVING COUNT(*) > 1
+    ) THEN
+        RAISE EXCEPTION 'email normalization would merge distinct customers';
+    END IF;
+END;
+$$;
+
+UPDATE customers SET email = lower(btrim(email))
+WHERE email IS DISTINCT FROM lower(btrim(email));
+COMMIT;
+```
+
+ตัวอย่างล็อกกัน Writers ระหว่างตรวจ/แก้ แต่ทำให้การเขียนต้องรอ จึงใช้กับ Lab/งานเล็กที่วางช่วงเปลี่ยนแล้ว ตารางใหญ่ต้องออกแบบ Batch/การกันค่าชนให้เหมาะ ไม่ยก Lock ทั้งตารางนี้ไปใช้ทุกระบบ การรันซ้ำไม่เปลี่ยนผล แต่ **ไม่แปลว่าย้อนรูปแบบเดิมได้** เพราะข้อมูลตัวใหญ่/ช่องว่างเดิมถูกทิ้ง
+
+Migration นี้แก้เฉพาะข้อมูลเดิม ไม่ได้ทำให้ UNIQUE ของ Email เปลี่ยนเป็นแบบไม่แยกตัวใหญ่เล็ก ต้องกำหนดการ Normalize ข้อมูลเขียนใหม่ด้วย หากต้องบังคับที่ DB ให้ Review การเพิ่ม Unique expression index ที่ตรงกติกาและตรวจค่าชนก่อน Schema Lab ยังไม่ได้เพิ่ม Index นั้นให้
+
+### 2. Django RunPython ทางเลือก
+
+สำหรับ Django App `shop` ที่มี Customer model/Migration history และ Schema ที่ตรงจริงเท่านั้น **ไม่รันตาม SQL migration ด้านบนซ้ำเพื่อจัดการ State** ตัวอย่างต้องหยุด/ควบคุม Writers ตามแผน หรือสร้างวิธีป้องกันค่าชนที่รองรับงานจริงก่อนใช้:
+
+```python filename="0003_normalize_customer_email.py"
+from django.db import migrations
+from django.db.models import Count
+from django.db.models.functions import Lower, Trim
+
+
+def normalize_emails(apps, schema_editor):
+    Customer = apps.get_model("shop", "Customer")
+    database = schema_editor.connection.alias
+    rows = Customer.objects.using(database)
+    collisions = (
+        rows.annotate(normalized_email=Lower(Trim("email")))
+        .values("normalized_email")
+        .annotate(total=Count("pk"))
+        .filter(total__gt=1)
+    )
+    if collisions.exists():
+        raise ValueError("Review duplicate normalized emails before migration")
+    rows.exclude(email=Lower(Trim("email"))).update(
+        email=Lower(Trim("email"))
+    )
+
+
+class Migration(migrations.Migration):
+    dependencies = [("shop", "0002_customer_phone_number")]
+    operations = [migrations.RunPython(normalize_emails)]
+```
+
+ใช้ Historical model จาก `apps.get_model` ไม่ Import Model ปัจจุบัน และใช้ DB alias ของ Schema editor ตัวอย่างไม่มี Reverse function เพราะคืนรูปแบบเดิมไม่ได้ Django migration บน PostgreSQL ปกติอยู่ใน Transaction แต่ไม่ได้แก้ Race กับ Writers ให้อัตโนมัติทุกกรณี และการ UPDATE ทั้งตารางอาจถือ Locks นาน
+
+### 3. Seed ข้อมูลอ้างอิงโดยไม่เขียนทับ Stock
+
+ตัวอย่าง Product อ้างอิงที่ยังไม่มี Stock ใช้ SKU เป็น Key ไม่ใช้รหัส Identity ที่อาจต่างกันข้าม Environment:
+
+```sql filename="seed-reference-product.sql"
+BEGIN;
+INSERT INTO products (sku, name, unit_price, stock)
+VALUES ('SKU-REF-001', 'Reference Product', 0.00, 0)
+ON CONFLICT (sku) DO UPDATE
+SET name = EXCLUDED.name;
+COMMIT;
+```
+
+`ON CONFLICT` เลือกปรับชื่อเมื่อ Key มีแล้ว ไม่ Reset Stock/ราคา/ประวัติที่ผู้ใช้ดูแล ตัวเลข/ชื่อเป็นข้อมูลสาธิต ต้อง Review ค่าอ้างอิงจริงก่อนส่งต่อ ไม่ Seed ลูกค้าหรือ Password ทดสอบลง Production
+
+### 4. ตัวอย่างเพิ่มสถานะที่อนุญาต
+
+นี่เปลี่ยน Schema เพื่อให้รุ่นใหม่ใช้ `packed` ได้ **ยังไม่เปลี่ยนสถานะ Order เดิม** ใช้เป็น Migration ของ Lab หนึ่งครั้งและตรวจโค้ดเก่า/รายงานรองรับค่าใหม่ก่อน:
+
+```sql filename="expand-order-status.sql"
+BEGIN;
+SET LOCAL lock_timeout = '3s';
+ALTER TABLE orders DROP CONSTRAINT orders_status_check;
+ALTER TABLE orders ADD CONSTRAINT orders_status_check
+CHECK (status IN ('pending', 'confirmed', 'cancelled', 'packed'));
+COMMIT;
+```
+
+ถ้าขั้นเพิ่ม Constraint ล้มเหลว Transaction ต้อง Rollback เพื่อคงของเดิม ระวังเวลาถือ Lock กับการ Scan ข้อมูลเก่า การย้อน Constraint เดิมจะไม่ผ่านถ้ามี `packed` ใช้งานแล้ว ต้องวางแผนกับข้อมูล ไม่ลบแถวนั้นเพื่อให้ย้อนผ่าน
+
+## ตัวอย่างการใช้งานจริง
+
+ทีมต้องการให้ Email เทียบในรูปแบบเดียวกัน จึงเก็บผลตรวจรายการชนโดยจำกัดการเปิดเผยข้อมูล ให้ผู้รับผิดชอบตัดสินกรณีซ้ำ แล้วส่ง Migration ผ่าน DEV/UAT ก่อนใช้จริง ไม่รวมสองบัญชีเองเพียงเพราะ Email หลัง Normalize เหมือนกัน
+
+## ข้อควรระวัง
+
+- เติม `phone_number` จากข้อมูลที่ยืนยันได้เท่านั้น ถ้ายังไม่รู้ให้คง NULL ไม่ใส่เบอร์ปลอม
+- Idempotent ไม่เท่ากับ Reversible และไม่มี Reverse ไม่ได้แปลว่ามี Backup แล้วจะกู้ทันตามเป้าหมาย
+- Batch ควรมีขนาด จุดต่อ และวิธีตรวจชัด อย่าเข้าใจว่า Iterator ที่อ่านทีละชุดทำให้ Transaction Commit ทีละชุดด้วย
+- เก็บ Code, Dependencies, จำนวนที่คาดว่าจะเปลี่ยน และผลตรวจแต่ละ Environment ไว้ใน PR/Release
+
+## สรุป
+
+- Schema, Data และ Reference seeding มีหน้าที่ต่างกัน
+- ตรวจค่าชนและข้อมูลเดิมก่อนแปลง
+- ทำซ้ำได้โดยไม่เขียนทับข้อมูลผู้ใช้โดยไม่ตั้งใจ
+- ย้อนข้อมูลที่แปลงสูญเสียรายละเอียดอาจทำไม่ได้ ต้องวางแผนก่อน
+
+## อ่านต่อ
+
+- [Migrations](/technology-guides/postgresql/migrations)
+- [Backup & Restore](/technology-guides/postgresql/backup-restore)
+- [Django RunPython](https://docs.djangoproject.com/en/5.2/ref/migration-operations/#runpython)

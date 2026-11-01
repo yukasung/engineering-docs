@@ -1,0 +1,92 @@
+---
+title: "แก้ปัญหา SDD และ AI Agent"
+description: "อาการ สาเหตุ วิธีแก้ และการป้องกันปัญหาที่พบบ่อยเมื่อใช้ Spec กับ Claude Code หรือ Codex"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Claude Code": "current; ตรวจเอกสารทางการ", "OpenAI Codex": "current; ตรวจเอกสารทางการ"}
+---
+
+# แก้ปัญหา SDD และ AI Agent
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้ช่วยแยกปัญหาที่เกิดจาก Spec, Context, Plan และ Validation ก่อนสั่ง Agent ทำซ้ำ การเพิ่ม Prompt ให้ยาวขึ้นไม่ใช่คำตอบเสมอไป
+
+## 1. Agent ทำผิด Requirement
+
+- **อาการ:** ผลลัพธ์ทำงานได้แต่ Business rule ผิด
+- **สาเหตุ:** Agent ไม่ได้อ่าน Spec, Spec หลายสำเนา หรือ Prompt ไม่ระบุ Path
+- **วิธีแก้:** หยุด Implement เทียบ Diff กับ Acceptance criteria แล้วแก้ Spec/Plan ก่อนแก้ Code
+- **ป้องกัน:** ใส่ Spec path ในทุก Prompt และให้ Agent สรุป Scope ก่อนลงมือ
+
+## 2. Spec คลุมเครือ
+
+- **อาการ:** Agent ถามซ้ำหรือเลือก Behavior เอง
+- **สาเหตุ:** ใช้คำอย่าง “เหมาะสม” หรือ “ปลอดภัย” โดยไม่มีเกณฑ์ตรวจ
+- **วิธีแก้:** เพิ่ม Example, Error behavior, Edge cases และ Acceptance criteria ที่วัดได้
+- **ป้องกัน:** ทำ Specification review กับ Developer, SA/PO และ QA ตามความเสี่ยง
+
+## 3. Agent แก้ไฟล์ไม่เกี่ยวข้อง
+
+- **อาการ:** Diff มี Refactor หรือ Formatting จำนวนมาก
+- **สาเหตุ:** Plan ไม่ระบุ Scope หรือ Prompt อนุญาตกว้างเกินไป
+- **วิธีแก้:** แยก Unrelated changes ออกจากงานปัจจุบันและให้ Agent อธิบายทุกไฟล์ที่แตะ
+- **ป้องกัน:** ระบุ Files/Components ที่คาดว่าจะเปลี่ยนและขออนุมัติก่อนขยาย Scope
+
+## 4. Claude Code กับ Codex แนะนำขัดกัน
+
+- **อาการ:** Agent สองตัวเสนอ Architecture หรือ Fix คนละแบบ
+- **สาเหตุ:** ได้รับ Context คนละชุด หรือเป็น Trade-off ที่ Spec ยังไม่ตัดสิน
+- **วิธีแก้:** ให้ทั้งสองอ้าง Requirement, Code และ Tests ชุดเดียวกัน แล้วให้ Human เลือก Decision
+- **ป้องกัน:** ใช้ Source of truth เดียวและบันทึก ADR เมื่อ Decision มีผลระยะยาว
+
+## 5. Implementation ไม่ตรง Plan
+
+- **อาการ:** ไฟล์หรือลำดับเปลี่ยนมากโดยไม่มีคำอธิบาย
+- **สาเหตุ:** Plan ทำก่อน Inspect หรือพบ Constraint ใหม่ระหว่างทำ
+- **วิธีแก้:** หยุด อัปเดต Discovery และ Plan แล้ว Review ผลกระทบก่อนทำต่อ
+- **ป้องกัน:** ให้ Plan มาจาก Repository จริงและกำหนดจุดรายงาน Unexpected issue
+
+## 6. Tests ผ่านแต่ Acceptance criteria ไม่ครบ
+
+- **อาการ:** CI เขียวแต่ User flow หรือ Business rule ยังผิด
+- **สาเหตุ:** Test suite ไม่ครอบคลุม Acceptance criteria หรือ Assert ผิดระดับ
+- **วิธีแก้:** ทำ Mapping ระหว่างแต่ละ Criterion กับ Test/Manual check แล้วเพิ่ม Coverage ที่ขาด
+- **ป้องกัน:** Review Test plan พร้อม Spec ก่อน Implement
+
+## 7. Requirement เปลี่ยนระหว่าง Implement
+
+- **อาการ:** Code, Tests และเอกสารอธิบายคนละ Behavior
+- **สาเหตุ:** ทีมคุย Change แต่ไม่ได้อัปเดต Source of truth
+- **วิธีแก้:** หยุดงาน อัปเดต Requirements → Impact → Plan → Tests ตามลำดับ
+- **ป้องกัน:** บันทึก Change ใน Spec ก่อนสั่ง Agent ทำต่อ
+
+## 8. มี Spec มากจนงานช้า
+
+- **อาการ:** Change เล็กต้องแก้หลายไฟล์ที่มีเนื้อหาซ้ำ
+- **สาเหตุ:** ใช้ Template ระดับ Large กับทุกงาน
+- **วิธีแก้:** รวมข้อมูลซ้ำไว้ Project docs และลด Small change เหลือ Issue + Acceptance criteria
+- **ป้องกัน:** เลือกระดับ Small, Medium หรือ Large ตาม Risk และ Complexity
+
+## ตรวจเร็วเมื่อ Agent เริ่มหลุด Scope
+
+1. หยุดการแก้ไฟล์เพิ่ม
+2. เก็บ Diff ปัจจุบันไว้อ่าน ไม่รีบลบทิ้ง
+3. เปิด Requirements และ Acceptance criteria
+4. ระบุ Conflict เป็นข้อ ๆ
+5. แก้ Spec/Plan หรือย้อนเฉพาะ Change ที่ยืนยันว่าไม่ต้องการ
+6. รัน Validation ใหม่
+
+## สรุป
+
+- กลับไปที่ Spec ก่อนเพิ่ม Prompt หรือทำซ้ำ
+- ใช้ Diff และ Tests เป็นหลักฐาน ไม่ใช้คำสรุปของ Agent อย่างเดียว
+- เมื่อ Context เปลี่ยน ให้อัปเดต Requirements และ Plan
+- ลดเอกสารเมื่อ Process หนักกว่าความเสี่ยง
+
+## อ่านต่อ
+
+- [Workflow ของทีม](/development-workflow/spec-driven-development/workflow)
+- [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery)

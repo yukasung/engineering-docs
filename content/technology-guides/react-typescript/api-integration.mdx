@@ -1,0 +1,136 @@
+---
+title: "API Integration — ติดต่อ Django"
+description: "ใช้ Types และ API services ร่วมกัน โหลด สร้าง แก้ไข และลบ Task โดยตรวจ JSON จริง"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# API Integration — ติดต่อ Django
+
+## เรื่องนี้คืออะไร?
+
+React ใช้ fetch ส่ง HTTP ไป Django แล้วรับ JSON กลับมา `async/await` ช่วยเขียนขั้นตอนที่ต้องรอผลให้อ่านตามลำดับ TypeScript ตรวจ Code ตอน Build แต่ไม่ได้ตรวจ JSON จาก Server ให้เรา จึงต้องตรวจข้อมูลก่อนใช้
+
+## ทำงานอย่างไร?
+
+Component → API service → [Request helper](/technology-guides/react-typescript/error-handling) → Django ทุก Component ใช้ API Base URL จากจุดเดียว ค่า `/api/v1` ส่งผ่าน Vite proxy ใน Local และ Reverse proxy ใน Production ไม่ใส่ URL localhost ซ้ำในแต่ละหน้า
+
+### Types และการตรวจ Response
+
+ไฟล์ `frontend/src/types/task.ts`:
+
+```ts
+import { ApiError, isRecord } from '../services/api'
+
+export type TaskStatus = 'todo' | 'in_progress' | 'completed'
+export interface Task {
+  id: number
+  title: string
+  description: string
+  status: TaskStatus
+  created_at: string
+  updated_at: string
+  owner: number
+}
+export type TaskInput = Pick<Task, 'title' | 'description' | 'status'>
+export interface TaskPageResponse {
+  count: number
+  next: string | null
+  previous: string | null
+  results: Task[]
+}
+
+export function parseTask(value: unknown): Task {
+  if (!isRecord(value) || typeof value.id !== 'number' ||
+      !Number.isSafeInteger(value.id) || value.id <= 0 ||
+      typeof value.owner !== 'number' || !Number.isSafeInteger(value.owner) ||
+      value.owner <= 0 || typeof value.title !== 'string' ||
+      typeof value.description !== 'string' ||
+      !['todo', 'in_progress', 'completed'].includes(String(value.status)) ||
+      typeof value.created_at !== 'string' ||
+      !Number.isFinite(Date.parse(value.created_at)) ||
+      typeof value.updated_at !== 'string' ||
+      !Number.isFinite(Date.parse(value.updated_at))) {
+    throw new ApiError(502, 'BAD_RESPONSE')
+  }
+  return {
+    id: value.id, owner: value.owner, title: value.title,
+    description: value.description, status: value.status as TaskStatus,
+    created_at: value.created_at, updated_at: value.updated_at,
+  }
+}
+
+export function parseTaskPage(value: unknown): TaskPageResponse {
+  if (!isRecord(value) || typeof value.count !== 'number' ||
+      !Number.isSafeInteger(value.count) || value.count < 0 ||
+      !(value.next === null || typeof value.next === 'string') ||
+      !(value.previous === null || typeof value.previous === 'string') ||
+      !Array.isArray(value.results)) throw new ApiError(502, 'BAD_RESPONSE')
+  return { count: value.count, next: value.next, previous: value.previous,
+    results: value.results.map(parseTask) }
+}
+```
+
+`Pick` เลือกเฉพาะ Fields ที่ Client ส่งได้ ส่วน `unknown` บังคับให้ตรวจชนิดก่อนใช้ ไม่ใช้ `as Task` ครอบ JSON ทั้งก้อนโดยไม่ตรวจ
+
+### CRUD service
+
+ไฟล์ `frontend/src/features/tasks/api.ts`:
+
+```ts
+import { requestJson } from '../../services/api'
+import { parseTask, parseTaskPage, type TaskInput } from '../../types/task'
+
+export async function listTasks(page: number, signal?: AbortSignal) {
+  return parseTaskPage(await requestJson(`/tasks/?page=${page}`, { signal }))
+}
+export async function createTask(input: TaskInput, signal?: AbortSignal) {
+  return parseTask(await requestJson('/tasks/', {
+    method: 'POST', body: input, signal,
+  }))
+}
+export async function updateTask(id: number, input: Partial<TaskInput>, signal?: AbortSignal) {
+  return parseTask(await requestJson(`/tasks/${id}/`, {
+    method: 'PATCH', body: input, signal,
+  }))
+}
+export async function deleteTask(id: number, signal?: AbortSignal) {
+  await requestJson(`/tasks/${id}/`, { method: 'DELETE', signal })
+}
+```
+
+สร้าง Task ส่ง title/description/status เท่านั้น Django กำหนด owner จาก Session เอง การทำงานสำเร็จใช้ PATCH status เป็น `completed` การเปลี่ยนชื่อใช้ `updateTask(id, { title: 'ชื่อใหม่' })` ส่วน DELETE รับ 204 ไม่มี JSON
+
+## ตัวอย่างการใช้งานจริง
+
+[TaskPage](/technology-guides/react-typescript/hooks) เรียก Service เหล่านี้ เมื่อสร้าง/แก้/ลบสำเร็จจะโหลด List ใหม่ ไม่เพิ่ม Task จาก Input อย่างเดียว เพราะ Server อาจปรับข้อมูลและเป็นผู้กำหนด id/timestamps
+
+## วิธีทดสอบ
+
+1. เปิด Django 8000 และ Vite 5173 ตาม Getting Started แล้ว Login
+2. ดู Network ใน Browser: URL ต้องอยู่ใต้ `/api/v1/` และส่ง Cookie
+3. สร้าง Task → ดูใน List → PATCH completed → DELETE แล้วตรวจว่าหาย
+4. ทดลอง title ว่างและ Session หมดอายุ ต้องเห็นข้อความที่ควบคุมได้
+
+## ข้อควรระวัง
+
+- CORS คือกฎที่ Browser ใช้ควบคุมการอ่าน Response ข้าม Origin ไม่ใช่ระบบสิทธิ์ Vite proxy ช่วยให้ Local เรียกผ่าน Origin เดียวกัน
+- ถ้าแยก Origin จริง ต้องตั้ง Allowlist, Credentials และ CSRF trusted origins ตาม [Django Authentication](/technology-guides/django-python/authentication)
+- `VITE_*` อยู่ใน Bundle ห้ามเก็บ Secret และการเปลี่ยนค่าต้อง Build ใหม่
+- ไม่ Fetch URL จาก `next` โดยตรงถ้ายังไม่ได้ตรวจ Origin ตัวอย่างใช้เลขหน้าและ Base URL เดิม
+
+## สรุปสิ่งที่ต้องจำ
+
+- Component ไม่ต้องรู้ Host ของ Django
+- ตรวจ Response ก่อนนำมาเป็น Task
+- POST สร้าง PATCH แก้ DELETE ลบ
+- Cookie และ CSRF จัดการที่ Helper กลาง
+
+## อ่านต่อ
+
+- [REST API](/technology-guides/django-python/rest-api)
+- [Hooks และ TaskPage](/technology-guides/react-typescript/hooks)
+- [Getting Started / Vite proxy](/technology-guides/react-typescript/getting-started)

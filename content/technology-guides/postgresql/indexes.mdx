@@ -1,0 +1,93 @@
+---
+title: "Indexes — ช่วยให้หาแถวเร็วขึ้นอย่างมีเหตุผล"
+description: "เลือก Index จาก Query และอ่าน EXPLAIN โดยไม่เพิ่ม Index ทุก Column"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# Indexes — ช่วยให้หาแถวเร็วขึ้นอย่างมีเหตุผล
+
+## เรื่องนี้คืออะไร?
+
+Index คล้ายสารบัญ ช่วยให้ DB หาแถวที่ตรงเงื่อนไขได้โดยไม่ต้องอ่านทั้งตารางทุกครั้ง แต่ DB ยังต้องดูแลสารบัญนี้เมื่อเพิ่ม แก้ หรือลบข้อมูล จึงมีต้นทุนพื้นที่และเวลาเขียน
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อมี Query ที่ช้าหรือมีรูปแบบค้นหาสำคัญชัดเจน เริ่มจาก SQL กับข้อมูลจริงก่อน ไม่สร้าง Index ทุก Column เผื่อไว้
+
+## ทำอย่างไร?
+
+ใช้ Schema/Seed จาก [Database Design](/technology-guides/postgresql/database-design) มี PK และ UNIQUE indexes ของ ID, Email, SKU และ Key ของ Order items อยู่แล้ว ไม่สร้างซ้ำเพียงเพราะอยากให้ดูครบ
+
+### 1. ดู Query plan ก่อน
+
+Query plan คือวิธีที่ DB เลือกอ่านข้อมูล ตรวจแผนโดยไม่รัน SELECT จริงด้วย `EXPLAIN`:
+
+```sql filename="explain-before.sql"
+EXPLAIN
+SELECT id, status, created_at
+FROM orders
+WHERE customer_id = (SELECT id FROM customers WHERE email = 'demo@example.invalid')
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+เริ่มอ่านว่าค้นตารางไหน ใช้ `Seq Scan` หรืออ่านทั้งตาราง, `Index Scan` หรือใช้สารบัญ และต้อง Sort เพิ่มหรือไม่ ค่า Cost เป็นหน่วยประเมิน ไม่ใช่มิลลิวินาที
+
+### 2. ทดลอง Composite index ที่ตรงงาน
+
+**Composite index** คือ Index หลาย Columns ในชุดเดียว ตัวอย่างใช้ค้น Order ของลูกค้าแล้วเรียงเวลาล่าสุด:
+
+```sql filename="create-indexes.sql"
+CREATE INDEX orders_customer_created_idx
+ON orders (customer_id, created_at DESC);
+
+CREATE INDEX order_items_product_idx
+ON order_items (product_id);
+```
+
+Index แรกมี `customer_id` นำหน้า จึงเหมาะกับ Query ข้างต้นและช่วยงาน FK ด้านนั้นได้ แต่ไม่รับประกันว่าจะเหมาะกับการค้นเฉพาะ `created_at` ทุกแบบ Index สองเป็นตัวเลือกสำหรับ FK `order_items.product_id` และ Query ย้อนจากสินค้า ซึ่ง PK `(order_id, product_id)` ไม่ได้ทดแทนได้มีประสิทธิภาพเสมอ
+
+FK ไม่สร้าง Index ฝั่งที่อ้างโดยอัตโนมัติ ต้องพิจารณาจากการ Join/ตรวจตอนลบหรือแก้ Key และปริมาณงาน ส่วน Unique index บังคับไม่ซ้ำพร้อมช่วยค้น เช่นของ `customers.email` ที่ UNIQUE สร้างให้แล้ว
+
+### 3. วัดด้วยข้อมูลใกล้เคียงจริง
+
+`EXPLAIN ANALYZE` **รันคำสั่งจริง** เพื่อเก็บเวลาและจำนวนแถว ตัวอย่างต่อไปเป็น SELECT ใน Lab เท่านั้น ไม่ใช้กับ UPDATE/DELETE บนฐานจริงเพื่อทดลอง การครอบ Rollback ก็ไม่ย้อนผลภายนอกหรือเลข Sequence ทุกอย่าง:
+
+```sql filename="explain-after.sql"
+ANALYZE orders;
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id, status, created_at
+FROM orders
+WHERE customer_id = (SELECT id FROM customers WHERE email = 'demo@example.invalid')
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+`ANALYZE orders` อัปเดตสถิติให้ Planner ใน Lab ข้อมูลเล็กมากจึงอาจยังเลือก Seq Scan ซึ่งเป็นผลปกติ อย่าอ้างว่าตัวอย่างเร็วขึ้นกี่เท่าโดยไม่มี Workload และผลวัดจริง ดู Estimated rows เทียบ Actual rows และเวลาในจุดที่ทำงานมาก
+
+## ตัวอย่างการใช้งานจริง
+
+หน้าประวัติ Order ของลูกค้าช้าเมื่อข้อมูลโต ทีมเก็บ SQL/Plan/เวลารอและทดลอง Index ในฐานทดสอบ จากนั้นตรวจทั้งเวลาอ่านกับต้นทุนเขียน แล้วส่งผ่าน Migration ไม่สร้าง Index ตรงบน UAT เพื่อแก้เฉพาะหน้า
+
+## ข้อควรระวัง
+
+- Index มากขึ้นทำให้ INSERT/UPDATE/DELETE และพื้นที่เก็บเพิ่ม โดยเฉพาะ Columns ที่เปลี่ยนบ่อย
+- `CREATE INDEX` แบบปกติกระทบการเขียน ตารางใหญ่ต้องวางแผน Lock และอาจใช้ `CREATE INDEX CONCURRENTLY` ซึ่งมีข้อกำหนดและรันใน Transaction block ปกติไม่ได้ ไม่เติมคำนี้โดยไม่เปลี่ยนแผน Migration
+- Query ช้าอาจรอ Lock หรือเชื่อมต่อ DB ไม่ใช่ขาด Index ดูหลักฐานก่อน
+
+## สรุป
+
+- เริ่มจาก Query และตรวจ Index ที่มีอยู่
+- ลำดับ Columns ใน Composite index มีผล
+- EXPLAIN ANALYZE รันจริง และข้อมูลน้อยอาจไม่ใช้ Index
+- วัดต้นทุนอ่าน/เขียนก่อนเพิ่ม Index ผ่าน Migration
+
+## อ่านต่อ
+
+- [Using EXPLAIN](https://www.postgresql.org/docs/17/using-explain.html)
+- [CREATE INDEX](https://www.postgresql.org/docs/17/sql-createindex.html)
+- [Migration safety](/technology-guides/postgresql/migrations)

@@ -1,0 +1,66 @@
+---
+title: "ISO Quality, Service & Continuity Standards"
+description: "เปรียบเทียบ ISO 9001, ISO/IEC 20000-1, ISO 22301 และ ISO/IEC 25010 สำหรับงาน Engineering"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO 9001": "2026", "ISO/IEC 20000-1": "2018 + Amd 1:2024", "ISO 22301": "2019 + Amd 1:2024", "ISO/IEC 25010": "2023"}
+---
+
+# ISO Quality, Service & Continuity Standards
+
+## ภาพรวม (Overview)
+
+มาตรฐานกลุ่มนี้ตอบคนละปัญหา: คุณภาพองค์กร, การจัดการบริการ, ความต่อเนื่องทางธุรกิจ และคุณภาพของ Product/Software ควรเลือกตาม Requirement ไม่ใช่นำทุกฉบับมาทำ Checklist เดียว
+
+## เลือกฉบับให้ตรงงาน
+
+| Standard | ใช้จัดการ | ประเภท |
+| --- | --- | --- |
+| ISO 9001:2026 | Quality Management System (QMS), Customer focus และ Continual improvement | Requirements; ขอ Certification ได้แต่ไม่บังคับ |
+| ISO/IEC 20000-1:2018 | Service Management System (SMS) ตั้งแต่ Plan, Transition, Delivery ถึง Improvement | Requirements; ขอ Certification ได้; มี Amd 1:2024 |
+| ISO 22301:2019 | Business Continuity Management System (BCMS) | Requirements; ขอ Certification ได้; มี Amd 1:2024 |
+| ISO/IEC 25010:2023 | Product quality model สำหรับ ICT/Software | Quality model ไม่ใช่ Management system Certification |
+
+ISO 9001:2026 แทนฉบับ 2015 แล้ว หาก Contract ยังอ้าง 2015 ต้องให้ Owner ตรวจ Transition และเงื่อนไขในสัญญา ห้ามเปลี่ยน Edition เอง
+
+ISO/IEC 25010:2023 มี Product quality model สำหรับตั้ง Requirement และเกณฑ์ประเมิน คุณลักษณะใน Model ต้องแปลงเป็นเกณฑ์ที่วัดได้ เช่น Response time ภายใต้ Load ที่กำหนด ไม่ใช่เขียนเพียง “ระบบต้องเร็ว”
+
+## ตัวอย่างการแปลงเป็นงานจริง
+
+- **Quality:** Definition of Done, Acceptance criteria, Defect trend และ Customer feedback
+- **Service:** Service owner, Service level, Incident, Change, Release และ Supplier coordination
+- **Continuity:** Business impact, Recovery priority, Dependency, Backup/restore และ Exercise
+- **Software quality:** Functional suitability, Performance, Compatibility, Usability, Reliability, Security, Maintainability, Portability และ Safety ตาม Scope ของฉบับ 2023
+
+## ตัวอย่าง: Customer Management
+
+ทีมใช้ ISO/IEC 25010 เป็นภาษากลางตั้ง Non-functional requirements ใช้แนวคิด ISO/IEC 20000-1 ดู Incident/Change/Service level และใช้ ISO 22301 เมื่อระบบอยู่ใน Business continuity scope การอ้างอิงเหล่านี้ยังไม่แปลว่าองค์กรรับรอง Standard ใด
+
+## ข้อควรระวัง
+
+- Uptime target ไม่เท่ากับ Business continuity plan
+- Backup สำเร็จไม่พิสูจน์ว่า Restore ได้ ต้องมี Exercise ตาม Scope ที่อนุมัติ
+- KPI จำนวนมากไม่ช่วยหากไม่เชื่อมกับ Customer outcome และ Decision
+- อย่าอ้าง ISO/IEC 25010 ว่าเป็น Certificate ของ Product
+
+## แหล่งอ้างอิงทางการ
+
+- [ISO 9001:2026](https://www.iso.org/standard/9001)
+- [ISO/IEC 20000-1:2018](https://www.iso.org/standard/70636.html)
+- [ISO 22301 — Published documents](https://committee.iso.org/sites/tc292/home/projects/published/ongoing-1.html)
+- [ISO/IEC 25010:2023](https://www.iso.org/standard/78176.html)
+
+## สรุป
+
+- เลือก Standard ตามปัญหาและ Scope
+- Requirement ต้องแปลงเป็น Owner, Process, Measure และ Evidence
+- ตรวจ Edition/Amendment จาก ISO ก่อนใช้
+- Implementation ไม่เท่ากับ Certification
+
+## อ่านต่อ
+
+- [Audit & Compliance](/standards-compliance/audit-compliance)
+- [Frameworks](/standards-compliance/frameworks)
+- [Customer Management Case Study](/standards-compliance/customer-management-case-study)

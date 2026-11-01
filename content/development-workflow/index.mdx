@@ -1,0 +1,51 @@
+---
+title: "Development Workflow"
+description: "ขั้นตอนทำงานร่วมกันตั้งแต่เตรียม Branch เขียน Spec เปิด Pull Request Review และส่งต่อไปยัง Environment"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; ปรับ Workflow ตาม Repository", "GitHub": "ไม่สมมติ Branch rules หรือ Approvals ที่เปิดใช้"}
+---
+
+# Development Workflow
+
+## ภาพรวม (Overview)
+
+หมวดนี้รวบรวมขั้นตอนที่ทีมใช้เปลี่ยน Requirement ให้เป็น Code ที่ตรวจสอบและตามรอยได้ เริ่มจาก Spec และ Branch ไปจนถึง Pull Request, Code Review และการส่ง Artifact ไปยัง Environment
+
+เอกสารเป็นแนวทางกลาง ชื่อ Branch, Required approvals, CI checks และผู้มีสิทธิ์ Deploy ต้องใช้กติกาจริงของแต่ละ Project
+
+## เริ่มอ่านตรงไหน?
+
+1. [Git & Pull Request](/development-workflow/git-pull-request) — ดู Diff, Commit, Push และเตรียม PR
+2. [Code Review](/development-workflow/code-review) — ตรวจ Correctness, Security, Tests และ Scope
+3. [Spec-Driven Development](/development-workflow/spec-driven-development) — กำหนด Requirements, Plan และ Validation ก่อนลงมือ
+4. [DEV / UAT / Production](/development-workflow/environments) — เข้าใจหน้าที่ของแต่ละ Environment และการ Promote Artifact
+
+## Workflow แบบย่อ
+
+```mermaid
+flowchart TD
+  A[Requirements และ Spec] --> B[Branch และ Implement]
+  B --> C[Tests และ Validation]
+  C --> D[Pull Request]
+  D --> E[Code Review]
+  E --> F[Merge และ Build Artifact]
+  F --> G[DEV, UAT, Production]
+```
+
+ภาพมี 7 ขั้นตอน Branch ไม่ใช่ Environment และ Merge ไม่ได้หมายความว่า Deploy แล้ว การส่งต่อควรใช้ Artifact รุ่นเดิมที่ผ่านการตรวจเมื่อทำได้
+
+## กติกาที่ต้องจำ
+
+- แก้ Code ผ่าน Git และ Pull Request ตามกติกา Project
+- ไม่แก้ Code หรือ Database บน UAT/Production โดยตรงเป็นขั้นตอนปกติ
+- Schema และ Data change ที่ต้องตามรอยใช้ Version-controlled migration
+- Code rollback ไม่ได้ย้อน Database ตาม
+- บันทึก Commit, Tests, Artifact และ Environment ให้ตามกลับได้
+
+## อ่านต่อ
+
+- [CI/CD & Operations](/technology-guides/devops)
+- [Projects](/projects)

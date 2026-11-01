@@ -1,0 +1,75 @@
+---
+title: "Docker Container — ตัวโปรแกรมที่รันจาก Image"
+description: "เริ่ม หยุด อ่าน Logs และเข้าใจอายุของไฟล์ใน Container"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Docker Container — ตัวโปรแกรมที่รันจาก Image
+
+## เรื่องนี้คืออะไร?
+
+Container คือตัวที่สร้างจาก Image แล้วรันคำสั่งหลัก เมื่อคำสั่งหลักจบ Container ก็หยุดได้ตามปกติ ไม่จำเป็นต้องเป็น Error เสมอไป
+
+## ใช้ทำอะไร?
+
+ใช้รัน Backend, Frontend หรือฐานข้อมูลแยกกัน และตรวจปัญหาทีละบริการ
+
+## ทำงานอย่างไร?
+
+Container มีสถานะ เช่น Running หรือ Exited, การตั้งค่า, Network และ Writable layer คือพื้นที่เขียนไฟล์เพิ่มของตัวนั้น การ `stop` แล้ว `start` ตัวเดิมยังเก็บ Layer นี้ แต่การลบแล้วสร้างตัวใหม่ไม่รับประกันไฟล์เดิม ต้องใช้ [Volume](/technology-guides/docker/docker-volume) สำหรับข้อมูลถาวร
+
+## ขั้นตอนการทำงาน
+
+หลังทำ [Compose Lab](/technology-guides/docker/docker-compose) แล้ว ให้รันจาก `task-demo`:
+
+```bash
+docker compose ps -a
+docker compose logs --tail=100 backend
+docker compose exec backend sh
+```
+
+คำสั่งแรกดูสถานะ คำสั่งสองอ่าน Log ล่าสุด ส่วน `exec` เปิด Shell ใน Backend ที่กำลังรัน พิมพ์ `exit` เพื่อออก การเข้า Shell ใช้ตรวจ ไม่ใช้แก้โค้ดแล้วถือว่าเป็นรุ่นใหม่
+
+ถ้าจะหยุดและเปิด Backend ตัวเดิมสำหรับการทดลองในเครื่อง:
+
+```bash
+docker compose stop backend
+docker compose start backend
+```
+
+`start` ไม่อ่านไฟล์ค่าตั้งใหม่เพื่อสร้าง Container ใหม่ ถ้าแก้ Source ต้อง Build และ Recreate ผ่าน Compose ส่วน `docker compose restart backend` ก็ไม่ได้ Build โค้ดใหม่เช่นกัน
+
+สำหรับคำสั่ง Docker ที่ไม่ผ่าน Compose ให้แทนชื่อด้วยชื่อจริงจาก `docker ps -a`:
+
+```bash
+docker logs CONTAINER_NAME
+docker inspect CONTAINER_NAME --format '{{.State.Status}} {{.State.ExitCode}}'
+```
+
+`CONTAINER_NAME` เป็นช่องให้แทน ไม่ใช่ชื่อที่สร้างให้อัตโนมัติ Inspect เฉพาะช่องที่ต้องใช้ เพราะ Inspect ทั้งชุดอาจมี Environment ที่เป็นค่าลับ
+
+## ตัวอย่างการใช้งานจริง
+
+Backend จบพร้อม Exit code ที่ไม่ใช่ศูนย์หลัง Deploy ให้ดู Log ก่อน Restart ซ้ำ ถ้าระบุว่าเชื่อม DB ไม่ได้ ให้ตรวจ DNS/ค่าตั้ง/Readiness หาก Exit code เป็นศูนย์หลังงาน Migration ครั้งเดียวจบ นั่นอาจเป็นผลที่ต้องการ
+
+## ข้อควรระวัง
+
+- Exit code `137` อาจเกี่ยวกับ SIGKILL ต้องดูว่า `OOMKilled` หรือถูกหยุดด้วยเหตุอื่น ไม่สรุปว่า Memory เต็มทันที
+- `docker exec` ใช้ได้กับ Container ที่ยังรันอยู่ ถ้าหยุดแล้วให้อ่าน Logs ก่อน
+- ตั้ง Graceful shutdown ให้โปรแกรมหยุดรับงานใหม่และจบงานค้าง ไม่ใช้ Force kill เป็นขั้นตอนปกติ
+
+## สรุปสิ่งที่ต้องจำ
+
+- ดู Logs และ Exit code ก่อนเริ่มแก้
+- Restart ไม่ใช่ Rebuild
+- ไฟล์สำคัญต้องไม่ฝากไว้ใน Writable layer
+
+## อ่านต่อ
+
+- [Dockerfile](/technology-guides/docker/dockerfile)
+- [Troubleshooting](/technology-guides/docker/troubleshooting)
+- [Container lifecycle](https://docs.docker.com/get-started/docker-concepts/running-containers/)

@@ -1,0 +1,141 @@
+---
+title: "Storage — เก็บ PostgreSQL ให้พ้นอายุ Pod"
+description: "PV PVC StorageClass และ StatefulSet สำหรับ Local lab พร้อมขอบเขต Backup และ Production operations"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Storage — เก็บ PostgreSQL ให้พ้นอายุ Pod
+
+## เรื่องนี้คืออะไร?
+
+ข้อมูลใน Container filesystem หายได้เมื่อ Container ถูกแทนที่ ส่วน emptyDir อยู่ได้ตามอายุ Pod ไม่ใช่ Database persistence Kubernetes ใช้ PersistentVolume (PV) แทนพื้นที่เก็บข้อมูล และ PersistentVolumeClaim (PVC) เป็นคำขอพื้นที่ของแอป
+
+StorageClass บอกว่าจะจัดหาพื้นที่แบบไหนและผ่าน Provisioner ใด ส่วน StatefulSet ช่วยให้ชื่อและ Volume ของ Pod ตามลำดับคงที่ แต่ไม่ได้สร้าง Database replication/Failover ให้เอง
+
+## ใช้ทำอะไร?
+
+ใช้กับ PostgreSQL ที่มีข้อมูลต้องเก็บ ไม่ใช้ Deployment หลาย Replicas กับ Data directory ร่วมกันแบบเว็บ stateless สำหรับ Production ให้พิจารณา Managed PostgreSQL หรือระบบ Stateful ที่มีผู้ดูแล/Operator และแผนกู้ข้อมูลจริง
+
+## ตัวอย่างการใช้งานจริง
+
+**Local lab เท่านั้น:** ต้องมี Namespace, app-config และ app-secrets จาก [Configuration](/technology-guides/kubernetes/configuration) ตรวจ StorageClass ก่อน:
+
+```bash
+kubectl --context kind-task-lab get storageclass
+```
+
+ตัวอย่างระบุ `standard` สำหรับ Lab ที่มี Provisioner และ Class ชื่อนี้ หากไม่มีให้หยุดและเลือก Class ของ Cluster ทดลองให้ถูก ไม่สร้าง hostPath สุ่มบนเครื่องจริงเพื่อทำให้ Pending หาย
+
+```yaml filename="k8s/db.yaml"
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: task-demo
+spec:
+  clusterIP: None
+  selector: {app: db}
+  ports:
+    - {name: postgres, port: 5432, targetPort: postgres}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: db
+  namespace: task-demo
+spec:
+  serviceName: db
+  replicas: 1
+  selector:
+    matchLabels: {app: db}
+  template:
+    metadata:
+      labels: {app: db}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: db
+          image: postgres:17-alpine
+          ports:
+            - {name: postgres, containerPort: 5432}
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: {name: app-config, key: POSTGRES_DB}
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: {name: app-config, key: POSTGRES_USER}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: app-secrets, key: POSTGRES_PASSWORD}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          resources:
+            requests: {cpu: "100m", memory: "256Mi"}
+            limits: {cpu: "1000m", memory: "512Mi"}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+```
+
+Headless Service (`clusterIP: None`) คืนปลายทาง Pod ผ่าน DNS ใช้ชื่อ `db` กับหนึ่ง Instance นี้ StatefulSet สร้าง Pod `db-0` และ PVC `data-db-0` จาก Claim template ไม่ได้สร้าง PV แบบ Manual ซ้ำอีกไฟล์
+
+ใช้ PostgreSQL 17 จึง Mount ที่ `/var/lib/postgresql/data` และตั้ง PGDATA เป็นโฟลเดอร์ย่อย อย่าเปลี่ยน Major tag โดยชี้ข้อมูลเก่าเฉย ๆ รุ่นอื่นอาจมี Layout/Upgrade ต่างกัน [PostgreSQL Docker guide](/technology-guides/postgresql/postgresql-docker)
+
+## ขั้นตอนทดลอง
+
+```bash
+kubectl --context kind-task-lab -n task-demo apply -f k8s/db.yaml
+kubectl --context kind-task-lab -n task-demo get pods -l app=db
+kubectl --context kind-task-lab -n task-demo get pvc
+kubectl --context kind-task-lab -n task-demo rollout status statefulset/db --timeout=180s
+```
+
+PVC ควรเป็น Bound และ Pod Ready หาก Pending อ่าน describe pvc/Events ตามบท Troubleshooting `pg_isready` ยืนยันเพียง Server รับ Connection ไม่ได้ยืนยัน Password, Migration หรือ Query ของแอป ถัดไปต้องรัน [Migration Job](/technology-guides/kubernetes/rollout-rollback) ก่อน Backend
+
+ReadWriteOnce โดยทั่วไปจำกัดการ Mount แบบเขียนที่ Node เดียว ไม่ใช่ฐานข้อมูลที่รองรับหลาย Writers จากหลาย Pods อย่างปลอดภัย ห้ามเพิ่ม replicas ของ db เพื่อทำ HA ด้วย YAML นี้
+
+## ก่อน Production ต้องรับผิดชอบอะไร?
+
+- แยก App role ที่มีสิทธิ์จำเป็นออกจากผู้ดูแล/Migration role; POSTGRES_USER ของ Official image ที่สร้างครั้งแรกมีสิทธิ์สูง ใช้ร่วมใน Lab นี้เพื่อให้เห็น Wiring เท่านั้น
+- ดูแล Storage performance/capacity, Replication, Failover, Upgrades และการเข้ารหัส/TLS
+- มี Database backups แยกจาก Volume พร้อมทดสอบ Restore, Retention และสิทธิ์เข้าถึง กำหนด RPO/RTO จากการทดสอบจริง
+- วัด Queries, Connections และความพร้อมของ DB ก่อนเพิ่ม Backend replicas; ไม่เปิด DB ออก Internet
+
+## ข้อควรระวัง
+
+PVC อาจอยู่ต่อหลังลบ StatefulSet ตาม Retention policy แต่การลบ PVC/Namespace หรือ Cluster อาจทำข้อมูลหายตาม Reclaim policy และ Provisioner ต้องอ่านพฤติกรรมของ Storage นั้นก่อนลบ **PV ไม่ใช่ Backup** และ Local Node storage ของ kind ไม่ใช่ที่เก็บข้อมูลระยะยาว
+
+POSTGRES_* ใช้ Init ฐานครั้งแรก การเปลี่ยน Secret/Database name ไม่เปลี่ยนผู้ใช้/ฐานใน Data directory เก่าอัตโนมัติ ต้องใช้ Migration/Rotation ที่วางแผน ไม่ลบ PVC เพื่อให้ Init ใหม่บนข้อมูลที่ต้องเก็บ
+
+## สรุปสิ่งที่ต้องจำ
+
+- PVC ขอพื้นที่ PV คือพื้นที่จริง StorageClass บอกวิธีจัดหา
+- StatefulSet รักษา Identity ไม่สร้าง PostgreSQL HA ให้เอง
+- ไม่ Scale DB แบบ Stateless web
+- มี Volume แล้วก็ยังต้อง Backup และทดสอบ Restore
+
+## อ่านต่อ
+
+- [PostgreSQL Backup / Restore](/technology-guides/postgresql/backup-restore)
+- [Docker Volume](/technology-guides/docker/docker-volume)
+- [Persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
+- [StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)

@@ -1,0 +1,96 @@
+---
+title: "Components — แบ่งหน้าจอและรับข้อมูลจาก Form"
+description: "เข้าใจ Props และ State ผ่าน Form สร้าง Task พร้อม Loading และ Field errors"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# Components — แบ่งหน้าจอและรับข้อมูลจาก Form
+
+## เรื่องนี้คืออะไร?
+
+Component คือส่วนของหน้าจอที่แยกเขียนและใช้ซ้ำได้ เช่น Form สร้าง Task ส่วน Props คือข้อมูลที่ผู้เรียกส่งเข้ามา และ State คือข้อมูลที่ Component จำไว้ระหว่างใช้งาน
+
+ใช้ Local state สำหรับข้อความใน Form และสถานะกำลังส่งก่อน ไม่ต้องเพิ่ม Global state library เพื่อเก็บ Input ทุกช่อง
+
+## ทำงานอย่างไร?
+
+Form รับ `onSubmit` ผ่าน Props จึงไม่ผูกกับ URL หรือ Router เอง ผู้เรียกเป็นคนติดต่อ API Form แสดง Validation ของ Server และปิดปุ่มระหว่างส่งเพื่อลดการกดซ้ำ
+
+ไฟล์ `frontend/src/components/TaskForm.tsx`:
+
+```tsx
+import { useState, type FormEvent } from 'react'
+import { ApiError, isAbort, userMessage } from '../services/api'
+import type { TaskInput } from '../types/task'
+
+type Props = {
+  onSubmit: (input: TaskInput) => Promise<void>
+  disabled?: boolean
+}
+
+export function TaskForm({ onSubmit, disabled = false }: Props) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [titleErrors, setTitleErrors] = useState<string[]>([])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (saving || disabled) return
+    setSaving(true); setError(''); setTitleErrors([])
+    try {
+      await onSubmit({ title, description, status: 'todo' })
+      setTitle(''); setDescription('')
+    } catch (cause) {
+      if (!isAbort(cause)) {
+        setError(userMessage(cause))
+        if (cause instanceof ApiError) setTitleErrors(cause.details.title ?? [])
+      }
+    } finally { setSaving(false) }
+  }
+
+  return <form onSubmit={submit}>
+    <label htmlFor="task-title">ชื่องาน</label>
+    <input id="task-title" value={title} maxLength={200} required
+      disabled={saving || disabled} aria-invalid={titleErrors.length > 0}
+      aria-describedby={titleErrors.length ? 'task-title-error' : undefined}
+      onChange={event => setTitle(event.target.value)} />
+    {titleErrors.length > 0 && <p id="task-title-error">{titleErrors.join(' ')}</p>}
+    <label htmlFor="task-description">รายละเอียด</label>
+    <textarea id="task-description" value={description} disabled={saving || disabled}
+      onChange={event => setDescription(event.target.value)} />
+    {error && <p role="alert">{error}</p>}
+    <button disabled={saving || disabled} type="submit">
+      {saving ? 'กำลังบันทึก…' : 'เพิ่มงาน'}
+    </button>
+  </form>
+}
+```
+
+`preventDefault()` หยุดการ Reload หน้าเมื่อ Submit ตัวอย่างล้าง Form หลัง Server ตอบว่าสำเร็จเท่านั้น ถ้าเกิด Error จะเก็บ Input ให้แก้ได้
+
+## วิธีทดสอบ
+
+กรอกชื่องานแล้ว Submit ต้องเรียก onSubmit ด้วย status todo ทดสอบ API ตอบ Validation Error แล้วตรวจว่าข้อความ title อยู่ใกล้ช่อง และ Input เดิมยังอยู่ ดู [Component tests](/technology-guides/react-typescript/testing)
+
+## ข้อควรระวัง
+
+Validation ใน Browser ช่วยผู้ใช้ แต่ Server ต้องตรวจซ้ำเสมอ อย่าใส่ Permission หรือ Business rule สำคัญไว้เฉพาะ Component และอย่าแยกทุกข้อความเป็น Component โดยไม่มีเหตุผล
+
+## สรุปสิ่งที่ต้องจำ
+
+- Props ส่งข้อมูลเข้า State เก็บข้อมูลของหน้าจอ
+- Form เรียก Callback ส่วน Service ติดต่อ API
+- แสดง Loading และ Error โดยไม่ทิ้ง Input
+- ใช้ label และ Error ที่ผูกกับช่องกรอก
+
+## อ่านต่อ
+
+- [Hooks](/technology-guides/react-typescript/hooks)
+- [API Integration](/technology-guides/react-typescript/api-integration)
+- [React: Thinking in React](https://react.dev/learn/thinking-in-react)

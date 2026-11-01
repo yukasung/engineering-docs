@@ -1,0 +1,381 @@
+---
+title: "ตัวอย่าง Task App — ไฟล์ที่ใช้ร่วมกันทุกบท"
+description: "เตรียม Source ตัวอย่าง React TypeScript และ Django DRF ก่อนเพิ่ม Dockerfile และ Compose"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17", "Node.js": "22 (Vite ต้องการ 22.12+)", "React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5"}
+---
+
+# ตัวอย่าง Task App — ไฟล์ที่ใช้ร่วมกันทุกบท
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้รวม Source หรือโค้ดต้นทางขั้นต่ำของ Task App เพื่อให้ Dockerfile กับ Compose มีไฟล์ที่ตรงกัน โค้ดเป็น **ตัวอย่างสำหรับ Lab ในเครื่องเท่านั้น** มี API อ่าน/เพิ่ม Task โดยไม่มี Login หรือการแยกข้อมูลผู้ใช้ ห้ามเปิดให้ผู้ใช้จริงหรืออินเทอร์เน็ต
+
+## ใช้ทำอะไร?
+
+ใช้เมื่อต้องการทำตามตัวอย่างทั้งชุด หากมีแอปอยู่แล้ว ให้อ่านเป็นแนวทางและปรับ Paths/คำสั่ง ไม่คัดลอกทับแอปของทีม
+
+## ขั้นตอนการทำงาน
+
+สร้างโฟลเดอร์ `task-demo` แยกจาก Engineering Hub แล้วคัดลอกไฟล์ตามชื่อทุกไฟล์ โฟลเดอร์นี้ยังรันด้วย Docker ไม่ได้จนเพิ่ม [Dockerfile](/technology-guides/docker/dockerfile) และ [Compose](/technology-guides/docker/docker-compose) ครบ
+
+```text
+task-demo/
+├── .gitignore
+├── .env.example                 ← บท Compose
+├── compose.yaml                 ← บท Compose
+├── backend/
+│   ├── Dockerfile               ← บท Dockerfile
+│   ├── .dockerignore            ← บท Dockerfile
+│   ├── requirements.txt
+│   ├── manage.py
+│   ├── config/
+│   │   ├── __init__.py
+│   │   ├── settings.py
+│   │   ├── urls.py
+│   │   └── wsgi.py
+│   └── tasks/
+│       ├── __init__.py
+│       ├── models.py
+│       ├── views.py
+│       └── migrations/
+│           ├── __init__.py
+│           └── 0001_initial.py
+└── frontend/
+    ├── Dockerfile               ← บท Dockerfile
+    ├── .dockerignore            ← บท Dockerfile
+    ├── nginx.conf               ← บท Dockerfile
+    ├── package.json
+    ├── package-lock.json        ← สร้างในขั้นที่ 3
+    ├── tsconfig.json
+    ├── index.html
+    └── src/
+        ├── main.tsx
+        └── App.tsx
+```
+
+ไฟล์ `__init__.py` ทั้งสามตำแหน่งเป็นไฟล์ว่าง สร้างให้ครบ ไม่ต้องมีเนื้อหา รุ่นในหน้านี้เป็นฐานสำหรับ Lab ไม่ใช่นโยบายรุ่นของทุกโปรเจกต์
+
+### 1. Backend
+
+```text filename="backend/requirements.txt"
+Django==5.2.18
+djangorestframework==3.18.3
+gunicorn==26.2.0
+psycopg[binary]==3.3.6
+```
+
+Pin Dependencies หลักเพื่อไม่เปลี่ยนโดยไม่รู้ตัว แต่ยังไม่ได้ล็อก Transitive dependencies หรือแพ็กที่ถูกดึงต่อทั้งหมด ก่อน Release จริงให้สร้าง Lock/Hashes ด้วยเครื่องมือของทีมและทดสอบแพ็กที่ล็อกแล้ว
+
+```python filename="backend/manage.py"
+import os
+import sys
+
+from django.core.management import execute_from_command_line
+
+if __name__ == "__main__":
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    execute_from_command_line(sys.argv)
+```
+
+```python filename="backend/config/settings.py"
+import os
+
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+DEBUG = False
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ["DJANGO_ALLOWED_HOSTS"].split(",")
+    if host.strip()
+]
+INSTALLED_APPS = [
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "rest_framework",
+    "tasks",
+]
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.middleware.common.CommonMiddleware",
+]
+ROOT_URLCONF = "config.urls"
+WSGI_APPLICATION = "config.wsgi.application"
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ["POSTGRES_DB"],
+        "USER": os.environ["POSTGRES_USER"],
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.environ.get("DB_HOST", "db"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "OPTIONS": {"connect_timeout": 5},
+    }
+}
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+USE_TZ = True
+TIME_ZONE = "UTC"
+```
+
+**ค่าฐานข้อมูล** อ่านตอนรัน ไม่ฝังใน Image `db:5432` เป็นชื่อกับพอร์ตภายใน Docker Network ไม่ใช่ Host port ดู [Network](/technology-guides/docker/docker-network) การใช้ `AllowAny` มีไว้ให้เรียน Docker โดยไม่เพิ่มระบบ Login ไม่ใช่ค่าแนะนำสำหรับ Task API จริง
+
+```python filename="backend/tasks/models.py"
+from django.db import models
+
+
+class Task(models.Model):
+    title = models.CharField(max_length=200)
+```
+
+```python filename="backend/tasks/migrations/0001_initial.py"
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    initial = True
+    dependencies = []
+    operations = [
+        migrations.CreateModel(
+            name="Task",
+            fields=[
+                ("id", models.BigAutoField(
+                    auto_created=True, primary_key=True,
+                    serialize=False, verbose_name="ID"
+                )),
+                ("title", models.CharField(max_length=200)),
+            ],
+        ),
+    ]
+```
+
+Migration นี้สร้างตาราง Task และต้องเก็บไปกับโค้ด ไม่สร้าง Migration ใหม่อัตโนมัติตอน Container เริ่มรัน
+
+```python filename="backend/tasks/views.py"
+from django.db import connection
+from django.http import JsonResponse
+from rest_framework import generics, serializers
+
+from .models import Task
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Task
+        fields = ["id", "title"]
+        read_only_fields = ["id"]
+
+
+class TaskListCreateView(generics.ListCreateAPIView):
+    queryset = Task.objects.order_by("id")
+    serializer_class = TaskSerializer
+
+
+def health(request):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1")
+    return JsonResponse({"status": "ok"})
+```
+
+Health endpoint ตรวจ API กับการเชื่อม DB เบื้องต้น ยังไม่ได้ยืนยันว่า Migration ครบหรือสร้าง Task ได้ ต้องทดสอบเส้นทาง Task แยกด้วย
+
+```python filename="backend/config/urls.py"
+from django.urls import path
+
+from tasks.views import TaskListCreateView, health
+
+urlpatterns = [
+    path("api/health/", health),
+    path("api/tasks/", TaskListCreateView.as_view()),
+]
+```
+
+```python filename="backend/config/wsgi.py"
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+application = get_wsgi_application()
+```
+
+### 2. Frontend
+
+ใช้ Vite ซึ่งเป็นเครื่องมือพัฒนาและ Build หน้า React แล้วให้ Nginx เสิร์ฟไฟล์ที่ได้ ไม่ต้องมี Node.js ใน Container ที่เสิร์ฟหน้าเว็บจริง
+
+```json filename="frontend/package.json"
+{
+  "name": "task-demo-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.5"
+  }
+}
+```
+
+```json filename="frontend/tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
+```
+
+```html filename="frontend/index.html"
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+```tsx filename="frontend/src/main.tsx"
+import { createRoot } from 'react-dom/client'
+import App from './App'
+
+const root = document.getElementById('root')
+if (!root) throw new Error('Missing root element')
+createRoot(root).render(<App />)
+```
+
+```tsx filename="frontend/src/App.tsx"
+import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
+
+type Task = { id: number; title: string }
+
+export default function App() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [title, setTitle] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/tasks/')
+      .then(response => {
+        if (!response.ok) throw new Error('อ่านรายการงานไม่สำเร็จ')
+        return response.json() as Promise<Task[]>
+      })
+      .then(setTasks)
+      .catch(() => setError('อ่านรายการไม่ได้ ตรวจ Backend และ Migration'))
+  }, [])
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!title.trim() || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      const response = await fetch('/api/tasks/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim() })
+      })
+      if (!response.ok) throw new Error('เพิ่มงานไม่สำเร็จ')
+      const task = await response.json() as Task
+      setTasks(previous => [...previous, task])
+      setTitle('')
+    } catch {
+      setError('เพิ่มงานไม่ได้ ตรวจการเชื่อมต่อแล้วลองใหม่')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <main>
+      <h1>Task Demo</h1>
+      <form onSubmit={submit}>
+        <label htmlFor="title">ชื่องาน</label>
+        <input id="title" value={title} maxLength={200} required
+          onChange={event => setTitle(event.target.value)} />
+        <button disabled={saving} type="submit">เพิ่มงาน</button>
+      </form>
+      {error && <p role="alert">{error}</p>}
+      <ul>{tasks.map(task => <li key={task.id}>{task.title}</li>)}</ul>
+    </main>
+  )
+}
+```
+
+Frontend เรียก URL แบบ Relative คือ `/api/tasks/` บน Origin เดียวกับเว็บ ไม่เรียก `http://backend:8000` จาก Browser และไม่ฝัง API URL แยก DEV/UAT ลง Build การส่งต่อจริงอยู่ใน `nginx.conf` บท Dockerfile
+
+### 3. ป้องกันค่าลับและสร้าง Lockfile
+
+```text filename=".gitignore"
+.env
+.env.*
+!.env.example
+!.env.deploy.example
+node_modules/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+backups/
+```
+
+เมื่อสร้าง `frontend/package.json` แล้ว รันจาก `task-demo` บน Bash/Zsh เพื่อให้ Node ใน Container สร้าง Lockfile โดยไม่ต้องติดตั้ง Node ในเครื่อง:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  --mount "type=bind,src=$PWD/frontend,dst=/app" -w /app \
+  node:22-alpine npm install --package-lock-only --ignore-scripts
+```
+
+คำสั่งนี้เขียน `frontend/package-lock.json` ลงโฟลเดอร์ที่ Mount เท่านั้น ต้องมีอินเทอร์เน็ต ตรวจและ Commit Lockfile คู่กับ `package.json` หลังจากนั้น Dockerfile ใช้ `npm ci` ติดตั้งตาม Lock นี้
+
+## ตัวอย่างการใช้งานจริง
+
+เมื่อเพิ่ม Dockerfile/Compose ครบและรัน Migration แล้ว เปิดหน้าเว็บ เพิ่ม “ทดลองสร้าง Task” จาก Browser และ Refresh รายการควรยังอยู่ ขั้นตอนตรวจพร้อมคำสั่งอยู่ใน [Compose Lab](/technology-guides/docker/docker-compose)
+
+## ข้อควรระวัง
+
+นี่เป็นแอปสาธิตขนาดเล็ก ไม่มี Authentication, Authorization, Rate limit หรือชุด Automated tests สำหรับ Business rules และไม่อ้างว่าการ Build ผ่านแปลว่าพร้อม Production
+
+## สรุปสิ่งที่ต้องจำ
+
+- คัดลอกไฟล์ให้ครบ รวมไฟล์ว่างและ Migration
+- ต้องมี Lockfile ก่อน Build Frontend
+- Frontend ใช้ `/api/` ส่วน Backend ใช้ `db:5432`
+- ตัวอย่างไม่มี Login และจำกัดไว้ที่เครื่องทดลอง
+
+## อ่านต่อ
+
+- [Dockerfile: เพิ่มไฟล์แพ็กและ Nginx proxy](/technology-guides/docker/dockerfile)
+- [Compose: ตั้งค่าและเริ่มทั้งระบบ](/technology-guides/docker/docker-compose)
+- [Authentication Flow](/technology-guides/fullstack/authentication-flow)

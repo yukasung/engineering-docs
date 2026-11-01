@@ -1,0 +1,110 @@
+---
+title: "Getting Started — รู้จักตารางและเริ่มเขียน SQL"
+description: "Database Schema Table Primary Key Foreign Key และ SQL พื้นฐาน พร้อมการเชื่อมต่อ DBeaver"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# Getting Started — รู้จักตารางและเริ่มเขียน SQL
+
+## เรื่องนี้คืออะไร?
+
+Relational database คือฐานข้อมูลที่เก็บข้อมูลเป็นตารางและเชื่อมกันด้วยรหัส SQL คือภาษาที่ใช้สั่งอ่านหรือเปลี่ยนข้อมูล ส่วน PostgreSQL คือระบบที่รับคำสั่ง SQL ไปทำงาน คำสั่งบางอย่างจึงต่างจากฐานข้อมูลยี่ห้ออื่น
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อเริ่มอ่านตารางของทีม หรืออยากตรวจข้อมูลที่ API แสดง ก่อนแก้ข้อมูลต้องรู้ว่ากำลังเชื่อมฐานใดและมีสิทธิ์ทำอะไร
+
+## ทำอย่างไร?
+
+### รู้จักส่วนประกอบก่อน
+
+| คำ | ตัวอย่างใน Lab |
+| --- | --- |
+| Database | ฐาน `order_lab` เป็นขอบเขตที่เราเชื่อมต่อ |
+| Schema | กลุ่มชื่อตารางภายในฐาน เช่น `public` |
+| Table | ตาราง `public.customers` |
+| Row / Column | Row คือข้อมูลลูกค้าหนึ่งคน Column คือช่องเช่น `name` |
+| Primary Key (PK) | รหัสที่ไม่ซ้ำและไม่ว่าง เช่น `customers.id` |
+| Foreign Key (FK) | ช่องที่อ้างรหัสอีกตาราง เช่น `orders.customer_id` |
+
+คำว่า Schema อาจหมายถึง Namespace เช่น `public` หรือหมายถึงโครงสร้างตารางโดยรวม ต้องดูบริบท `id` แบบ Identity ให้ DB สร้างเลข ไม่ได้แปลว่าเลขเรียงไม่ขาด เพราะเลขที่ใช้ไปแล้วอาจไม่ย้อนตาม Transaction
+
+### PostgreSQL กับ SQL Server ต่างกันตรงไหน?
+
+ทั้งคู่ทำ Relational data และ Transactions ได้ PostgreSQL เป็น Open source ส่วน SQL Server เป็นผลิตภัณฑ์ของ Microsoft แต่มีรูปแบบ License/รุ่นให้เลือกต่างกัน Syntax/เครื่องมือไม่เหมือนกัน เช่น Lab นี้ใช้ `GENERATED ALWAYS AS IDENTITY` และ `LIMIT` อย่านำ `IDENTITY(1,1)` หรือ `TOP` จาก SQL Server มาคัดลอกโดยไม่ปรับ ไม่ใช่ระบบหนึ่งเหมาะกับทุกงาน
+
+### 1. เชื่อมด้วย DBeaver
+
+ต้องมี PostgreSQL Lab ที่เข้าถึงได้ก่อน หากยังไม่มี ให้ทำตาม [Docker Lab](/technology-guides/postgresql/postgresql-docker)
+
+1. เปิด DBeaver → New Database Connection → PostgreSQL
+2. สำหรับ Docker Lab ตั้ง Host `127.0.0.1`, Port `5433`, Database `order_lab`, User `order_admin` ถ้าแก้ Port ใน Lab ให้ใช้ค่าจริง
+3. ใส่ Password ของ Lab ผ่านช่อง Password ไม่ใส่ใน URL หรือ SQL และอย่าบันทึก Credential ของ Production โดยไม่มีข้อตกลง
+4. กด Test Connection อาจต้องดาวน์โหลด Driver ที่โปรแกรมขอ ให้ตรวจรุ่นที่ทีมใช้
+5. เปิด SQL Editor แล้วตรวจปลายทางก่อนเสมอ:
+
+```sql filename="connection-check.sql"
+SELECT current_database(), current_user, current_schema();
+SHOW server_version;
+SHOW search_path;
+```
+
+ควรเห็น `order_lab` ไม่ใช่ฐานของโปรเจกต์จริง ตรวจ Auto-commit ของ Editor ด้วย ในโหมดนี้แต่ละคำสั่งอาจ Commit ทันที หากจะทดลองหลายคำสั่งด้วยกันให้ใช้ `BEGIN`/`ROLLBACK` ชัดเจน
+
+### 2. เตรียมตารางก่อนใช้คำสั่งพื้นฐาน
+
+สร้างตารางกับข้อมูลจาก [Database Design](/technology-guides/postgresql/database-design) ตามลำดับ `schema.sql` → `seed.sql` บนฐานว่างหนึ่งครั้ง คำสั่งด้านล่างไม่สร้างตารางให้เอง
+
+### 3. อ่าน เพิ่ม แก้ และลบ
+
+ตัวอย่างนี้เขียนเฉพาะลูกค้าทดลองแล้ว `ROLLBACK` คืนทั้งหมด การ `DELETE` ลบแถว จึงต้องมี `WHERE` และตรวจเงื่อนไขก่อนทุกครั้ง ไม่ลองกับฐานร่วม:
+
+```sql filename="crud-lab.sql"
+BEGIN;
+SELECT * FROM customers ORDER BY id;
+
+INSERT INTO customers (name, email)
+VALUES ('Temporary Customer', 'temporary@example.invalid');
+
+UPDATE customers
+SET name = 'Temporary Customer Updated'
+WHERE email = 'temporary@example.invalid';
+
+SELECT id, name, email FROM customers
+WHERE email = 'temporary@example.invalid';
+
+DELETE FROM customers
+WHERE email = 'temporary@example.invalid';
+ROLLBACK;
+```
+
+`SELECT` อ่าน, `INSERT` เพิ่ม, `UPDATE` แก้ และ `DELETE` ลบข้อมูล ในงานจริงเลือกเฉพาะ Columns ที่ต้องใช้และจำกัด Rows ไม่ใช้ `SELECT *` กับตารางใหญ่เพื่อดูทุกอย่าง
+
+### DDL กับ DML
+
+**DDL** เปลี่ยนโครงสร้าง เช่น `CREATE TABLE`, `ALTER TABLE` ส่วน **DML** ใช้เพิ่ม/แก้/ลบข้อมูล เช่น `INSERT`, `UPDATE`, `DELETE` การอ่านใช้ `SELECT` ซึ่งบางคู่มือแยกเรียก DQL ประเด็นที่ต้องจำคือเปลี่ยนโครงสร้างกับเปลี่ยนข้อมูลมีผลและขั้นตอนตรวจต่างกัน
+
+## ตัวอย่างการใช้งานจริง
+
+QA ต้องดูว่าลูกค้ามี Order หรือไม่ เริ่มจาก SELECT และ JOIN แบบอ่านอย่างเดียว ไม่ UPDATE สถานะเพื่อให้งานทดสอบผ่าน หากข้อมูลผิดให้แจ้งทีมและแก้ตาม [Migration workflow](/technology-guides/postgresql/migrations)
+
+## ข้อควรระวัง
+
+ไม่ใช้ `UPDATE`/`DELETE` โดยลืม `WHERE` และไม่ใช้รหัส PK แทนกติกาธุรกิจทั้งหมด ชื่อฐาน/Schema ที่เหมือนกันบนอีก Host ไม่ได้แปลว่าเป็นข้อมูลชุดเดียวกัน ถ้ารัน SQL จากโปรแกรมให้ใช้ Parameters ของ Driver ไม่ต่อข้อความจากผู้ใช้เข้าคำสั่งเอง
+
+## สรุป
+
+- ตรวจ Database, User และ Schema ก่อนรัน
+- PK ระบุแถว ส่วน FK เชื่อมข้อมูล
+- อ่านข้อมูลก่อนเปลี่ยน และทดลองในฐานแยก
+- SQL ของแต่ละระบบอาจต้องปรับ Syntax
+
+## อ่านต่อ
+
+- [Database Design](/technology-guides/postgresql/database-design)
+- [Transactions](/technology-guides/postgresql/transactions)
+- [DBeaver PostgreSQL connection](https://dbeaver.com/docs/dbeaver/Database-driver-PostgreSQL/)

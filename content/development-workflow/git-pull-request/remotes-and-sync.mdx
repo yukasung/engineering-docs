@@ -1,0 +1,108 @@
+---
+title: "Remotes & Sync — รับงานเพื่อนและส่ง Branch"
+description: "เข้าใจ origin Remote-tracking Upstream fetch pull ff-only และ Push ที่ไม่เขียนทับงานทีม"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Remotes & Sync — รับงานเพื่อนและส่ง Branch
+
+## เรื่องนี้คืออะไร?
+
+Remote คือชื่อปลายทางที่เก็บโค้ด เช่น origin ส่วน origin/develop เป็นข้อมูลของ Branch กลางที่เครื่องเรารู้จากการ Fetch ครั้งล่าสุด ไม่ใช่ Branch บน Server ที่อัปเดตตลอดเวลา
+
+Upstream ของ Local branch คือ Branch ที่ตั้งให้ติดตาม เช่น feature/login ติดตาม origin/feature/login คำว่า Upstream ในงาน Fork ยังอาจเป็นชื่อ Remote อีกตัว ต้องดูว่าพูดถึงแบบใด
+
+## ใช้คำสั่งไหนเมื่อไร?
+
+| คำสั่ง | ผล |
+| --- | --- |
+| fetch | รับ Commits/Refs มา ไม่รวมเข้ากับ Working branch ให้ |
+| pull `--ff-only` | Fetch แล้วเลื่อนไปข้างหน้าได้เมื่อไม่ต้องรวมประวัติที่แยกกัน |
+| push | ส่ง Local commits ไป Remote ref ตามสิทธิ์/กฎ ไม่เปิด PR ให้เอง |
+
+## ทำอย่างไร?
+
+### อัปเดตข้อมูลก่อนเปรียบเทียบ
+
+```bash
+git status -sb
+git remote
+git fetch origin
+git branch -vv
+```
+
+ทำบน Repo ที่รู้จักและตรวจงานค้างก่อน Fetch/เปลี่ยน Branch branch -vv ดู Branch/Upstream และ Ahead/Behind ที่อิงข้อมูลล่าสุดในเครื่อง ไม่ต้องพ่น Remote URL ที่อาจมี Credential ไปลง Log เพื่อเช็กชื่อ origin
+
+### อัปเดต Branch ฐานอย่างหยุดได้เมื่อประวัติแยก
+
+ต้องไม่มีงานค้างที่ยังไม่จัดเก็บ และมี Local develop ตามโครงสร้าง Branch ของ Repository:
+
+```bash
+git switch develop
+git pull --ff-only origin develop
+```
+
+ff-only ไม่สร้าง Merge commit เพื่อรวมประวัติที่ Diverged หากคำสั่งหยุด ให้ตรวจทั้งสองฝั่งก่อน ไม่ใช้ reset/force push ทับ หากไม่มี Local develop แต่มี origin/develop ให้สร้าง Tracking branch ตามคำสั่งเฉพาะกรณีนี้:
+
+```bash
+git switch --track origin/develop
+```
+
+อย่ารันสองวิธีตามกันแบบ Script เมื่อมี Local branch อยู่แล้ว วิธีหลังจะไม่ใช่วิธีแก้ทุก Error ของ switch
+
+### รับ develop เข้า Feature ที่กำลังทำ
+
+เมื่ออยู่ Feature branch ของตัวเองและ Working tree สะอาด ใช้วิธี Merge ตามตัวอย่างร่วมกับทีม:
+
+```bash
+git switch feature/login
+git fetch origin
+git merge origin/develop
+```
+
+ถ้า Merge ผ่านให้รัน Tests/Checks ของโปรเจกต์ก่อน Push หากชนให้ดู [Conflicts](/development-workflow/git-pull-request/conflicts-and-merge) อย่า Merge feature เข้า Local develop แล้ว Push ข้าม PR เมื่อทีมใช้การ Review ก่อนรวม
+
+### Push ครั้งแรกและครั้งถัดไป
+
+หลัง Commit และตรวจงานแล้ว:
+
+```bash
+git push -u origin feature/login
+```
+
+-u ตั้ง Upstream สำหรับ Branch นี้ เมื่อยืนยัน Tracking ถูกแล้วครั้งถัดไปใช้ `git push` ได้ ถ้าเคย Push ไปอีก Remote/Branch ให้ตรวจ branch -vv ก่อน ไม่ใช้เพียงชื่อ origin เดา Account/Repository ปลายทาง
+
+### Ahead/Behind ต่างกันอย่างไร?
+
+ตัวอย่างนี้ต้องมี origin/feature/login หลัง Push แล้ว และกำลังอยู่ Local feature/login:
+
+```bash
+git fetch origin
+git rev-list --left-right --count HEAD...origin/feature/login
+git log --left-right --oneline HEAD...origin/feature/login
+```
+
+ตัวเลข `2 1` เป็นตัวอย่าง: ซ้ายมี 2 Commits เฉพาะในเครื่อง ขวามี 1 เฉพาะ Remote history แยกกัน ไม่ใช่ว่าฝั่งใดถูกกว่า อ่าน Commits และตกลงวิธีรวมก่อน หากอีกคน Push เข้า Feature เดียวกัน อาจ Merge origin/feature/login หลังตรวจและทดสอบ ไม่ force push เพื่อให้ผ่าน
+
+## Merge กับ Rebase
+
+Merge เก็บประวัติทั้งสองสายและอาจมี Merge commit; หากทำ Fast-forward ได้อาจไม่สร้าง Commit เพิ่ม ส่วน Rebase นำ Commits ไปวางบนฐานใหม่และมักเปลี่ยน SHA หรือรหัส Commit
+
+ตัวอย่างหลักเลือก Merge เพื่อไม่ต้องเขียนทับประวัติที่เผยแพร่แล้ว Rebase ควรใช้เมื่อเข้าใจผลและตรงข้อตกลง โดยเฉพาะ Branch ที่เพื่อนใช้อยู่ ไม่เริ่มจาก Rebase แล้ว Force push บนงานร่วมเพื่อแก้ Pull ไม่ผ่าน
+
+## สรุปสิ่งที่ต้องจำ
+
+- origin/develop คือข้อมูลครั้งล่าสุดหลัง Fetch
+- ff-only หยุดเมื่อประวัติแยกเพื่อให้ตรวจ
+- รับงานเข้า Feature แล้วทดสอบก่อน Push
+- Upstream/Remote ต้องตรวจจริง ไม่เดาจากชื่อ
+
+## อ่านต่อ
+
+- [Overview](/)
+- [Conflicts & Merge](/development-workflow/git-pull-request/conflicts-and-merge)
+- [git fetch](https://git-scm.com/docs/git-fetch) และ [git pull](https://git-scm.com/docs/git-pull)

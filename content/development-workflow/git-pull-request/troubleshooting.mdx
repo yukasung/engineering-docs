@@ -1,0 +1,98 @@
+---
+title: "Troubleshooting — เมื่อ Git ไม่เป็นอย่างที่คิด"
+description: "แก้ Push rejected งานค้าง Conflict Detached HEAD Ignore Author และ Secret โดยรักษางานก่อน"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Troubleshooting — เมื่อ Git ไม่เป็นอย่างที่คิด
+
+## เรื่องนี้คืออะไร?
+
+เริ่มจาก git status และข้อความ Error เต็ม ๆ ที่ตัดข้อมูลลับแล้ว ระบุว่าอยู่ Branch ไหน มีงานค้างหรือไม่ และ Commit ถูก Push ให้เพื่อนใช้แล้วหรือยัง ไม่ Copy คำสั่ง Reset/Force push จาก Error ที่คล้ายกันโดยไม่ตรวจ State
+
+## 1. Push ถูกปฏิเสธแบบ non-fast-forward
+
+- **อาการ:** Push rejected และ Remote มีงานใหม่กว่า/อีกสาย
+- **ตรวจ:** fetch origin แล้วดู branch -vv กับ log `--left-right` ของ Branch เดียวกันตาม [Remotes & Sync](/development-workflow/git-pull-request/remotes-and-sync)
+- **แก้:** อ่าน Commit ฝั่ง Remote และรวมตามข้อตกลง เช่น Merge origin/feature/login เข้า Feature ที่สะอาด แล้วทดสอบก่อน Push ไม่ Force ทับงานเพื่อน
+- **ป้องกัน:** ใช้หนึ่ง Feature branch ต่อขอบเขตงานที่ตกลง และรับงานล่าสุดก่อนส่ง หากเป็น Branch protected ให้ทำผ่าน PR ตามสิทธิ์ ไม่แก้ด้วยเพิ่มสิทธิ์ตัวเอง
+
+## 2. Pull `--ff-only` หยุดเพราะประวัติแยก
+
+- **อาการ:** Not possible to fast-forward
+- **ตรวจ:** ยืนยัน Branch ปัจจุบันและฐานที่ดึง อย่า pull origin develop บน Branch อื่นโดยคิดว่ามันอัปเดต Local develop ให้
+- **แก้:** ดู Commits ที่แต่ละฝั่งมีแล้วเลือก Merge/Rebase ตามกติกา ไม่เปลี่ยน global pull setting เพื่อปิด Error ของ Repo เดียว
+- **ป้องกัน:** แยก fetch/inspect/integrate ตาม [Remotes & Sync](/development-workflow/git-pull-request/remotes-and-sync)
+
+## 3. เปลี่ยน Branch ไม่ได้เพราะงานค้าง
+
+- **อาการ:** Local changes would be overwritten หรือกลัวงานปน
+- **ตรวจ:** status, diff, diff `--staged` และเปิด Untracked files
+- **แก้:** Commit งานที่พร้อมหรือ Stash ที่ตรวจ Secret แล้ว -u รวม Untracked แต่ไม่รวม Ignored ถ้ายังไม่ต้องการทิ้งงานอย่า Restore/Checkout แบบบังคับ
+- **ป้องกัน:** ทำ Commit ขอบเขตเล็กและเก็บงานก่อนสลับ Context ตาม [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery)
+
+## 4. Merge/Stash apply แล้ว Conflict
+
+- **อาการ:** Unmerged paths หรือ Markers ในไฟล์
+- **ตรวจ:** status และ diff `--name-only` `--diff-filter=U` แยกว่าค้างจาก Merge, Revert หรือ Stash apply
+- **แก้:** อ่านสองฝั่งและแก้ตาม [Conflicts Lab](/development-workflow/git-pull-request/conflicts-and-merge) ใช้ `--abort` เฉพาะ Operation ที่รองรับ/กำลังทำ ไม่สั่ง Merge abort แทนการจัดการ Stash conflict ทุกครั้ง
+- **ป้องกัน:** เริ่มรับงานจาก Working tree สะอาดและทดสอบผลรวม ไม่กด Accept all จน Logic หาย
+
+## 5. Detached HEAD หรือ Commit ผิด Branch
+
+- **อาการ:** status บอก HEAD detached หรือเพิ่งพบว่าทำงานบน Branch ฐาน
+- **ตรวจ:** status -sb, log -n 5 และ branch `--show-current`; Detached HEAD ไม่มี Local branch name ที่ชี้ตามการ Commit ใหม่
+- **แก้:** ถ้ามี Commit ที่ต้องเก็บอยู่ตรง HEAD ให้สร้าง Branch ใหม่ที่ยังไม่มี เช่น `git switch -c rescue/login` เพื่อรักษางานก่อน หากเป็นงาน Login บนฐานผิดให้สร้าง Feature จากจุดที่ต้องเก็บ แล้วตรวจ Base/Commits ก่อน PR อย่า Push Branch ฐานข้ามกระบวนการ
+- **ป้องกัน:** ตรวจ Branch ก่อนแก้/Commit การจัด Branch ฐานคืนต้องมีแผนหลังเก็บงานแล้ว ไม่ Reset ทันที ดู [Reflog/Recovery](/development-workflow/git-pull-request/undo-and-recovery)
+
+## 6. เพิ่ม .gitignore แล้วไฟล์ยังขึ้น
+
+- **อาการ:** .env หรือ Generated files ยังอยู่ใน git status
+- **ตรวจ:** git ls-files กับ check-ignore ตาม [Getting Started](/development-workflow/git-pull-request/getting-started) แยกว่า Track อยู่แล้วหรือ Rule ไม่ตรง
+- **แก้:** สำหรับไฟล์ทั่วไปที่ยืนยันว่าไม่ต้อง Track อาจใช้ `git rm --cached -- PATH` เพื่อ Stage การเอาออกจาก Index โดยเก็บไฟล์ในเครื่อง ต้องแทน PATH และตรวจ Diff/ผลต่อเพื่อนก่อน Commit หากเป็น Secret ให้ทำข้อ 8 ก่อน
+- **ป้องกัน:** สร้าง Ignore ก่อน add และตรวจชุด Staged ทุกครั้ง คำสั่ง rm `--cached` ไม่ลบประวัติเก่า
+
+## 7. Clone/Push ไม่ผ่านเพราะ Authentication
+
+- **อาการ:** Authentication failed, Permission denied (publickey), หรือ Repository not found บน Private repo
+- **ตรวจ:** URL ปลายทางแบบไม่เผย Credential, Account/สิทธิ์ที่ใช้ และ HTTPS/SSH protocol ตาม [GitHub CLI](/development-workflow/git-pull-request/github-cli)
+- **แก้:** ใช้ Credential manager/Key/บัญชีที่ได้รับอนุญาตตามทีม GitHub account password ไม่ใช่ Git HTTPS credential ถ้า Key ของ Host เปลี่ยนต้องยืนยัน Fingerprint ไม่ปิด Host key checking
+- **ป้องกัน:** แยก Account ให้ชัดและมี Credential lifecycle ไม่ส่ง Token ใน Chat/Remote URL ดู [SSH](/technology-guides/linux/ssh-and-file-transfer)
+
+## 8. เผลอ Commit/Push Secret
+
+- **อาการ:** พบ Password/Token/Private key ใน Commit, Diff, PR หรือระบบแจ้ง Secret
+- **ตรวจ:** ระบุชนิดและขอบเขตการเผยแพร่โดยไม่คัดค่าจริงไปสร้างหลักฐานเพิ่ม
+- **แก้:** หยุดเผยแพร่เพิ่มและแจ้งผู้รับผิดชอบให้ Revoke/Rotate Credential ที่ได้รับผลกระทบก่อน ประสานแผนล้าง History/Clones/Caches ตาม [GitHub sensitive data guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository) ไม่ถือว่าลบไฟล์หรือ Revert แล้วปลอดภัย
+- **ป้องกัน:** Secret references/Ignore, ตรวจ Staged diff และระบบสแกนที่ทีมเลือก การ Rewrite history ต้องประสานคนที่ใช้ร่วมและตรวจผล ไม่ทำ Force push เหมาทั้ง Repo จากคู่มือเริ่มต้น
+
+## 9. ลบ Branch หลัง Squash merge ไม่ได้
+
+- **อาการ:** git branch -d แจ้งว่ายังไม่ได้ Merge แม้ PR จบแล้ว
+- **ตรวจ:** ยืนยัน PR merged, Base, Squash commit และว่าไม่มีงานใหม่ใน Branch ตัวเอง
+- **แก้:** ตรวจว่างานอยู่ใน Remote หรือ Merge แล้วก่อนลบ Branch เพราะ Squash ไม่คง Commit ancestry แบบ Merge ปกติ อย่าใช้ `-D` เพียงให้ Error หายทั้งที่ยังไม่รู้ว่างานไหนจะหายจาก Reference
+- **ป้องกัน:** ตรวจสถานะ PR/Commit และเก็บงานที่ต้องใช้ก่อน Cleanup
+
+## 10. Author ผิด / ไม่เห็น Commit ใน GitHub profile
+
+- **อาการ:** ชื่อ/Email ใน Commit ไม่ตรงหรือ Profile ไม่เชื่อมตามคาด
+- **ตรวจ:** git config `--local` `--get` user.email และ git show -s `--format=fuller` HEAD ในเครื่อง ห้ามแชร์อีเมล/ข้อมูลภายในโดยไม่จำเป็น
+- **แก้:** ตั้งตัวตนของ Repo ให้ถูกสำหรับ Commit ถัดไป หาก Commit เดิมแชร์แล้วให้วางแผนกับทีม ไม่ Rewrite ประวัติทั้งหมดเพื่อแก้ชื่อทันที การเชื่อม Profile/Signing ขึ้นกับค่าบัญชีจริง
+- **ป้องกัน:** ตรวจ Identity ตั้งแต่ Clone ตาม [Getting Started](/development-workflow/git-pull-request/getting-started)
+
+## สรุปสิ่งที่ต้องจำ
+
+- รักษางานด้วย Commit/Branch/Stash ที่เหมาะก่อนแก้
+- อ่าน Branch/Remote/สถานะจริง ไม่เดาจากชื่อ Error
+- คำสั่งที่ล้างประวัติไม่ใช่คำตอบเริ่มต้น
+- Secret รั่วต้องจัด Credential ไม่จบที่ลบไฟล์
+
+## อ่านต่อ
+
+- [Commands](/development-workflow/git-pull-request/commands)
+- [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery)
+- [Overview](/)

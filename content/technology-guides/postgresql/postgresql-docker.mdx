@@ -1,0 +1,128 @@
+---
+title: "PostgreSQL with Docker — ฐานทดลองแยกจากโปรเจกต์"
+description: "Compose Lab ของ Order Management พร้อม Volume, DBeaver และการเชื่อม Django"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# PostgreSQL with Docker — ฐานทดลองแยกจากโปรเจกต์
+
+## เรื่องนี้คืออะไร?
+
+เรารัน PostgreSQL Official Image ใน Container เพื่อเตรียมฐานทดลองที่แยกจากงานจริงได้ง่าย ข้อมูลต้องเก็บใน Named Volume ซึ่งเป็นพื้นที่เก็บที่ Docker ดูแลแยกจากอายุ Container
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อเครื่องมี Docker Engine และ Compose พร้อม แต่ยังไม่มี PostgreSQL Lab บทนี้เป็นคำแนะนำในเอกสาร ไม่ได้ติดตั้งฐานให้ Engineering Hub หากต้องการพื้นฐาน Docker อ่าน [Getting Started](/technology-guides/docker/getting-started) ก่อน
+
+## ทำอย่างไร?
+
+สร้างโฟลเดอร์ `order-lab` แยกจาก Repository และแยกจาก Task App ในคู่มือ Docker
+
+### 1. ตั้งค่า Lab
+
+```dotenv filename=".env.example"
+COMPOSE_PROJECT_NAME=order-lab
+DB_HOST_PORT=5433
+POSTGRES_DB=order_lab
+POSTGRES_USER=order_admin
+POSTGRES_PASSWORD=
+```
+
+คัดลอกเป็น `.env` ตั้ง Password สุ่มผ่าน Editor และจำกัดสิทธิ์ไฟล์ อย่า Commit `.env`, Backup หรือ Credentials ลง Git ช่องว่างตั้งใจให้ต้องเติมเอง ไม่ใช้ค่าว่างกับ DB
+
+```bash
+cp .env.example .env
+chmod 600 .env
+```
+
+### 2. compose.yaml
+
+```yaml filename="compose.yaml"
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  db-data:
+```
+
+ใช้ PostgreSQL **17** ตลอดคู่มือ จึง Mount ที่ `/var/lib/postgresql/data` Tag นี้ยังเปลี่ยน Patch image ได้ ระบบจริงควรตามรุ่น/Digest และ Security updates ตามแผน ไม่เปลี่ยน Major tag แล้วใช้ Data directory เดิมโดยไม่มี Upgrade plan
+
+### 3. ตรวจและเริ่ม Lab
+
+รันจากโฟลเดอร์ `order-lab` ที่มีสองไฟล์ข้างต้น:
+
+```bash
+docker compose config -q
+docker compose up -d db
+docker compose ps
+docker compose logs --tail=50 db
+```
+
+`config -q` ตรวจรูปแบบโดยไม่พิมพ์ค่าลับ `up` เริ่ม DB ส่วน `ps`/`logs` ใช้ยืนยันว่า DB พร้อม ไม่ได้สร้าง 5 ตารางให้เอง จากนั้นเชื่อม [DBeaver](/technology-guides/postgresql/getting-started) หรือ `psql` แล้วใช้ Schema/Seed ในบท Database Design
+
+Official Image ใช้ `POSTGRES_DB`/`POSTGRES_USER`/Password ตอน Initialize พื้นที่ข้อมูลที่ว่าง `order_admin` ใน Lab นี้เป็น Superuser ไม่ใช่ตัวอย่างสิทธิ์ที่เหมาะสำหรับแอป Production เมื่อ Volume มี DB แล้ว การแก้ Password ใน `.env` ไม่ได้เปลี่ยน Password ของ Role ที่มีอยู่
+
+### 4. เชื่อมจาก Django
+
+DBeaver บน Host ต่อ `127.0.0.1:5433` แต่ถ้า Django กับ DB อยู่ **Compose project/network เดียวกัน** ให้ Django ต่อ `db:5432` ตัวอย่างการตั้งค่าส่วนฐานข้อมูลใน `settings.py`:
+
+```python filename="django-database-settings.py"
+import os
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ["POSTGRES_DB"],
+        "USER": os.environ["POSTGRES_USER"],
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.environ.get("DB_HOST", "db"),
+        "PORT": os.environ.get("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "OPTIONS": {"connect_timeout": 5},
+    }
+}
+```
+
+นี่เป็น Config fragment ไม่ใช่แอป Django ที่รันเดี่ยวได้ ต้องมี Django/Driver, Models, ค่าตั้งที่เหลือ และการส่ง Environment เข้า Backend แล้ว ไม่มี Backend service ใน Compose ของบทนี้ หากอยู่คนละ Project จะยังหาชื่อ `db` ไม่เจอ ดู [Docker Network](/technology-guides/docker/docker-network) และตัวอย่างระบบหลายบริการใน [Compose](/technology-guides/docker/docker-compose)
+
+## ตัวอย่างการใช้งานจริง
+
+Developer ใช้ DBeaver ดู Order ใน Lab แล้วหยุดด้วย `docker compose stop` วันถัดไปใช้ `docker compose up -d db` ข้อมูลยังควรอยู่ถ้าใช้ Project name/Volume เดิม การสร้าง Container ใหม่ไม่ได้ทำ Backup ให้
+
+## ข้อควรระวัง
+
+- เปิดพอร์ตเฉพาะ Loopback คือเข้าจากเครื่องตัวเอง ห้าม Publish PostgreSQL สู่ Public internet โดยเฉพาะ Production
+- `docker compose down` คง Named Volume แต่ `docker compose down -v` ลบข้อมูลของ Lab ได้ ไม่ใช้เป็นคำสั่งแก้ปัญหาประจำ
+- ไม่รัน Schema/Seed/Migration ใน Startup ของทุก Replica และไม่พึ่ง `/docker-entrypoint-initdb.d` เพื่ออัปเดต DB ที่มีข้อมูลแล้ว เพราะ Init scripts ใช้เมื่อ Initialize ใหม่
+
+## สรุป
+
+- แยก Order Lab จาก Task App และฐานที่ทีมใช้
+- DBeaver ใช้ Host port; Django ใน Network เดียวกันใช้ชื่อ `db`
+- Volume เก็บข้อมูล แต่ไม่ทดแทน Backup
+- การเปลี่ยนค่าตั้งไม่ได้แก้ข้อมูล/สิทธิ์เดิมโดยอัตโนมัติ
+
+## อ่านต่อ
+
+- [Database Design และ SQL ต้นทาง](/technology-guides/postgresql/database-design)
+- [Backup & Restore จาก Container](/technology-guides/postgresql/backup-restore)
+- [PostgreSQL Official Image](https://hub.docker.com/_/postgres)

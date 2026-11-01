@@ -1,0 +1,120 @@
+---
+title: "PostgreSQL Quick Reference — SQL และคำสั่งค้นเร็ว"
+description: "คำสั่งพื้นฐาน JOIN GROUP BY Transactions Indexes การตรวจฐาน Backup และ Django migrations"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17", "Django": "5.2 (commands ต้องใช้โปรเจกต์ที่ตั้งค่าแล้ว)"}
+---
+
+# PostgreSQL Quick Reference — SQL และคำสั่งค้นเร็ว
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้เป็น Cheat Sheet สำหรับกลับมาค้นคำสั่งหลังอ่านบทหลัก ไม่ใช่ Script ที่ต้องรันทุกคำสั่งต่อกัน แต่ละตัวอย่างใช้ Schema ระบบสั่งซื้อจาก [Database Design](/technology-guides/postgresql/database-design)
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อต้องอ่านข้อมูล ตรวจสถานะ หรือหาเส้นทางไปคำสั่ง Backup/Migration ที่มีเงื่อนไขครบ เริ่มจากยืนยัน `current_database()` และสิทธิ์ก่อนเสมอ
+
+## ทำอย่างไร?
+
+### Basic SQL, JOIN และ GROUP BY
+
+```sql filename="quick-read.sql"
+-- อ่านลูกค้า 20 แถวแรก
+SELECT id, name, email FROM customers ORDER BY id LIMIT 20;
+
+-- รายการสินค้าใน Order
+SELECT o.id, c.name, p.sku, oi.quantity
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+ORDER BY o.id, p.sku;
+
+-- ยอดรายการเฉพาะ Order สถานะ confirmed ไม่ใช่ยอดชำระเงินจริง
+SELECT p.sku, SUM(oi.quantity) AS units,
+       SUM(oi.quantity * oi.unit_price) AS total_thb
+FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
+JOIN products p ON p.id = oi.product_id
+WHERE o.status = 'confirmed'
+GROUP BY p.sku ORDER BY p.sku;
+```
+
+เพิ่ม/แก้/ลบข้อมูลมีผลจริงเมื่อ Commit ใช้ตัวอย่าง [CRUD ที่ Rollback คืน](/technology-guides/postgresql/getting-started) ก่อน และอย่าลืม WHERE
+
+### Transactions และ Locks
+
+```sql filename="quick-lock.sql"
+BEGIN;
+SET LOCAL lock_timeout = '3s';
+SELECT id, stock FROM products WHERE sku = 'SKU-001' FOR UPDATE;
+ROLLBACK;
+```
+
+BEGIN เริ่มชุด, FOR UPDATE ล็อกแถว, COMMIT ยืนยัน และ ROLLBACK ยกเลิก ตัวอย่างนี้ล็อกเพื่ออ่านแล้วปล่อย ไม่หัก Stock ดู [Transaction เต็ม](/technology-guides/postgresql/transactions) และ [SAVEPOINT](/technology-guides/postgresql/transactions)
+
+### Indexes และการตรวจฐาน
+
+```sql filename="quick-inspect.sql"
+SELECT current_database(), current_user, current_schema();
+SELECT table_schema, table_name FROM information_schema.tables
+WHERE table_schema = 'public' ORDER BY table_name;
+
+SELECT tablename, indexname, indexdef FROM pg_indexes
+WHERE schemaname = 'public' ORDER BY tablename, indexname;
+
+EXPLAIN SELECT id FROM products WHERE sku = 'SKU-001';
+```
+
+ดู Index เดิมก่อนเพิ่ม ตัวอย่าง [Composite indexes](/technology-guides/postgresql/indexes) ต้องเลือกตาม Query และเวลาถือ Locks ไม่สร้างจากรายการนี้โดยเดา
+
+### Backup & Restore
+
+| เครื่องมือ | ใช้ทำอะไร |
+| --- | --- |
+| `pg_dump` | ส่งออกฐานเดียวเป็น Custom archive หรือ SQL |
+| `pg_restore` | กู้ Custom archive ลงฐานใหม่; `--list` ดูรายการอย่างเดียว |
+| `psql` | รัน SQL dump/Verification SQL; ใช้ `-X -v ON_ERROR_STOP=1` เมื่อต้องหยุด Script เมื่อ Error |
+| `createdb` | สร้างฐานทดสอบว่างก่อนกู้ ไม่ลบชื่อซ้ำให้เอง |
+| `pg_dumpall` | ส่งออกหลายฐาน/Cluster globals ตามตัวเลือก ไม่ใช่ PITR |
+
+ใช้ [คำสั่งพร้อม Host/Port/ไฟล์และลำดับครบ](/technology-guides/postgresql/backup-restore) แทนคำสั่งย่อที่อาจชี้ฐานเริ่มต้นผิด
+
+### Django migrations
+
+ใช้เฉพาะ Django project ที่มี `manage.py`, App `shop` และ Local database ถูกต้องแล้ว:
+
+```bash
+python manage.py makemigrations shop
+python manage.py showmigrations shop
+python manage.py migrate --plan
+python manage.py migrate
+```
+
+คำสั่งแรกสร้างไฟล์ คำสั่งสองดูสถานะ คำสั่งสามดูแผน และคำสั่งสุดท้าย Apply จริง ต้อง Review/ทดสอบก่อน Commit และส่งตาม Release process ไม่รันคู่กับ SQL Lab migration ซ้ำโดยไม่ดู State
+
+## ตัวอย่างการใช้งานจริง
+
+จะตรวจ Order ของลูกค้า ให้ใช้ Query อ่านก่อน หากต้องแก้ข้อมูลเดิมให้ไปบท Data Migrations ไม่ UPDATE ตรงใน Environment ร่วมเพราะพบคำสั่งเร็วใน Cheat Sheet
+
+## ข้อควรระวัง
+
+**คำสั่งที่ลบหรือทับข้อมูล** ต้องมีขอบเขตและ Backup ที่กู้ได้ก่อน: DELETE โดยไม่มี WHERE ลบทุกแถวที่สิทธิ์อนุญาต, TRUNCATE ล้างตาราง, DROP ลบโครงสร้าง/ฐาน และ `pg_restore --clean` สั่งลบ Objects ก่อนกู้ ไม่ใช้เป็นคำสั่งแก้ปัญหาทั่วไป `EXPLAIN ANALYZE` ก็รัน SQL จริง ไม่ใช่การดูแผนอย่างเดียว
+
+## สรุป
+
+- ตรวจปลายทางก่อน Copy คำสั่ง
+- ใช้ JOIN/GROUP BY ตามจำนวนแถวที่ต้องการ
+- การเปลี่ยนข้อมูลต้องมี Transaction/Migration ที่เหมาะสม
+- คำสั่งกู้คืนต้องใช้ลำดับและเงื่อนไขครบ
+
+## อ่านต่อ
+
+- [Troubleshooting](/technology-guides/postgresql/troubleshooting)
+- [Migrations](/technology-guides/postgresql/migrations)
+- [Data Migrations](/technology-guides/postgresql/data-migrations)
+- [psql reference](https://www.postgresql.org/docs/17/app-psql.html)

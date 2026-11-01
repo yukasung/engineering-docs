@@ -1,0 +1,101 @@
+---
+title: "SDD Workflow ของทีม"
+description: "ลำดับทำงานตั้งแต่สร้าง Branch เขียน Spec วาง Plan Implement Validate และ Review ก่อน Merge"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; ปรับ Branch model ตาม Repository", "SDD": "แนวทางแบบ Lightweight"}
+---
+
+# SDD Workflow ของทีม
+
+## เรื่องนี้คืออะไร?
+
+Workflow นี้เชื่อม Spec กับ Git และ Review ให้ทีมตามได้ว่า Change เกิดจาก Requirement ไหน ผ่าน Test อะไร และยังมีความเสี่ยงอะไรอยู่ ชื่อ Branch และ Approval rules ต้องใช้กติกาจริงของแต่ละ Repository
+
+## ทำอย่างไร?
+
+### 1. สร้าง Feature branch
+
+ตรวจ Base branch ที่ทีมใช้จริงก่อน ตัวอย่างนี้ใช้ชื่อ `feature/task-management`:
+
+```bash
+git switch -c feature/task-management
+```
+
+ถ้า Git รุ่นเก่าไม่มี `switch` จึงค่อยใช้ `git checkout -b feature/task-management` ดูคำสั่งเพิ่มเติมที่ [Git / GitHub](/development-workflow/git-pull-request)
+
+### 2. เขียน Requirements
+
+Developer, System Analyst หรือ Product Owner เขียนเป้าหมาย, Business rules และ Acceptance criteria Agent ช่วยร่างได้ แต่ Human ต้องตอบคำถามที่มีผลต่อข้อมูล สิทธิ์ หรือพฤติกรรมผู้ใช้
+
+### 3. Review Spec
+
+ยืนยันอย่างน้อย:
+
+- Business requirement และขอบเขต
+- Acceptance criteria และ Edge cases
+- API contract และ Database impact
+- Authentication, Authorization และข้อมูลสำคัญ
+- Security acceptance criteria, Trust boundaries, Logging และ Rate limiting ที่เกี่ยวข้อง
+- สิ่งที่ไม่ทำใน Change นี้
+
+อย่าเริ่ม Major implementation ถ้าคำถามสำคัญยังไม่มีคำตอบ
+
+### 4. สร้าง Plan
+
+ให้ Agent อ่าน Repository และ Spec ก่อนเสนอ Plan Plan ควรบอกไฟล์ที่คาดว่าจะแก้ ลำดับ Dependencies, Tests, Migration impact และ Risks ห้ามให้ Agent เดาไฟล์จากชื่อ Framework โดยไม่ Inspect ของจริง
+
+### 5. Implement ตาม Plan ที่ Review แล้ว
+
+- แก้เฉพาะ Scope ที่อนุมัติ
+- ไม่เปลี่ยน Requirements เงียบ ๆ
+- เพิ่มหรือแก้ Tests พร้อม Production code
+- รายงานเมื่อพบ Constraint ที่ทำให้ Plan ใช้ไม่ได้
+- หยุดถามเมื่อ Ambiguity มีผลต่อ Business rule, Security หรือข้อมูล
+
+### 6. Validate
+
+เลือกการตรวจตาม Change เช่น Unit, Integration, API, Migration, Build และ [Compliance Checklist](/standards-compliance/compliance-checklist) แล้วเทียบผลกับ Acceptance criteria อย่าถือว่า Tests หรือ Scanner ผ่านเท่ากับ Requirement ครบโดยอัตโนมัติ
+
+### 7. Review และ Merge
+
+เปิด Pull Request พร้อมลิงก์ Spec, สรุป Change, Tests ที่รันจริง, Migration/Deployment impact และ Known issues ตรวจ Diff ด้วย [Inspect Changes](/development-workflow/git-pull-request/inspect-changes) และดู PR checks ด้วย [GitHub CLI](/development-workflow/git-pull-request/github-cli)
+
+Merge ตาม Rules ของ Repository เท่านั้น การ Merge ไม่ได้แปลว่า Deploy แล้ว ดู [GitHub Actions & CI](/technology-guides/devops/github-actions)
+
+## เมื่อ Requirements เปลี่ยนกลางงาน
+
+1. ระบุ Change และเหตุผล
+2. แก้ `requirements.md`
+3. Review ผลกระทบต่อ API, Schema, Security และ Scope
+4. แก้ `plan.md`
+5. Implement เฉพาะ Change ที่ยืนยันแล้ว
+6. แก้ Tests และ `validation.md`
+7. Validate Acceptance criteria ใหม่ทั้งหมดที่ได้รับผล
+
+ใช้ขั้นตอนเดียวกันกับ Business rule ใหม่, API change, Schema change, Bug fix และ Scope change อย่าทำต่อจาก Spec เก่าแล้วค่อยแก้เอกสารย้อนหลัง
+
+## ตัวอย่างการใช้งานจริง
+
+ทีมเพิ่ม Task Creation หลัง Review พบว่าผู้ใช้ต้องสร้าง Task ให้ตนเองเท่านั้น จึงเพิ่ม Ownership rule ใน Requirements ก่อนทำ Serializer และ Endpoint เมื่อ Agent พบว่า API เดิมรับ `user_id` จาก Client ต้องรายงาน Conflict และเสนอให้ Backend ใช้ผู้ใช้จาก Session แทน ไม่ควรแก้ Contract เงียบ ๆ
+
+## ข้อควรระวัง
+
+- Branch ไม่ใช่ Environment
+- Approval ในเอกสารตัวอย่างไม่ใช่ Approval ที่เกิดขึ้นจริง
+- Database migration ต้องอยู่ใน Version control และ Review แยกผลกระทบ
+- Code rollback ไม่ได้ย้อน Database ตาม
+
+## สรุป
+
+- Review Spec ก่อน Implement งานที่มีความเสี่ยง
+- Plan ต้องมาจาก Repository จริง ไม่ใช่ Template อย่างเดียว
+- Validation ต้องเทียบทั้ง Tests และ Acceptance criteria
+- Requirement เปลี่ยนเมื่อไรให้อัปเดต Spec ก่อนทำต่อ
+
+## อ่านต่อ
+
+- [Prompt Templates](/development-workflow/spec-driven-development/prompts)
+- [Review & Validation](/development-workflow/spec-driven-development/review-validation)

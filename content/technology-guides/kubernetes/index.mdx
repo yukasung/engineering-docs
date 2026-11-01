@@ -1,0 +1,82 @@
+---
+title: "Kubernetes — เริ่มดูแลแอปหลาย Pods"
+description: "คู่มือ Deployment Service Scaling Health Check และ Troubleshooting สำหรับผู้เริ่มต้น"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Kubernetes — เริ่มดูแลแอปหลาย Pods
+
+## เรื่องนี้คืออะไร?
+
+Kubernetes ช่วยจัดวางและดูแลโปรแกรมที่แพ็กเป็น Container เช่น รักษาจำนวนตัวที่รัน เปลี่ยนรุ่น และกระจายคำขอ เหมาะเมื่อมีความต้องการเหล่านี้พร้อมคนดูแลระบบ ไม่ใช่สิ่งที่ทุกเว็บต้องมีตั้งแต่เริ่ม
+
+คู่มือนี้เป็น **เอกสารและตัวอย่าง Lab เท่านั้น** ไม่มีการสร้าง Cluster หรือ Deploy แอปจากงานเขียนเอกสารนี้ ทุก Manifest อยู่ใน MDX ต้องเตรียม Prerequisites และทดลองแยกก่อนใช้จริง
+
+## เริ่มอ่านตรงไหน?
+
+1. [Getting Started](/technology-guides/kubernetes/getting-started) และ [Architecture](/technology-guides/kubernetes/architecture): รู้จัก Cluster และเตรียมพื้นที่ฝึก
+2. [Pods](/technology-guides/kubernetes/pods) → [Deployments](/technology-guides/kubernetes/deployments) → [Services](/technology-guides/kubernetes/services): รันแอปและเชื่อมคำขอ
+3. [Configuration](/technology-guides/kubernetes/configuration), [Storage](/technology-guides/kubernetes/storage) และ [Health Checks](/technology-guides/kubernetes/health-checks): ค่าตั้ง ข้อมูล และความพร้อมรับงาน
+4. [Scaling](/technology-guides/kubernetes/scaling) และ [Rollout / Rollback](/technology-guides/kubernetes/rollout-rollback): เพิ่มกำลังและเปลี่ยนรุ่น
+5. [Troubleshooting](/technology-guides/kubernetes/troubleshooting) และ [Commands](/technology-guides/kubernetes/commands): เปิดดูระหว่างทำงาน
+
+## ตัวอย่างกลางของทุกบท
+
+| รายการ | ค่าที่ใช้ใน Lab |
+| --- | --- |
+| Cluster / kubectl context | `task-lab` / `kind-task-lab` |
+| Namespace | `task-demo` |
+| Frontend | Deployment/Service `frontend`, HTTP 8080 |
+| Backend | Deployment/Service `backend`, HTTP 8000 |
+| Database | StatefulSet/Service `db`, PostgreSQL 5432 |
+| Images | `task-frontend:k8s-lab-v1`, `task-backend:k8s-lab-v1`, `postgres:17-alpine` |
+
+ใช้ Source จาก [Docker Task App](/technology-guides/docker/reference-project) ซึ่งเป็น Lab ไม่มี Login และใช้ `/api/tasks/` ต้องเพิ่ม Health endpoints ตามบท Health Checks และ Build Images ของ Lab นี้ใหม่ ไม่ถือว่า Image เก่ามี Endpoint ให้แล้ว
+
+[Fullstack Task v1](/technology-guides/fullstack) เป็นอีก Baseline ที่มี Session/Ownership และ `/api/v1/tasks/` ใช้เรียนแนวทาง Security ต่อได้ แต่ห้ามสลับ Images/Settings/Contracts โดยไม่ปรับและทดสอบร่วมกัน หากใช้จริงต้องมี Auth/Permission ที่เหมาะสมก่อนเปิดให้ผู้ใช้อื่น
+
+## ใช้ YAML อย่างไร?
+
+เก็บไฟล์ที่คัดจาก Code blocks ในโฟลเดอร์ทดลอง `k8s/` นอก Hub มีแหล่งต้นฉบับไฟล์ละจุด:
+
+| ไฟล์ | อ่านจากบท |
+| --- | --- |
+| `namespace.yaml`, `app-config.yaml` | [Configuration](/technology-guides/kubernetes/configuration) |
+| `db.yaml` | [Storage](/technology-guides/kubernetes/storage) |
+| `backend-migrate-v1.yaml` | [Rollout / Rollback](/technology-guides/kubernetes/rollout-rollback) |
+| `backend-deployment.yaml` | [Deployments](/technology-guides/kubernetes/deployments) |
+| `services.yaml`, `frontend-proxy.yaml`, `frontend-deployment.yaml` | [Services](/technology-guides/kubernetes/services) |
+| `backend-hpa.yaml` | [Scaling](/technology-guides/kubernetes/scaling), เป็น Optional |
+
+Secret สร้างจากไฟล์ส่วนตัวตามบท Configuration ไม่เก็บค่าจริงใน Manifest ที่ Commit ส่วน `pod-demo.yaml` และ `secret.example.yaml` ใช้อธิบายเฉพาะเรื่อง ไม่รวมในชุด Apply แอป
+
+คำสั่ง kubectl ในคู่มือระบุ `--context kind-task-lab` และ `-n task-demo` ชัดเจน เพื่อลดการเผลอส่งไป Cluster/Namespace อื่น ชื่อเหล่านี้เป็นตัวอย่าง ไม่ใช่ Environment ของทีมที่เปิดใช้งานแล้ว
+
+## ข้อควรระวัง
+
+Lab ไม่รวม TLS, Public gateway, NetworkPolicy, RBAC ที่ออกแบบครบ, Database HA, Backups ที่ทดสอบ Restore หรือ Metrics Server ตั้งแต่ต้น ต้องทำแผนเหล่านี้ก่อน Production และไม่ตีความว่า Pod Running เท่ากับระบบพร้อมใช้งาน
+
+## ขอบเขตการตรวจตัวอย่าง
+
+ตรวจวันที่ 2026-11-01 โดยคัด YAML ไปพื้นที่ชั่วคราวนอก Repository: Parse YAML 11 ไฟล์ รวม 13 Resources ผ่าน และตรวจ strict schemas สำหรับ Kubernetes 1.36.0 ด้วย kubeconform 0.8.0 ผ่านทั้งหมด รวมถึงเทียบ Namespace, Labels/Selectors, Ports, Config/Secret keys, Probe paths, HPA target และ Migration image
+
+ตรวจ Python syntax ของ Health fragment และตรวจ flag `logs --all-pods` จาก kubectl Client 1.36.1 แล้ว แต่ **ไม่ได้สร้าง Cluster, Apply, ทดสอบ Image/Probe runtime, HPA, Mount, Rollout หรือ Recovery** Schema validation ไม่ยืนยัน Admission policies, Controller, Registry, DNS หรือ Storage ของ Cluster จริง ต้องตรวจใหม่ใน Lab ที่ได้รับอนุญาตเมื่อจะใช้งาน
+
+เมื่อเปลี่ยน Manifest ให้ตรวจความสอดคล้องและ Schemas ใหม่ ผลครั้งนี้ไม่ครอบคลุมการแก้ในอนาคต และไม่เปลี่ยนสถานะ Draft เป็น Approved
+
+## สรุปสิ่งที่ต้องจำ
+
+- Kubernetes จัดการ Pods ไม่ได้อ่าน Compose แล้วเปิด Services ให้เอง
+- ใช้ชื่อ/พอร์ต/Namespace เดียวกันทุกบท
+- Lab กับ Production มีภาระการดูแลต่างกัน
+- ตรวจ Context ก่อนคำสั่งเปลี่ยนระบบเสมอ
+
+## อ่านต่อ
+
+- [Docker Overview](/technology-guides/docker)
+- [Kubernetes Deployment Guidance](/technology-guides/devops#kubernetes-deployment)
+- [Overview](/)

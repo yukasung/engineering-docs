@@ -1,0 +1,117 @@
+---
+title: "Models & ORM — เก็บ Task และอ่านข้อมูล"
+description: "Task model พร้อม Owner Status Migrations QuerySet CRUD และการลด Query ที่เกินจำเป็น"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Models & ORM — เก็บ Task และอ่านข้อมูล
+
+## เรื่องนี้คืออะไร?
+
+Model คือโค้ดอธิบายข้อมูล ส่วน ORM ช่วยแปลงคำสั่ง Python เป็น SQL QuerySet คือคำอธิบายชุดข้อมูลที่จะค้น ซึ่งมักยังไม่ Query จนถูกใช้อ่านจริง ORM ไม่ตรวจสิทธิ์รายผู้ใช้ให้เอง
+
+## ใช้เมื่อไร?
+
+ใช้สร้าง/อ่าน Task หรือเปลี่ยน Schema ให้เป็นรุ่นที่ตามรอยได้ Model นี้เป็นต้นทางของ Fields ใน [Contract](/technology-guides/fullstack)
+
+## ตัวอย่าง Code
+
+```python filename="backend/tasks/models.py"
+from django.conf import settings
+from django.db import models
+
+
+class Task(models.Model):
+    class Status(models.TextChoices):
+        TODO = "todo", "To do"
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETED = "completed", "Completed"
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="tasks",
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.TODO,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["todo", "in_progress", "completed"]),
+                name="task_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(title=""), name="task_title_not_empty",
+            ),
+        ]
+```
+
+Django เพิ่ม `id` แบบ BigAutoField ตาม Settings `owner` เป็น FK ไป User; `CASCADE` ของตัวอย่างหมายความว่าลบ User แล้ว Tasks ถูกลบด้วย ต้อง Review Retention/การลบผู้ใช้ก่อนระบบจริง ไม่มี API ลบ User ในชุดนี้
+
+Serializer จะตรวจ Title ที่มีแต่ช่องว่าง ส่วน DB CHECK ด้านบนกันชื่อว่างตรง ๆ ไม่ได้บังคับกติกาข้อความทั้งหมด Model `.save()` ไม่เรียก `.full_clean()` ให้อัตโนมัติทุกครั้ง จึงไม่ใช้ API validation แทน Constraints สำคัญ
+
+### CRUD ผ่าน ORM
+
+Fragment ต่อไปใช้ใน Django shell/service ที่มี `user` และ Model แล้ว ไม่ใช่ Script เดี่ยว และไม่ใช่ทางลัดแก้ UAT/Production:
+
+```python
+from tasks.models import Task
+
+rows = Task.objects.filter(owner=user, status=Task.Status.TODO)
+task = Task.objects.create(owner=user, title="อ่านคู่มือ API")
+task.status = Task.Status.COMPLETED
+task.save(update_fields=["status", "updated_at"])
+# task.delete() ลบจริง ใช้เฉพาะงานที่ยืนยันสิทธิ์/ขอบเขตแล้ว
+```
+
+Filter มักกลายเป็น SELECT ... WHERE ส่วน Create เป็น INSERT ใช้ ID ที่ DB คืน ไม่เดาเลขเอง ถ้าต้องเปลี่ยนหลาย Rows/Models ที่ต้องสำเร็จร่วมกันใช้ `transaction.atomic()` และอ่าน [Transactions](/technology-guides/postgresql/transactions) ไม่ถือ Transaction รอ API ภายนอก
+
+ตัวอย่าง Fragment ใน Service ที่ตรวจ `user` แล้ว ต้องการสร้างสอง Task ให้สำเร็จพร้อมกัน ถ้ารายการที่สองผิด Constraint ทั้งสองรายการจะไม่ถูก Commit:
+
+```python
+from django.db import transaction
+from tasks.models import Task
+
+with transaction.atomic():
+    Task.objects.create(owner=user, title="เตรียมหน้า Login")
+    Task.objects.create(owner=user, title="ทดสอบ Login")
+```
+
+Atomicity ไม่ได้ป้องกันทุก Race condition ถ้าเป็นการอ่านแล้วแก้ค่าเดียวกันจากหลายคำขอ ต้องออกแบบ Lock/Conditional update หรือ Version check เพิ่มตามกติกางาน
+
+### select_related กับ prefetch_related
+
+`Task.objects.select_related("owner")` Join Owner มาด้วย เหมาะเมื่ออ่าน `task.owner.username` หลายรายการ ส่วน `User.objects.prefetch_related("tasks")` ดึง Tasks อีก Query แล้วจับคู่ เหมาะกับความสัมพันธ์หลายแถว ช่วยเลี่ยง **N+1** หรือ Query ซ้ำหนึ่งครั้งต่อรายการ
+
+API ชุดนี้ส่ง Owner เป็น ID จึงไม่ได้ต้อง Join Username ทุกครั้ง อย่าใส่ทั้งสองวิธีกับทุก Query โดยไม่วัด และ `QuerySet.update()` ไม่เรียก `.save()`/auto_now ตามปกติ ต้องจัด updated_at เองหากเลือกใช้
+
+## วิธีทดสอบ
+
+สร้าง Migration ด้วย `makemigrations tasks`, อ่านไฟล์, `migrate --plan` แล้ว Apply ใน Local ตาม [PostgreSQL Migration](/technology-guides/postgresql/migrations) รัน Model tests ว่า Default status ถูกและ DB ปฏิเสธสถานะผิด
+
+## ข้อควรระวัง
+
+การเปลี่ยน Column ใน DBeaver ตรง ๆ ไม่อัปเดต Migration state และการใช้ `Task.objects.all()` ใน API ทำข้อมูลข้ามผู้ใช้ได้ ต้อง Filter ที่ Server ตามบท Authorization
+
+## สรุปสิ่งที่ต้องจำ
+
+- Model/ORM ช่วยเรื่องข้อมูล แต่ไม่ให้ Authorization อัตโนมัติ
+- สร้าง Migration และ Review ทุกครั้งที่ Schema เปลี่ยน
+- เลือกวิธีลด Queries ตามความสัมพันธ์ที่อ่านจริง
+- Database constraints ยังสำคัญเมื่อมีหลายช่องทางเขียน
+
+## อ่านต่อ
+
+- [Serializers](/technology-guides/django-python/serializers)
+- [Authorization](/technology-guides/django-python/authorization)
+- [Django QuerySets](https://docs.djangoproject.com/en/5.2/ref/models/querysets/)

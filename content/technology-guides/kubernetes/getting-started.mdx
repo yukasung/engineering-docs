@@ -1,0 +1,99 @@
+---
+title: "Getting Started — ฝึก Kubernetes ด้วย kind"
+description: "ติดตั้งเครื่องมือ สร้างและลบ Local cluster อย่างระบุชื่อ พร้อมรายการเตรียม Lab"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Getting Started — ฝึก Kubernetes ด้วย kind
+
+## เรื่องนี้คืออะไร?
+
+kind สร้าง Kubernetes สำหรับฝึกในเครื่องโดยใช้ Containers เป็น Nodes ส่วน kubectl เป็นโปรแกรมส่งคำสั่งไป Kubernetes API วิธีนี้เหมาะกับเรียนรู้ ไม่จำลองความทนทานและ Storage ของ Production ทั้งหมด
+
+**คำสั่งในหน้านี้ให้ผู้อ่านทดลองเอง งานเอกสารนี้ไม่ได้รันการสร้าง/ลบ Cluster**
+
+## เตรียมอะไรบ้าง?
+
+- Docker Engine/Desktop ที่รันได้ และทรัพยากรพอสำหรับ Cluster กับ PostgreSQL ตรวจ Capacity ของเครื่องก่อน
+- kind 0.33.0 และ kubectl ที่รองรับ Kubernetes 1.36; kubectl โดยทั่วไปต้องอยู่ในช่วง Version skew ที่รองรับ ไม่ใช้ Client เก่าหลายรุ่น
+- Source/Dependencies จาก Docker Lab และโฟลเดอร์ `k8s/` สำหรับคัด Manifest ไม่มีฐานข้อมูลหรืองานจริงอยู่ใน Lab
+
+### ติดตั้งเครื่องมือ
+
+ตัวอย่างสำหรับ macOS ที่มี Homebrew แล้ว คำสั่งนี้ติดตั้งเครื่องมือบนเครื่อง ไม่ได้สร้าง Cluster:
+
+```bash
+brew install kind kubectl
+kind version
+kubectl version --client
+```
+
+Homebrew อาจให้รุ่นใหม่กว่า ให้ตรวจ Version ที่ได้ หากต้องการล็อก 0.33.0 ให้ใช้ Release binary ของ Platform ตาม [kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start/) และตรวจ Checksum ตาม Release สำหรับ Linux/Windows ใช้คู่มือติดตั้งของ [kubectl](https://kubernetes.io/docs/tasks/tools/) ไม่คัด Binary ข้าม OS/CPU
+
+### สร้าง Cluster เฉพาะ Lab
+
+ตัวอย่างนี้เลือก Node image ที่ประกาศใน [kind 0.33.0 release](https://github.com/kubernetes-sigs/kind/releases/tag/v0.33.0) เพื่อให้ทำซ้ำได้ ไม่ใช่คำแนะนำ Patch สำหรับ Production:
+
+```bash
+kind create cluster --name task-lab \
+  --image kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed \
+  --wait 120s
+kubectl --context kind-task-lab cluster-info
+kubectl --context kind-task-lab get nodes
+kubectl --context kind-task-lab get pods -A
+```
+
+- create cluster สร้าง Local cluster และเขียน Context สำหรับเข้าถึง
+- cluster-info แสดง API/control-plane address ไม่ได้ยืนยันว่าแอปพร้อม
+- get nodes ควรเห็น Node Ready หากยัง NotReady ให้รอ/ดู Events ก่อน Deploy
+- get pods -A ดู System Pods ทุก Namespace ไม่ได้ส่งคำขอแก้ไขระบบ
+
+อย่าเปิดเผย Kubeconfig เพราะอาจมี Credential เข้า Cluster
+
+## เตรียม Images และไฟล์ให้ครบก่อนเปิดแอป
+
+1. อ่าน [Health Checks](/technology-guides/kubernetes/health-checks) เพิ่ม `/health/live/` และ `/health/ready/` ใน Source ทดลองก่อน Build
+2. Build จาก `task-demo/` ที่มี Dockerfiles และ Source ครบ:
+
+```bash
+docker build -t task-backend:k8s-lab-v1 ./backend
+docker build -t task-frontend:k8s-lab-v1 ./frontend
+kind load docker-image task-backend:k8s-lab-v1 task-frontend:k8s-lab-v1 --name task-lab
+```
+
+Build สร้าง Images บน Host ส่วน kind load คัด Image เข้า Nodes ไม่ใช่ Deploy และไม่จำเป็นต้องเปิด Compose ไปด้วย โดย Images ต้องตรง Platform ของ Nodes
+
+3. คัดไฟล์ YAML ตาม [รายการไฟล์](/technology-guides/kubernetes) และสร้าง Namespace/Config/Secret ตาม [Configuration](/technology-guides/kubernetes/configuration)
+4. เริ่ม DB ตาม [Storage](/technology-guides/kubernetes/storage) แล้วรัน Migration Job ตาม [Rollout](/technology-guides/kubernetes/rollout-rollback)
+5. Apply Backend จาก [Deployments](/technology-guides/kubernetes/deployments) แล้วทำ Services/Frontend ตาม [Services](/technology-guides/kubernetes/services)
+6. ตรวจ Health และเปิดเว็บด้วย port-forward ทดสอบ List/Create Task ไม่ถือว่า Rollout ผ่านแล้ว CRUD ผ่านด้วย
+
+ลำดับนี้เป็น Runbook สำหรับ Lab ที่มีไฟล์ครบ ไม่ใช้ `kubectl apply -f k8s/` เหมาทุกไฟล์ เพราะมีไฟล์อธิบายและ Optional HPA อยู่ด้วย
+
+## ลบ Local cluster เมื่อเลิกฝึก
+
+**ทำข้อมูลและ Resources ใน Cluster ชื่อนี้หาย รวมถึง Storage ที่พึ่ง Node containers** ตรวจว่าไม่มีข้อมูลที่ต้องเก็บและ Export/Backup สิ่งจำเป็นก่อน ชื่อ task-lab ต้องเป็น Lab ของตัวเอง:
+
+```bash
+kind get clusters
+kind delete cluster --name task-lab
+```
+
+คำสั่งแรกแสดงชื่อให้ตรวจ คำสั่งสองลบเฉพาะ Cluster ที่ระบุ ไม่ใช้ล้างปัญหาก่อนอ่าน Log และไม่ใช้แทนขั้นตอน Decommission ของ Production
+
+## สรุปสิ่งที่ต้องจำ
+
+- kind ใช้ฝึก kubectl ใช้สั่งงาน
+- ตรวจรุ่นเครื่องมือและระบุ Context
+- Host image ยังต้อง Load เข้า kind
+- ลบ Cluster อาจทำข้อมูล Lab หาย
+
+## อ่านต่อ
+
+- [Architecture](/technology-guides/kubernetes/architecture)
+- [kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start/)
+- [kubectl version skew](https://kubernetes.io/releases/version-skew-policy/#kubectl)

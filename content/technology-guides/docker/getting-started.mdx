@@ -1,0 +1,86 @@
+---
+title: "Getting Started — ลอง Docker ครั้งแรก"
+description: "ตรวจ Docker Engine และ Compose แล้วเปิด Nginx ในเครื่องอย่างปลอดภัย"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Getting Started — ลอง Docker ครั้งแรก
+
+## เรื่องนี้คืออะไร?
+
+บทนี้พาเช็กว่าเครื่องคุยกับ Docker Engine ได้ แล้วลองรันเว็บเล็ก ๆ หนึ่งตัว ยังไม่ต้องเตรียม React หรือ Django คำสั่งใช้ Terminal แบบ Bash/Zsh บน macOS/Linux; Windows ให้ใช้ WSL2 หรือปรับคำสั่งให้ตรง Shell
+
+## ใช้ทำอะไร?
+
+ใช้ตอนติดตั้งเครื่องใหม่ หรือต้องแยกว่าปัญหาอยู่ที่ Docker หรือแอป
+
+## ขั้นตอนการทำงาน
+
+### 1. เตรียมเครื่อง
+
+บน macOS/Windows ติดตั้ง [Docker Desktop](https://docs.docker.com/desktop/setup/install/) จากผู้ผลิต แล้วเปิดแอปให้ Engine พร้อม บน Linux เลือก [Docker Engine](https://docs.docker.com/engine/install/) พร้อม Compose plugin ตามระบบที่ใช้ ตรวจสิทธิ์และเงื่อนไข License ขององค์กรก่อนติดตั้ง
+
+ตรวจรุ่นของ CLI, Engine และ Compose:
+
+```bash
+docker --version
+docker info
+docker compose version
+```
+
+`--version` บอกแค่ CLI มีอยู่ `docker info` ต้องอ่านข้อมูลฝั่ง Server ได้ด้วย ถ้าเจอ “Cannot connect” ให้เปิด Desktop/ตรวจบริการ Docker และ Context ที่เลือก ไม่ต้องติดตั้งโปรแกรมซ้ำทันที อย่าส่ง `docker info` ทั้งชุดออกนอกทีมโดยไม่ตรวจข้อมูลเครื่อง
+
+### 2. ดึง Image
+
+```bash
+docker pull nginx:stable-alpine
+```
+
+`pull` ดาวน์โหลด Image มาเก็บในเครื่อง อาจเห็นหลาย Layers หรือส่วนประกอบของแพ็ก ต้องมีอินเทอร์เน็ตและสิทธิ์เข้าถึง Registry
+
+### 3. รันเว็บตัวแรก
+
+ตรวจว่าพอร์ต `8081` ว่างและไม่มี Container ชื่อ `docker-first-web` แล้วรัน:
+
+```bash
+docker run -d --name docker-first-web -p 127.0.0.1:8081:80 nginx:stable-alpine
+docker ps
+```
+
+`-d` รันเบื้องหลัง, `--name` ตั้งชื่อ และ `-p` ส่งพอร์ต `8081` ของเครื่องเข้า `80` ของ Container โดยเปิดรับเฉพาะเครื่องตัวเอง เปิด `http://localhost:8081` ควรเห็นหน้า Nginx นี่เป็นผลที่คาดหวัง ไม่ใช่หลักฐานว่าคำสั่งผ่านบนทุกเครื่อง
+
+### 4. หยุดและเก็บงาน
+
+```bash
+docker stop docker-first-web
+docker ps -a
+docker rm docker-first-web
+docker images
+```
+
+`stop` หยุดโปรแกรม, `ps -a` แสดงทั้งตัวที่รันและหยุดแล้ว, `rm` ลบเฉพาะ Container ที่เลือก ส่วน `images` ยังเห็นต้นแบบ Nginx อยู่ การลบ Container ไม่ได้ลบ Image ไปด้วย
+
+## ตัวอย่างการใช้งานจริง
+
+ถ้าเปิด Nginx ได้ แสดงว่าเส้นทาง Terminal → Engine → Container → Browser พื้นฐานใช้ได้ ขั้นต่อไปจึงค่อยเตรียม [Task App](/technology-guides/docker/reference-project)
+
+## ข้อควรระวัง
+
+- ถ้าชื่อซ้ำ ใช้ `docker ps -a` ดูตัวเดิมก่อน ไม่ลบสิ่งที่คนอื่นใช้อยู่
+- ถ้าพอร์ตชน ให้หยุดเฉพาะงานทดลองของตัวเอง หรือเลือก Host port อื่น
+- การเป็นสมาชิกกลุ่ม `docker` บน Linux ให้สิทธิ์สูงใกล้เคียง root ไม่เพิ่มสิทธิ์แบบไม่เข้าใจ ดู [Linux post-install](https://docs.docker.com/engine/install/linux-postinstall/)
+
+## สรุปสิ่งที่ต้องจำ
+
+- มี CLI อย่างเดียวไม่ได้แปลว่า Engine พร้อม
+- พอร์ตด้านซ้ายเป็นของเครื่อง ด้านขวาเป็นของ Container
+- หยุดก่อนลบ Container ที่ทดลอง
+
+## อ่านต่อ
+
+- [Docker Image](/technology-guides/docker/docker-image)
+- [แก้ปัญหา Docker](/technology-guides/docker/troubleshooting)

@@ -1,0 +1,123 @@
+---
+title: "Undo & Recovery — เลือกวิธีย้อนงานให้ตรงจุด"
+description: "Unstage Restore Stash Revert Reset soft และ Reflog พร้อมผลต่อไฟล์และประวัติที่ต้องรู้"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Undo & Recovery — เลือกวิธีย้อนงานให้ตรงจุด
+
+## เรื่องนี้คืออะไร?
+
+คำว่า “ย้อนงาน” มีหลายความหมาย เช่น เอาออกจาก Staging, ทิ้งการแก้ที่ยังไม่ Commit หรือทำ Commit ใหม่เพื่อลบผลของ Commit เก่า ต้องรู้ว่างานอยู่ที่ไหนและเผยแพร่ให้เพื่อนแล้วหรือยัง ก่อนเลือกคำสั่ง
+
+## เลือกตามสถานการณ์
+
+| สิ่งที่ต้องการ | เครื่องมือ | จุดที่ต้องระวัง |
+| --- | --- | --- |
+| เลือกไฟล์ผิด ยังไม่ Commit | restore `--staged` | เอาออกจากชุดที่เลือก แต่เก็บไฟล์ที่แก้ไว้ |
+| ทิ้งเฉพาะ Unstaged edits | restore | เขียนทับ Working tree จาก Index ตามค่าเริ่มต้น |
+| พักงานชั่วคราว | stash push/apply | อยู่ในเครื่องและอาจ Conflict ตอนนำกลับ |
+| ย้อนผล Commit ที่ใช้ร่วมแล้ว | revert | สร้าง Commit ใหม่ ต้อง Review/Test |
+| จัด Commit สุดท้ายที่ยังไม่เผยแพร่ | amend / reset `--soft` | เปลี่ยนประวัติ Local ต้องยืนยันขอบเขต |
+| หา Commit ที่เคยมีในเครื่อง | reflog | ไม่รับประกันกู้ Uncommitted/Untracked files |
+
+## 1. เอาไฟล์ออกจาก Staging
+
+ต้องมี HEAD หรือ Commit ปัจจุบันแล้ว ตัวอย่างใช้ไฟล์ของงาน Login ที่คุณแก้และ Stage ไว้:
+
+```bash
+git diff --staged -- src/Login.tsx
+git restore --staged -- src/Login.tsx
+git status --short
+git diff -- src/Login.tsx
+```
+
+หลัง Unstage ยังมีการแก้ใน Working tree อยู่ ไฟล์ใหม่จะกลับเป็น Untracked ตามสถานะ ไม่ใช่ลบไฟล์หรือย้อน Commit
+
+## 2. ทิ้ง Unstaged edits เฉพาะไฟล์
+
+**คำสั่งนี้ทำการแก้ที่ยังไม่ Stage ในไฟล์นั้นหาย** อ่าน Diff/สำรองสิ่งที่ต้องเก็บก่อน ไม่ใช้เมื่อยังไม่แน่ใจ และไม่ใส่จุดทั้ง Repo เพื่อทิ้งทุกไฟล์:
+
+```bash
+git diff -- src/Login.tsx
+git restore -- src/Login.tsx
+```
+
+ค่าเริ่มต้นนำเนื้อหาจาก Index กลับมา ถ้ามีเวอร์ชันที่ Stage ไว้จะกลับไปเวอร์ชันนั้น ไม่ใช่ HEAD ทุกกรณี สำหรับไฟล์ที่ไม่เคย Commit/Stash อย่าคาดว่า Reflog จะกู้สิ่งที่ทิ้งไปได้
+
+## 3. พักงานก่อนสลับ Branch
+
+ตรวจว่าไม่มี Secret ในงานค้างก่อน เพราะ Stash เก็บข้อมูลใน Git objects ของเครื่องด้วย:
+
+```bash
+git stash push -u -m "wip: login form"
+git stash list
+git stash show --include-untracked --stat 'stash@{0}'
+```
+
+-u รวม Untracked แต่ไม่รวม Ignored files ไม่ใช้ -a เก็บทุกอย่างโดยไม่อ่าน เพราะอาจเก็บ Dependencies/Secrets และ Stash ไม่ได้ถูกส่งไป Remote ด้วย Push ปกติ ไม่ใช้เป็น Backup ระยะยาว
+
+กลับมาที่ Branch เดิม/จุดที่ต้องการโดยไม่มีงานค้างปน แล้วนำ Stash ที่ตรวจแล้วกลับ:
+
+```bash
+git stash apply 'stash@{0}'
+git status --short
+git diff
+```
+
+apply เก็บ Stash เดิมไว้ให้ตรวจผล ค่าเริ่มต้นไม่รับประกันคืนการแบ่ง Staged/Unstaged เหมือนเดิม ส่วน `--index` เป็นตัวเลือกเมื่อต้องคืน Index ด้วยและต้องจัดการ Conflict หากมี
+
+หลังตรวจและบันทึกงานเรียบร้อยแล้วจึงพิจารณา `git stash drop 'stash@{0}'` **ซึ่งลบ Entry นั้นออกจากรายการ** ตรวจว่าหมายเลขยังเป็นงานที่ต้องการก่อน เพราะ Entry เปลี่ยนเมื่อมี Stash ใหม่ pop จะพยายาม Apply และ Drop เมื่อสำเร็จ หาก Conflict จะค้างไว้ ต้องอ่าน State ไม่สั่งซ้ำเรื่อย ๆ
+
+## 4. ย้อนผล Commit ที่ส่งให้ทีมแล้ว
+
+ใช้ Fix branch ตาม Workflow และ Working tree สะอาด ตรวจ SHA จริงจาก log/show แทน COMMIT_SHA ก่อน คำสั่งนี้สร้าง Revert commit ในเครื่อง:
+
+```bash
+git show --stat COMMIT_SHA
+git revert --no-edit COMMIT_SHA
+git status -sb
+```
+
+จากนั้นตรวจ Diff/Tests และส่งผ่าน PR ปกติ ผลย้อนอาจ Conflict โดยเฉพาะมีงานต่อเนื่อง ถ้าเป็น Merge commit ต้องวิเคราะห์ Mainline และผลต่อการ Merge รอบหน้าแยก ไม่ใส่ -m 1 โดยเดา หาก Revert ค้างให้แก้ไฟล์แล้ว add กับ `git revert --continue` หรือเลือก `git revert --abort` ตามสถานะ
+
+**Revert Code ไม่ย้อน Database/Artifact ที่ Deploy ไปแล้ว** ต้องทำแผน Release/Rollback แยกตาม [Release & Rollback](/technology-guides/devops/rollback-and-release)
+
+## 5. จัด Commit สุดท้ายที่ยังไม่เผยแพร่
+
+สองวิธีนี้เป็นทางเลือก **ไม่รันตามกัน** ใช้เฉพาะ Branch ของตัวเองที่ยังไม่ Push/แชร์ และตรวจ Working tree/Index สะอาดก่อนเริ่ม:
+
+- ต้องการเติมไฟล์/แก้ข้อความของ Commit ล่าสุด: Stage เฉพาะไฟล์ที่เพิ่มแล้วใช้ `git commit --amend` จากนั้นตรวจ Commit ใหม่ SHA อาจเปลี่ยน
+- ต้องการแตก Commit ล่าสุดใหม่: ต้องมีอย่างน้อยสอง Commits แล้วใช้ `git reset --soft HEAD~1` ย้าย Branch กลับหนึ่ง Commit โดยคง Index และ Working tree งานเดิมจะอยู่ให้จัดชุดใหม่ ไม่ได้ลบทิ้ง
+
+หาก Push/แชร์แล้วให้เลือกวิธีที่ไม่เขียนทับประวัติ เช่น Commit แก้เพิ่มหรือ Revert ตามขอบเขต ไม่ใช้ `--hard` หรือ Force push เพื่อย้อนงานของคนอื่น
+
+## 6. หา Commit ที่เคยมีด้วย Reflog
+
+อ่านรายการก่อน แล้วแทน COMMIT_SHA ด้วย Commit ที่ตรวจแล้วว่าต้องการ สร้าง Rescue branch ใหม่โดยไม่มีงานค้างปน:
+
+```bash
+git reflog -n 10 --date=iso
+git show --stat COMMIT_SHA
+git switch -c rescue/login COMMIT_SHA
+```
+
+Reflog เป็นประวัติการขยับ References ในเครื่องนี้ มีอายุ/การเก็บกวาดและอาจไม่มีทุกเครื่อง Rescue branch รักษา Commit ที่ยังมีอยู่ ไม่รับประกันกู้ไฟล์ที่ไม่เคยบันทึกหรือข้อมูลที่ถูก Garbage collection ไปแล้ว
+
+## สรุปสิ่งที่ต้องจำ
+
+- Unstage ต่างจากทิ้งไฟล์ และ Restore อิง Index ได้
+- Stash อยู่ในเครื่องและต้องตรวจ Conflict ตอนนำกลับ
+- Revert สร้าง Commit ใหม่ เหมาะกับประวัติที่ใช้ร่วม
+- Reflog ช่วยหา Commit แต่ไม่ใช่ Backup ทุกชนิด
+
+## อ่านต่อ
+
+- [Inspect Changes](/development-workflow/git-pull-request/inspect-changes)
+- [git restore](https://git-scm.com/docs/git-restore)
+- [git stash](https://git-scm.com/docs/git-stash)
+- [git revert](https://git-scm.com/docs/git-revert) และ [git reflog](https://git-scm.com/docs/git-reflog)

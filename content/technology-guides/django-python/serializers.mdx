@@ -1,0 +1,77 @@
+---
+title: "Serializers — ตรวจข้อมูลก่อนบันทึก"
+description: "แปลง Task เป็น JSON ตรวจ Title/Status และไม่ให้ Client เลือก Owner เอง"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Serializers — ตรวจข้อมูลก่อนบันทึก
+
+## เรื่องนี้คืออะไร?
+
+Serializer แปลง Model เป็น JSON และตรวจข้อมูลที่เข้ามาก่อนบันทึก ช่วยแยกหน้าที่รับข้อมูลออกจาก View แต่ไม่ได้เป็นตัวแทน Authorization ของทุก Endpoint
+
+## ใช้เมื่อไร?
+
+ใช้ตอน Create/Patch Task หรือส่งข้อมูลกลับ React ต้องรักษา Fields ให้ตรงกับ Type/Runtime parser ใน Frontend
+
+## ตัวอย่าง Code
+
+```python filename="backend/tasks/serializers.py"
+from rest_framework import serializers
+from .models import Task
+
+
+class TaskSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(
+        max_length=200, allow_blank=False, trim_whitespace=True,
+        error_messages={
+            "blank": "กรุณาระบุชื่องาน",
+            "required": "กรุณาระบุชื่องาน",
+            "max_length": "ชื่องานต้องไม่เกิน 200 ตัวอักษร",
+        },
+    )
+
+    class Meta:
+        model = Task
+        fields = [
+            "id", "title", "description", "status",
+            "created_at", "updated_at", "owner",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "owner"]
+```
+
+Title ตัดช่องว่างรอบนอกและห้ามว่าง Status ใช้ Choices จาก Model `owner` เป็น Read-only; View จะใช้ `request.user` ตอน Save แม้ Client ส่ง Owner คนอื่นมาก็ไม่ใช้ค่านั้น
+
+เมื่อเรียกเองให้ใช้ `serializer.is_valid(raise_exception=True)` ก่อน `.save()` เพื่อให้ ValidationError ผ่าน [Exception handler](/technology-guides/django-python/error-handling) ไม่ Return Error รูปแบบใหม่เองทุก View
+
+ตัวอย่าง Input สำหรับ POST ไม่ต้องส่ง ID/Owner/Timestamps:
+
+```json
+{"title":"อ่านคู่มือ Django","description":"ลองสร้าง Task ของตัวเอง","status":"todo"}
+```
+
+PATCH ส่งเฉพาะส่วนที่แก้ เช่น `{"status":"completed"}` ส่วน Validation errors ของ Field อื่นอาจยังใช้ข้อความเริ่มต้นของ DRF ต้องตั้งข้อความเพิ่มตาม UX จริง ไม่อ้างว่าทุกข้อความถูกแปลแล้ว
+
+## วิธีทดสอบ
+
+ทดสอบ Title ว่าง/เกิน 200, Status ที่ไม่มี, PATCH เฉพาะ Status และส่ง Owner คนอื่นแล้ว Owner ยังเป็นผู้ใช้ปัจจุบัน ดู API tests ไม่ตรวจแค่ `serializer.data` ของกรณีผ่าน
+
+## ข้อควรระวัง
+
+ไม่ใช้ `fields = '__all__'` เป็นค่าเริ่มต้นโดยไม่ Review เพราะ Field ภายในอาจหลุดออก API ภายหลัง และอย่าใส่ Password/Session ID ลง Task response
+
+## สรุปสิ่งที่ต้องจำ
+
+- ระบุ Fields ที่ API ส่งและรับให้ชัด
+- Validation ต้องเกิดก่อน Save
+- Owner มาจาก Server ไม่ใช่ค่าที่ Browser อ้าง
+
+## อ่านต่อ
+
+- [REST API](/technology-guides/django-python/rest-api)
+- [Testing](/technology-guides/django-python/testing)
+- [DRF serializers](https://www.django-rest-framework.org/api-guide/serializers/)

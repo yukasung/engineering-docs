@@ -1,0 +1,181 @@
+---
+title: "Authentication — Login ด้วย Session และ CSRF"
+description: "Login Logout Me และ CSRF bootstrap ที่ป้องกัน Login CSRF พร้อม Secure HttpOnly cookies"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Authentication — Login ด้วย Session และ CSRF
+
+## เรื่องนี้คืออะไร?
+
+Authentication ตรวจว่าเป็นผู้ใช้คนไหน ส่วน Authorization ตรวจว่าผู้ใช้นั้นทำอะไรได้ ตัวอย่างหลักเป็นเว็บของเราเองหรือ First-party web ใช้ Django Session cookie ไม่ส่ง Password ทุกครั้งและไม่เก็บ Authentication token ใน localStorage
+
+## ใช้เมื่อไร?
+
+ใช้กับ Login/Logout และทุก API ที่ต้องรู้ตัวผู้ใช้ ต้องอ่าน Cookie/CSRF flow ร่วมกับ [React Auth](/technology-guides/react-typescript/authentication)
+
+## ทำงานอย่างไร?
+
+| แบบ | ข้อแตกต่าง |
+| --- | --- |
+| Session | Browser ส่ง Cookie อัตโนมัติ Server หาผู้ใช้จาก Session store จึงต้องป้องกัน CSRF ของคำขอเปลี่ยนข้อมูล |
+| Token เช่น Bearer | Client ส่ง Token ใน Header ต้องจัดอายุ/การเพิกถอน/ที่เก็บอย่างเหมาะสม ไม่ทำให้ปลอดภัยจาก XSS โดยอัตโนมัติ |
+
+**HttpOnly** กัน JavaScript อ่าน Cookie แต่ Browser ยังส่งได้ **Secure** ส่งเฉพาะ HTTPS **SameSite** จำกัดบริบทที่ Cookie ถูกส่ง ไม่ใช้ทดแทน CSRF ทั้งหมด ตัวอย่างตั้ง HttpOnly ทั้ง Session/CSRF cookie แล้วส่ง Masked CSRF token ผ่าน JSON จาก GET แทนการอ่าน Cookie ด้วย JS
+
+เส้นทางคือ GET `/api/v1/auth/csrf/` → POST Login พร้อม Cookie/`X-CSRFToken` → รับ Session cookie กับ CSRF token ใหม่หลัง Login → GET Me/เรียก Tasks → POST Logout แบบมี CSRF ดู [ภาพ Login flow](/technology-guides/fullstack/authentication-flow)
+
+## ตัวอย่าง Code
+
+DRF SessionAuthentication ตรวจ CSRF สำหรับผู้ที่ Authenticated แล้ว แต่ Login ของผู้ใช้ Anonymous ต้องป้องกันเพิ่มโดยตรง จึงใช้ `csrf_protect` บน Login/Logout ไม่ปิด Middleware เพื่อทำตัวอย่างให้ง่าย
+
+```python filename="backend/api/authentication.py"
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.exceptions import PermissionDenied
+from .errors import CsrfFailed
+
+
+class CsrfSessionAuthentication(SessionAuthentication):
+    def enforce_csrf(self, request):
+        try:
+            super().enforce_csrf(request)
+        except PermissionDenied as exc:
+            raise CsrfFailed() from exc
+```
+
+Subclass นี้ยังเรียกการตรวจ CSRF ของ DRF เดิม เปลี่ยนแค่ Exception ให้เป็น Error code ที่ React แยกได้ ไม่ข้ามการตรวจ
+
+```python filename="backend/api/auth_views.py"
+from django.contrib.auth import authenticate, login, logout
+from django.middleware.csrf import get_token
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
+from rest_framework import serializers
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from .errors import InvalidCredentials
+
+
+def user_data(user):
+    return {"id": user.pk, "username": user.get_username()}
+
+
+class LoginInput(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField(
+        write_only=True, trim_whitespace=False, max_length=1024,
+    )
+
+
+class CsrfTokenView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"csrfToken": get_token(request)})
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class LoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = LoginInput(data=request.data)
+        data.is_valid(raise_exception=True)
+        user = authenticate(request=request, **data.validated_data)
+        if user is None:
+            raise InvalidCredentials()
+        login(request, user)
+        return Response({
+            "user": user_data(user),
+            "csrfToken": get_token(request),
+        })
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(user_data(request.user))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        logout(request)
+        return Response(status=204)
+```
+
+Django Login เปลี่ยน Session key ตามกระบวนการของมันและ Rotate CSRF secret จึงต้องใช้ `csrfToken` ใหม่จาก Login response ทันที ไม่ใช้ Token ก่อน Login ต่อไป ส่วน Logout ล้าง Session ฝั่ง Server และ Client ต้องล้างข้อมูลผู้ใช้/Task ใน Memory ด้วย
+
+### หลาย Django instances ใช้ Session ได้ไหม?
+
+ได้ ถ้าใช้ DB-backed sessions ที่ทุก Instance เข้าถึง DB เดียวกัน และ Settings/Keys ที่เกี่ยวข้องสอดคล้องกัน ไม่ผูก Session ไว้ใน Memory ของ Worker ตัวเดียว ตัว Instance จึงไม่ต้องเก็บ User state ในเครื่องตัวเอง หากใช้ Redis ในอนาคตต้องเป็น Shared backend จริง ไม่ใช่ Local-memory cache
+
+### CORS ต่างจาก CSRF อย่างไร?
+
+CORS ควบคุมว่า JavaScript จาก Origin อื่นอ่าน Response ได้หรือไม่ ไม่ใช่ Authorization และไม่ทดแทน CSRF ตัวอย่าง Local ใช้ Vite proxy จึงไม่ต้องเปิด CORS ที่ Django ตั้ง `CSRF_TRUSTED_ORIGINS` ของ Local เป็น `http://localhost:5173` เพราะ Proxy เปลี่ยน Host ปลายทาง
+
+ถ้าเลือก Cross-origin จริง ต้องให้ Client ส่ง `credentials: 'include'`, Server อนุญาต Origin แบบเจาะจงและ Credentials พร้อม CSRF trusted origin ให้ตรง Scheme/Host/Port หากใช้ `django-cors-headers` ต้องติดตั้ง/จัด Middleware ตามรุ่นจริง ตัวอย่างค่าตั้งนี้เป็น Fragment **นอก Baseline**:
+
+```python
+CORS_ALLOWED_ORIGINS = ["https://app.example.invalid"]
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = ["https://app.example.invalid"]
+```
+
+Cross-origin ไม่เท่ากับ Cross-site เสมอ หากข้าม Site จริง SameSite อาจต้อง `None` พร้อม Secure และยังมีข้อจำกัด Third-party cookies ของ Browser ห้ามใช้ wildcard origin กับ Credentials หรือปิด CSRF เพื่อแก้ให้ผ่าน
+
+## วิธีทดสอบ
+
+ใช้ curl กับ Local Backend HTTP ที่ `DJANGO_DEBUG=1` เท่านั้น สร้าง `.local-client/` นอก Git ไฟล์ Cookie มี Session credential จริง ห้าม Commit/ส่งต่อ เตรียม `.local-client/login.json` ผ่าน Editor ด้วย Username/Password ของผู้ใช้ทดลอง รูปแบบ Fields ตาม LoginInput ไม่ใส่ค่าจริงใน Command history:
+
+```bash
+mkdir -p .local-client
+chmod 700 .local-client
+curl --fail-with-body -c .local-client/cookies.txt -b .local-client/cookies.txt \
+  http://localhost:8000/api/v1/auth/csrf/ -o .local-client/csrf.json
+csrf_token="$(python -c 'import json; print(json.load(open(".local-client/csrf.json"))["csrfToken"])')"
+curl --fail-with-body -c .local-client/cookies.txt -b .local-client/cookies.txt \
+  -H "X-CSRFToken: $csrf_token" -H 'Content-Type: application/json' \
+  --data-binary @.local-client/login.json \
+  http://localhost:8000/api/v1/auth/login/ -o .local-client/login-result.json
+csrf_token="$(python -c 'import json; print(json.load(open(".local-client/login-result.json"))["csrfToken"])')"
+curl --fail-with-body -b .local-client/cookies.txt http://localhost:8000/api/v1/auth/me/
+```
+
+หยุดแต่ละขั้นถ้าไม่ผ่าน ไม่ดึง Token จากไฟล์ Error มาใช้ต่อ จากนั้นทดสอบ [Tasks curl](/technology-guides/django-python/rest-api) และ Logout:
+
+```bash
+curl --fail-with-body -X POST -b .local-client/cookies.txt -c .local-client/cookies.txt \
+  -H "X-CSRFToken: $csrf_token" http://localhost:8000/api/v1/auth/logout/
+```
+
+ต้องตรวจกรณีไม่มี CSRF/Origin ผิดแล้ว Login ถูกปฏิเสธด้วย ใช้ [Auth tests](/technology-guides/django-python/testing) และ Browser DevTools เพื่อยืนยัน Cookie flags/การส่งจริงใน Browser
+
+## ข้อควรระวัง
+
+Session หมดอายุหรือถูกลบแล้ว Server ต้องไม่ยอมให้ใช้ API ต่อ DRF Session ใน Baseline นี้ตอบ **403 `AUTHENTICATION_REQUIRED`** เมื่อยังไม่ Login ไม่บังคับให้ทุกกรณีเป็น 401 ด้วย Scheme ปลอม 403 `CSRF_FAILED`/`PERMISSION_DENIED` เป็นคนละสาเหตุ React ต้องอ่าน Error code ด้วย
+
+ตัวอย่างยังไม่มี Login rate limit/Brute-force protection และ Production TLS จริง ต้องเพิ่มตามขอบเขตก่อนปล่อย ไม่ Log Password, Cookies, CSRF header หรือ Request body ของ Login
+
+## สรุปสิ่งที่ต้องจำ
+
+- Login ก็ต้องป้องกัน CSRF แม้ยังเป็น Anonymous
+- Cookie เป็น Authentication ส่วน CSRF token ตรวจคำขอเปลี่ยนข้อมูล
+- รับ Token ใหม่หลัง Login และไม่เก็บ Password/Session token ใน localStorage
+- Session store ที่แชร์กันรองรับหลาย Instances ได้
+
+## อ่านต่อ
+
+- [Authorization](/technology-guides/django-python/authorization)
+- [DRF SessionAuthentication](https://www.django-rest-framework.org/api-guide/authentication/#sessionauthentication)
+- [Django CSRF](https://docs.djangoproject.com/en/5.2/howto/csrf/)

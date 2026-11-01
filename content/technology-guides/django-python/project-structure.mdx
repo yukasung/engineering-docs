@@ -1,0 +1,86 @@
+---
+title: "Django Project Structure — วางไฟล์ให้หาง่าย"
+description: "แยก Project App API boundary และ Business logic โดยไม่เพิ่ม Layers ที่ยังไม่จำเป็น"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Django Project Structure — วางไฟล์ให้หาง่าย
+
+## เรื่องนี้คืออะไร?
+
+Django Project รวมค่าตั้งกับทางเข้าเว็บ ส่วน Django App เป็นส่วนงาน เช่น `tasks` หนึ่ง Project มีหลาย Apps ได้ แต่ไม่ต้องแยกทุกไฟล์เป็น App ใหม่
+
+## ใช้เมื่อไร?
+
+ใช้เริ่มงานหรือก่อนเพิ่มฟังก์ชัน เพื่อให้คนถัดไปรู้ว่าต้องแก้ตรงไหนและทดสอบอะไร
+
+## ตัวอย่าง Code
+
+```text
+backend/
+├── manage.py
+├── config/
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+├── api/
+│   ├── __init__.py
+│   ├── authentication.py
+│   ├── auth_views.py
+│   ├── errors.py
+│   └── pagination.py
+└── tasks/
+    ├── models.py
+    ├── serializers.py
+    ├── views.py
+    ├── permissions.py
+    ├── migrations/
+    └── tests/
+        ├── __init__.py
+        ├── test_models.py
+        ├── test_api.py
+        └── test_auth.py
+```
+
+`manage.py` เรียกคำสั่ง Django; `settings.py` กำหนด DB/Auth/Runtime; `urls.py` ส่ง URL ไป View; `wsgi.py` เป็นทางเข้าเมื่อใช้ WSGI server เช่น Gunicorn
+
+| ไฟล์ | รับผิดชอบ |
+| --- | --- |
+| models.py | โครงสร้าง Task, ความสัมพันธ์ และเงื่อนไขข้อมูล |
+| serializers.py | แปลง JSON ↔ ข้อมูล และตรวจ Input ของ API |
+| views.py | รับคำขอ เรียก Query/Serializer แล้วตอบ HTTP |
+| permissions.py | กติกาว่าใครเข้าถึง Object ได้ |
+| migrations/ | ประวัติเปลี่ยน Schema ที่ Commit ไปกับโค้ด |
+| tests/ | ตรวจพฤติกรรมและกรณีที่ต้องปฏิเสธ |
+
+ถ้า Scaffold มี `tasks/tests.py` ให้ย้าย/แทนที่เป็น Package `tests/` ตามแผน ไม่เก็บสองรูปแบบจนสับสน
+
+### แล้ว services.py ต้องมีไหม?
+
+ยังไม่ต้องมีสำหรับ CRUD สั้น ๆ นี้ Logic ที่เป็นคุณสมบัติของ Task อยู่ใน Model/วิธีเปลี่ยนสถานะได้ ส่วนงานหลาย Models ที่ต้องสำเร็จพร้อมกันอาจรวมเป็น Function ใน `services.py` แล้วครอบ Transaction ไม่ต้องสร้าง Service/Repository/Manager layer ทุกเรื่องล่วงหน้า
+
+View ควรสั้นและอ่านเส้นทางได้ หากมีการคิดสิทธิ์หลายขั้นหรือเปลี่ยนหลายตาราง ให้แยกฟังก์ชันพร้อม Tests ไม่ย้ายทุกอย่างไป Serializer หรือ Model เพียงเพื่อให้ View สั้น
+
+## วิธีทดสอบ
+
+ให้ Developer ใหม่ตามงาน “แก้ชื่อ Task” จาก URL → View → Serializer → Model → Test ได้ และตรวจ Imports/ชื่อ Package ตรงกับ Settings ไม่ตั้ง Architecture ตามจำนวนโฟลเดอร์
+
+## ข้อควรระวัง
+
+อย่า Import React/ค่าหน้าจอเข้า Business rules ของ Backend และอย่าเก็บค่าลับใน Settings ที่ Commit แล้ว โครงสร้างนี้เป็นแนวทางสำหรับตัวอย่าง ไม่ใช่กฎองค์กรที่อนุมัติแล้วทุกโปรเจกต์
+
+## สรุปสิ่งที่ต้องจำ
+
+- Project ดูภาพรวม App ดูส่วนงาน
+- วางไฟล์ตามหน้าที่ให้คนหาเจอ
+- เพิ่ม services.py เมื่อ Logic จำเป็น ไม่ใช่เพราะ Template บังคับ
+
+## อ่านต่อ
+
+- [Models & ORM](/technology-guides/django-python/models-and-orm)
+- [REST API](/technology-guides/django-python/rest-api)
+- [Django applications](https://docs.djangoproject.com/en/5.2/ref/applications/)

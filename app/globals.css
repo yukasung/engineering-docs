@@ -1,0 +1,151 @@
+:root {
+  --hub-accent: #0f766e;
+  --hub-muted: #536575;
+}
+
+.dark {
+  --hub-accent: #5eead4;
+  --hub-muted: #a8b7c6;
+}
+
+body {
+  font-family: Arial, 'Noto Sans Thai', Tahoma, sans-serif;
+}
+
+/* Center and space native Mermaid diagrams without changing responsive sizing. */
+main svg[aria-roledescription] {
+  display: block;
+  margin-inline: auto;
+  margin-block: 1.5rem;
+}
+
+main svg[aria-roledescription].hub-mermaid-zoomable {
+  cursor: zoom-in;
+  outline-offset: 0.35rem;
+  transition: filter 160ms ease, opacity 160ms ease;
+}
+
+main svg[aria-roledescription].hub-mermaid-zoomable:hover {
+  filter: drop-shadow(0 0.3rem 0.7rem color-mix(in srgb, var(--hub-accent) 18%, transparent));
+}
+
+main svg[aria-roledescription].hub-mermaid-zoomable:focus-visible {
+  outline: 2px solid var(--hub-accent);
+}
+
+.hub-mermaid-dialog {
+  width: min(96vw, 90rem);
+  max-width: none;
+  height: min(92vh, 64rem);
+  max-height: none;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--hub-accent) 35%, transparent);
+  border-radius: 0.75rem;
+  background: rgb(var(--nextra-bg));
+  color: inherit;
+}
+
+.hub-mermaid-dialog::backdrop {
+  background: rgb(0 0 0 / 72%);
+}
+
+.hub-mermaid-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--hub-muted) 25%, transparent);
+  background: rgb(var(--nextra-bg));
+}
+
+.hub-mermaid-dialog-header button {
+  border: 1px solid color-mix(in srgb, var(--hub-muted) 35%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  color: inherit;
+  background: color-mix(in srgb, var(--hub-accent) 10%, transparent);
+}
+
+.hub-mermaid-dialog-content {
+  height: calc(100% - 3.5rem);
+  overflow: auto;
+  padding: 1.5rem;
+}
+
+.hub-mermaid-dialog-content svg {
+  display: block;
+  width: max(100%, 60rem) !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 auto !important;
+}
+
+.hub-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.hub-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.45rem;
+  background: var(--hub-accent);
+  color: white;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+.dark .hub-mark { color: #042f2e; }
+
+.hub-hero {
+  margin-top: 1.5rem;
+  padding: clamp(1.4rem, 4vw, 3rem);
+  border: 1px solid color-mix(in srgb, var(--hub-accent) 25%, transparent);
+  border-radius: 1rem;
+  background: linear-gradient(130deg, color-mix(in srgb, var(--hub-accent) 9%, transparent), transparent 80%);
+}
+
+.hub-eyebrow {
+  color: var(--hub-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hub-hero h1 {
+  font-size: clamp(2.6rem, 6vw, 4.5rem);
+  line-height: 1.08;
+  letter-spacing: -0.055em;
+  font-weight: 750;
+  margin: 1.1rem 0;
+}
+
+.hub-subtitle {
+  max-width: 36rem;
+  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.hub-description { color: var(--hub-muted); line-height: 1.85; margin-top: 1rem; }
+.hub-card > span { order: -1; }
+.hub-card > p { padding: 0 1rem 1rem; margin: 0; color: var(--hub-muted); font-size: 0.9rem; line-height: 1.75; }
+.hub-tech { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+.hub-tech span { border: 1px solid color-mix(in srgb, var(--hub-accent) 25%, transparent); border-radius: 0.35rem; padding: 0.3rem 0.65rem; font-size: 0.85rem; }
+.hub-footer-detail { color: var(--hub-muted); font-size: 0.8rem; }
+
+@media (max-width: 640px) {
+  .hub-footer-detail { display: block; margin-top: 0.5rem; }
+}

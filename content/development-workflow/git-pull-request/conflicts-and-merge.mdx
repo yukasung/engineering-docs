@@ -1,0 +1,112 @@
+---
+title: "Conflicts & Merge — รวมงานโดยอ่านทั้งสองฝั่ง"
+description: "แก้ Conflict ทีละไฟล์ พร้อม Lab แยกสำหรับฝึก Merge resolve และ Abort"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Conflicts & Merge — รวมงานโดยอ่านทั้งสองฝั่ง
+
+## เรื่องนี้คืออะไร?
+
+Conflict เกิดเมื่อ Git ตัดสินให้ไม่ได้ว่าควรรวมการเปลี่ยนแปลงอย่างไร ไม่ได้แปลว่างานหาย ต้องอ่านทั้งสองฝั่งแล้วเลือกพฤติกรรมที่ถูกต้อง ส่วนกติกา Merge งานจริงให้ใช้ข้อตกลง PR ของทีม
+
+## ทำอย่างไรในงานจริง?
+
+เริ่มจาก Feature branch ที่ไม่มีงานค้าง, fetch แล้ว merge origin/develop ตาม [Remotes & Sync](/development-workflow/git-pull-request/remotes-and-sync) ถ้ามี Conflict ให้หยุดอ่าน status ไม่ Commit จนกว่าจะตรวจไฟล์ครบ
+
+1. ดูไฟล์ที่ Unmerged และเปิดอ่านทั้งสองฝั่ง
+2. คุยกับผู้แก้ส่วนเดียวกันเมื่อกติกาไม่ชัด
+3. แก้เนื้อหา ลบ Markers และตรวจว่าผลรวมยังถูกต้อง
+4. Stage เฉพาะไฟล์ที่แก้ ตรวจ Diff และ Commit การ Merge
+5. รัน Checks/Tests ที่เกี่ยวข้องแล้ว Push Feature branch เดิม เข้า PR เดิม
+
+## Lab ทดลองแยกจากงานจริง
+
+ใช้ Bash/Zsh กับ Git 2.39+ คำสั่งสร้าง Repo ชั่วคราวใหม่ ไม่มี Network/Remote และข้อมูลผู้เขียนเป็นตัวอย่างสมมติ ห้ามนำชุดสร้าง Lab ไปวางใน Repository งานจริง:
+
+```bash
+git_lab_dir="$(mktemp -d -t engineering-hub-git.XXXXXX)"
+git init --initial-branch=develop "$git_lab_dir"
+cd "$git_lab_dir"
+git config --local user.name "Git Lab"
+git config --local user.email "git-lab@example.invalid"
+printf 'Login\n' > login-message.txt
+git add -- login-message.txt
+git commit -m "chore: prepare conflict lab"
+git switch -c feature/login
+printf 'Login with email\n' > login-message.txt
+git add -- login-message.txt
+git commit -m "feat: use email label"
+git switch develop
+printf 'Sign in\n' > login-message.txt
+git add -- login-message.txt
+git commit -m "fix: update login label"
+git switch feature/login
+git merge develop
+```
+
+Merge บรรทัดสุดท้าย **คาดว่าจะคืน Non-zero เพราะตั้งใจทำ Conflict** หยุดตรงนี้ ไม่รันต่อแบบถือว่าทุกบรรทัดสำเร็จ หาก mktemp/init/cd ขั้นแรกไม่ผ่านให้หยุดก่อนเขียนไฟล์
+
+```bash
+git status --short
+git diff --name-only --diff-filter=U
+```
+
+จะเห็น login-message.txt อยู่ในรายการ Unmerged โดยข้อความในไฟล์ของ Lab เป็นรูปแบบนี้:
+
+```text
+<<<<<<< HEAD
+Login with email
+=======
+Sign in
+>>>>>>> develop
+```
+
+HEAD คือ Feature ปัจจุบันของ Lab ส่วน develop คือฝั่งที่กำลังรวมเข้ามา นี่เป็นการ Merge ปกติ คำว่า ours/theirs ใน Operation อื่น เช่น Rebase อาจมีบริบทต่างกัน ไม่ใช้เลือกทั้งไฟล์แบบอัตโนมัติโดยไม่อ่าน
+
+### เลือกแก้และ Commit
+
+สำหรับ Lab ไฟล์มีเพียงหนึ่งบรรทัด จึงรวมเป็น “Sign in with email” ได้ด้วยคำสั่งเขียนทับต่อไปนี้ **ใช้เฉพาะไฟล์ Lab** งานจริงแก้เฉพาะจุดใน Editor:
+
+```bash
+printf 'Sign in with email\n' > login-message.txt
+git add -- login-message.txt
+git diff --staged
+git diff --staged --check
+git commit -m "merge: resolve login label"
+git status --short
+```
+
+status ควรไม่มีงานค้างใน Lab แต่ยังต้องอ่านผลและตรวจความหมาย Lab นี้ไม่มีแอปหรือ Test suite สำหรับงานจริงต้องรัน Tests ของโปรเจกต์ก่อน Push
+
+### หรือยกเลิกการ Merge ที่ยังค้าง
+
+ถ้ายังอยู่ระหว่าง Conflict และไม่พร้อมแก้ เลือก Abort แทนชุด Resolve ด้านบน:
+
+```bash
+git merge --abort
+git status -sb
+```
+
+Abort ใช้ก่อน Merge commit สำเร็จ และควรเริ่ม Merge จาก Working tree สะอาด เพราะหากมีงานค้างปนอยู่ Git อาจกู้ State ก่อน Merge ให้ครบไม่ได้ ไม่คาดว่า `--abort` จะย้อน Commit ที่ทำเสร็จแล้ว
+
+## ข้อควรระวัง
+
+ลบ Markers จน Git ยอม Commit ไม่เท่ากับแก้ Logic ถูกต้อง อย่ากด Accept current/incoming ทั้งหมดเพียงเพื่อให้ไฟล์ไม่แดง ถ้า Conflict เกิดกับ Lockfile ให้ใช้เครื่องมือ/รุ่นของโปรเจกต์ตาม Runbook และตรวจ Manifest คู่กัน ไม่ลบ Lockfile สุ่มแล้วติดตั้งใหม่ทั้งชุด
+
+## สรุปสิ่งที่ต้องจำ
+
+- เริ่ม Merge ด้วยงานค้างที่จัดเก็บแล้ว
+- อ่านสองฝั่งและตรวจความหมายของผลรวม
+- Stage/Commit แล้วต้องทดสอบก่อน Push
+- Abort ใช้หยุด Merge ที่ยังไม่เสร็จ
+
+## อ่านต่อ
+
+- [Overview](/)
+- [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery)
+- [Git merge](https://git-scm.com/docs/git-merge)

@@ -1,0 +1,133 @@
+---
+title: "Concurrency — ซื้อพร้อมกันโดยไม่ขายเกินสต็อก"
+description: "Race Condition Lost Update Row locks Conditional UPDATE Isolation Deadlock และ Timeout"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# Concurrency — ซื้อพร้อมกันโดยไม่ขายเกินสต็อก
+
+## เรื่องนี้คืออะไร?
+
+Concurrency คือหลายงานใช้ข้อมูลเดียวกันในเวลาใกล้กัน Race condition คือผลขึ้นกับว่าใครทำก่อน เช่นสองคนเห็น Stock เหลือหนึ่งแล้วต่างคิดว่าซื้อได้ ส่วน Lost update คือการเขียนค่าหนึ่งทับการเปลี่ยนของอีกงานโดยไม่รู้ตัว
+
+## ใช้เมื่อไร?
+
+ใช้กับ Stock, ยอดเงิน, สิทธิ์ใช้คูปอง หรือข้อมูลที่อ่านก่อนตัดสินใจแก้ `atomic()` อย่างเดียวภายใต้ค่าเริ่มต้นไม่ได้ป้องกันทุกกรณี ต้องเลือก Lock/เงื่อนไข UPDATE และ Constraints ให้ตรงกติกา
+
+## ทำอย่างไร?
+
+### แยกหน้าที่ให้ถูก
+
+| ชั้น | ช่วยอะไร |
+| --- | --- |
+| Application validation | บอกผู้ใช้ก่อนว่าจำนวนไม่เหมาะสม แต่ข้อมูลอาจเปลี่ยนหลังตรวจ |
+| Database constraint | ป้องกันค่าผิด เช่น Stock ติดลบ แต่ไม่รู้ทุกกติกาข้ามตาราง |
+| Lock / Conditional UPDATE | ให้การแก้ข้อมูลเดียวกันรอกันหรือเปลี่ยนเมื่อเงื่อนไขยังจริง |
+
+### 1. Conditional UPDATE
+
+แทนที่จะอ่าน Stock เป็น 8 ในแอปแล้วเขียนเลขใหม่ทับ ใช้การลบจากค่าปัจจุบันใน DB พร้อมเงื่อนไข และตรวจจำนวนแถวที่คืนมา ตัวอย่างนี้ย่อเฉพาะจุด Stock และ Rollback คืน ไม่ใช่ Transaction ขายสินค้าครบชุด:
+
+```sql filename="conditional-stock.sql"
+BEGIN;
+UPDATE products
+SET stock = stock - 1
+WHERE sku = 'SKU-001' AND active AND stock >= 1
+RETURNING sku, stock;
+ROLLBACK;
+```
+
+ได้หนึ่งแถวคือหักได้ ศูนย์แถวคือสินค้าไม่พร้อม/ไม่มี/ไม่พอ ต้องไม่สร้าง Order ต่อหรือรายงานว่าสำเร็จ หากใช้ขายจริงต้องรวม Items/Movement ในชุดเดียวตาม [place_order](/technology-guides/postgresql/transactions) ที่ใช้วิธีนี้ด้วย
+
+### 2. ทดสอบผู้ซื้อสินค้าชิ้นสุดท้ายสองคน
+
+ต้องมี Schema, Seed และฟังก์ชัน `place_order` จากบทก่อน เปิด **สอง Connections จริง** ใน DBeaver/psql ไม่ใช่แค่สอง Tabs ที่ใช้ Connection เดียวกัน แล้วเตรียมสินค้าใหม่หนึ่งครั้ง:
+
+```sql filename="last-item-setup.sql"
+BEGIN;
+INSERT INTO products (sku, name, unit_price, stock)
+VALUES ('SKU-LAST', 'Last Item Demo', 50.00, 1);
+INSERT INTO inventory_movements (product_id, quantity_delta, reason)
+SELECT id, 1, 'opening' FROM products WHERE sku = 'SKU-LAST';
+COMMIT;
+```
+
+**Connection A** เริ่มซื้อ แต่ยังไม่ Commit:
+
+```sql filename="concurrency-a.sql"
+BEGIN;
+SET LOCAL lock_timeout = '10s';
+SELECT place_order('demo@example.invalid', 'SKU-LAST', 1);
+```
+
+**Connection B** เริ่มซื้อขณะ A ยังเปิด Transaction อยู่:
+
+```sql filename="concurrency-b.sql"
+BEGIN;
+SET LOCAL lock_timeout = '10s';
+SELECT place_order('second@example.invalid', 'SKU-LAST', 1);
+```
+
+B ควรรอ Row lock ที่ `SELECT ... FOR UPDATE` ภายในฟังก์ชัน กลับไป **A** สั่งภายในเวลารอของ B:
+
+```sql filename="concurrency-a-commit.sql"
+COMMIT;
+```
+
+B จะอ่านค่าที่เปลี่ยนแล้วและพบ Stock ไม่พอ จึง Error ให้ **B** สั่ง `ROLLBACK;` ก่อนใช้งานต่อ ถ้า A ไม่จบภายใน 10 วินาที B อาจเป็น Lock timeout แทน ต้องเริ่มการทดลองใหม่อย่างควบคุม ไม่ตีความว่าเป็นการซื้อสำเร็จ
+
+คาดหวัง Stock ของ `SKU-LAST` เป็น 0, มี Order ขายสำเร็จหนึ่งใบ และ Movement ยกมา +1 กับขาย -1 เท่านั้น ใช้ Query ตรวจในบท Transactions ไม่ตรวจแค่ข้อความ “COMMIT” ของฝั่งใดฝั่งหนึ่ง
+
+`SELECT FOR UPDATE` ต้องใช้ภายใน Transaction ที่ครอบอ่านและเขียน ถ้าเปิด Auto-commit แล้ว SELECT แยกจาก UPDATE Lock อาจถูกปล่อยก่อนถึงคำสั่งถัดไป ไม่ได้ป้องกันงานทั้งชุด
+
+### 3. Isolation level ที่ควรรู้
+
+Isolation level คือกติกาว่า Transaction เห็นข้อมูลของงานอื่นเมื่อไร:
+
+| ระดับใน PostgreSQL | สิ่งที่ต้องจำ |
+| --- | --- |
+| READ COMMITTED | ค่าเริ่มต้น แต่ละ Statement มี Snapshot ของข้อมูลที่ Commit ก่อนเริ่ม Statement นั้น |
+| REPEATABLE READ | ใช้ Snapshot ของ Transaction จาก Query แรก เหมาะกับงานที่ต้องอ่านชุดเดิม แต่อาจต้อง Retry เมื่อเขียนชน |
+| SERIALIZABLE | ตรวจให้ผลสำเร็จเทียบได้กับการทำทีละงาน บางงานจึงถูกยกเลิกและต้อง Retry |
+| READ UNCOMMITTED | PostgreSQL ปฏิบัติเหมือน READ COMMITTED ไม่เปิดให้อ่านข้อมูลที่ยังไม่ Commit |
+
+ไม่เปลี่ยนทั้งระบบเป็น SERIALIZABLE เพื่อแก้ทุกปัญหา หากได้ `40001` (Serialization failure) หรือเลือก Retry `40P01` (Deadlock) ต้องเริ่ม **Transaction ทั้งชุดใหม่** พร้อมจำนวนครั้ง/เวลารอที่จำกัด ไม่ Retry แค่คำสั่งกลางชุดหรือชำระเงินซ้ำ ดู [Isolation](https://www.postgresql.org/docs/17/transaction-iso.html)
+
+### 4. Deadlock และเวลารอ
+
+Deadlock คือ A รอ Lock ของ B ขณะที่ B รอ A เช่นขั้นทดลองด้านล่างซึ่งล็อกอย่างเดียว ไม่แก้ข้อมูล:
+
+| ลำดับ | Connection A | Connection B |
+| --- | --- | --- |
+| 1 | BEGIN แล้วล็อก `SKU-001` | BEGIN แล้วล็อก `SKU-002` |
+| 2 | ขอ Lock `SKU-002` แล้วรอ | ขอ Lock `SKU-001` แล้ววนรอ |
+| 3 | DB เลือกยกเลิกหนึ่ง Transaction | ทุกฝั่งต้องปิด Transaction ด้วย Rollback หลังทดลอง |
+
+คำสั่งล็อกตัวอย่างคือ `SELECT id FROM products WHERE sku = 'SKU-001' FOR UPDATE;` รันระหว่าง BEGIN/ROLLBACK ตามตาราง เปลี่ยน SKU ให้ตรงช่อง ผลว่าใครถูกยกเลิกไม่แน่นอน ไม่ออกแบบโดยสมมติว่าฝั่ง B แพ้เสมอ
+
+ป้องกันด้วยการล็อกสินค้าหลายตัวตามลำดับ Key เดียวกัน ทำ Transaction สั้น และกำหนด `SET LOCAL lock_timeout = '3s';` หลัง BEGIN เพื่อไม่รอไม่จำกัด ค่านี้จำกัดการรอ Lock ไม่ใช่เวลาทำงานรวม ซึ่งใช้ `statement_timeout` แยกกัน และ Timeout ต้อง Rollback/จัดการ ไม่ถือว่า Commit แล้ว
+
+## ตัวอย่างการใช้งานจริง
+
+ลูกค้าสองคนซื้อชิ้นสุดท้าย คนหนึ่งสำเร็จ อีกคนได้ข้อความว่าสินค้าหมด ไม่ส่ง Email ยืนยันฝั่งที่แพ้หรือสร้าง Movement แยกนอก Transaction จนยอดติดลบ
+
+## ข้อควรระวัง
+
+อย่าถือ Lock ระหว่างรอ API ภายนอก และอย่า Kill Connection ที่กำลังขวางโดยยังไม่รู้เจ้าของงาน การตั้ง Timeout สั้นเกินอาจทำให้งานปกติล้มเหลว ต้องวัดกับ Workload จริง
+
+## สรุป
+
+- ข้อมูลที่ตรวจในแอปอาจเก่าเมื่อถึงเวลาเขียน
+- Conditional UPDATE ต้องตรวจว่ามีแถวเปลี่ยนจริง
+- Row lock ต้องอยู่ใน Transaction ที่ครอบงาน
+- Lock order, Timeout และ Retry ต้องออกแบบร่วมกัน
+
+## อ่านต่อ
+
+- [Transactions](/technology-guides/postgresql/transactions)
+- [Explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
+- [Serialization failure handling](https://www.postgresql.org/docs/17/mvcc-serialization-failure-handling.html)

@@ -1,0 +1,244 @@
+---
+title: "Deploy Runbook — ปล่อยรุ่นด้วย Docker Compose"
+description: "ลำดับ Deploy DEV UAT พร้อม Preflight Migration Smoke test และตัวอย่าง Helper สำหรับการอนุมัติก่อนรัน"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Actions": "GitHub.com; ubuntu-24.04 hosted runner; ตัวอย่างยังไม่เปิดใช้", "Docker Compose": "Host version not selected; ต้องรองรับ --wait / --wait-timeout", "PostgreSQL": "17; Docker Task Lab", "Python": "3; Host version not selected"}
+---
+
+# Deploy Runbook — ปล่อยรุ่นด้วย Docker Compose
+
+## เรื่องนี้คืออะไร?
+
+Runbook คือขั้นตอนที่คนอื่นทำตามได้ พร้อมรู้ว่าจะหยุดตรงไหนเมื่อผิดปกติ บทนี้ใช้ Docker Task Lab บน Ubuntu เครื่องเดียว เป็นตัวอย่าง DEV/UAT ผ่าน Loopback/SSH tunnel ยังไม่ใช่ระบบที่มี Login หรือพร้อมเปิด Production
+
+คำสั่งทั้งหมดเป็นเอกสาร **ยังไม่ได้รันกับ Server** การเปิดใช้ SSH/สิทธิ์/Server helper เป็นงานแยก ต้องตรวจแผนและทดสอบกับข้อมูลที่ทิ้งได้ก่อน
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อมีคู่ Images ที่ CI ตรวจแล้วและจะปล่อยไปเครื่องที่เตรียมไว้ ไม่ใช้แทนการติดตั้ง Docker/ฐานข้อมูลใหม่ ดูแหล่งเดียวของ [compose.deploy.yaml และ app.env](/technology-guides/docker/docker-deployment) ชื่อบริการ frontend/backend/db และ Project name task-demo ต้องตรงกันทุก Release
+
+### สิ่งที่ต้องพร้อมก่อนเริ่ม
+
+- Source/Dockerfiles มาจาก [Docker Task Lab](/technology-guides/docker/reference-project) ไม่สลับกับ Fullstack Task v1
+- Ubuntu/Docker/Compose plugin รองรับ `--wait` และ `--wait-timeout`; ตัวอย่าง Images เป็น linux/amd64 ต้องตรง Host
+- `/opt/task-demo/compose.deploy.yaml` และ `/etc/task-demo/app.env` ตั้งเจ้าของ/สิทธิ์โดยผู้ดูแลตามคู่มือ Docker; DB_IMAGE คง PostgreSQL 17 Digest เดิม
+- Server Pull Private images ได้ด้วย Credential อ่านอย่างจำกัด และพื้นที่เพียงพอทั้ง Images/DB/Backup
+- มี Release record คู่ Digests, Source commit, CI run ที่เชื่อถือได้ และ Runbook/ผู้รับผิดชอบจริง
+- ตรวจ Migration compatibility, Backup/Restore plan, ช่วงหยุดบริการ และวิธีแก้หากผิดพลาดก่อนเริ่ม
+
+เครื่องเดียวไม่รับประกัน Zero downtime การ Restart แทน Container อาจทำให้ Request ที่กำลังทำงานสะดุด ต้องทดสอบ Graceful shutdown/Timeout และวางช่วงเปลี่ยนรุ่นให้เหมาะกับงาน
+
+## ทำอย่างไรแบบคนรันทีละขั้น?
+
+### 1. ตรวจรุ่นและล็อกไม่ให้ปล่อยซ้อน
+
+ตรวจ Run URL ว่า Workflow ที่เชื่อถือรันบน Commit/Branch ที่เลือกและผ่านจริง ไม่เชื่อ JSON ที่มี URL เพียงอย่างเดียว เตรียม Release directory ใหม่ที่เก็บเฉพาะ Metadata และ `images.env` มี FRONTEND_IMAGE/BACKEND_IMAGE แบบ Digest ไม่มี Secret โดยผู้มีสิทธิ์ตาม Runbook
+
+ตัวอย่างคำสั่งด้านล่างรันใน Bash ของผู้ดูแลที่ได้รับสิทธิ์บน Host ใช้ `RELEASE_ID` แทนชื่อ Directory จริงของรุ่นที่เตรียมไว้ และถือ Lock เดียวกันกับ Helper จนตรวจเสร็จ:
+
+```bash
+sudo -i
+exec 9>/run/lock/task-demo-deploy.lock
+flock -n 9 || exit 1
+release_compose=(docker compose --project-name task-demo
+  --env-file /etc/task-demo/app.env
+  --env-file /opt/task-demo/releases/RELEASE_ID/images.env
+  -f /opt/task-demo/compose.deploy.yaml)
+"${release_compose[@]}" config -q
+"${release_compose[@]}" pull frontend backend
+```
+
+Array ช่วยใช้ Project/Config ชุดเดิมทุกคำสั่ง `--env-file` หลังทับค่า Image ของชุดแรกได้ ต้องตรวจว่า Shell ไม่ Export ค่าชื่อเดียวกันทับอยู่; Helper ด้านล่างตั้ง Image refs ที่ผ่าน Validator ไว้ชัด ส่วน config -q ตรวจโดยไม่ Dump ค่าลับออกมา
+
+### 2. เตรียม DB และตรวจ Migration
+
+```bash
+"${release_compose[@]}" up -d --wait --wait-timeout 120 db
+"${release_compose[@]}" run --rm --no-deps backend python manage.py check
+"${release_compose[@]}" run --rm --no-deps backend python manage.py migrate --plan
+```
+
+**หยุดอ่าน Plan ก่อนทำต่อ** Migration คือการเปลี่ยน Schema/ข้อมูลด้วยไฟล์ที่อยู่ใน Git ถ้า Drop/Rename Column ที่ Code เก่ายังใช้ ห้ามใช้ลำดับนี้โดยอัตโนมัติ ต้องวาง Expand-and-Contract คือเพิ่มของใหม่ให้ใช้ร่วมกับของเดิม แล้วค่อยเลิกของเก่า หรือกำหนดช่วงหยุดบริการก่อน ตรวจ Backup และความเข้ากันได้ทั้งรุ่นเก่า/ใหม่ด้วย [PostgreSQL Migration](/technology-guides/postgresql/migrations)
+
+### 3. Apply หนึ่งครั้ง แล้วเปลี่ยนแอป
+
+เมื่อผู้มีหน้าที่อนุมัติ Plan และเงื่อนไขพร้อมแล้ว:
+
+```bash
+"${release_compose[@]}" run --rm --no-deps backend python manage.py migrate --noinput
+"${release_compose[@]}" up -d --no-deps --wait --wait-timeout 180 backend frontend
+"${release_compose[@]}" ps
+```
+
+ให้มีผู้รัน Migration เพียงหนึ่งงาน Lock ต้องครอบคลุมทั้ง Manual และ Pipeline `--no-deps` ในขั้นเปลี่ยนแอปไม่ Recreate DB โดยไม่จำเป็น อย่าสร้าง Migration ด้วย makemigrations บน Server และไม่แก้ SQL สดเป็นทางปกติ
+
+### 4. ตรวจทางเทคนิคและผู้ใช้
+
+```bash
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/api/health/
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/ -o /dev/null
+```
+
+Health API ของ Lab ตรวจ DB connection แต่ไม่ได้ยืนยัน Login/สิทธิ์หรือทุก Query ผ่าน ใช้ [SSH tunnel](/technology-guides/docker/docker-deployment) เปิดเว็บ แล้วสร้าง/อ่าน Task ด้วยข้อมูลทดสอบที่อนุญาต จดผลจริง QA ต้องตรวจ UAT แยกจากสถานะ Job สีเขียว ปิด Root shell หลังเสร็จด้วย exit เพื่อปล่อย Lock
+
+## ตัวอย่าง Helper สำหรับ Manual GitHub Actions
+
+ส่วนนี้เป็น **Source ที่เสนอ ยังไม่ติดตั้งหรือรัน Deploy จริง** ใช้เฉพาะ Migration ที่ Review/อนุมัติไว้แล้วและเข้ากับ Code เดิมได้ หากยังต้องอ่าน Plan/ตัดสินใจหน้างานให้ใช้ Manual runbook ด้านบน ไม่กด Workflow แทนการอนุมัติ
+
+ผู้ดูแลต้องติดตั้ง Script/Validator ด้วยเจ้าของที่ควบคุมได้และไม่ให้ SSH user เขียนทับ กำหนดสิทธิ์รันเฉพาะคำสั่งคงที่ตามนโยบาย ห้ามใช้ sudo ALL เพื่อให้ตัวอย่างผ่าน ทั้ง Script, Compose, Policy และ Runtime config เป็น Trusted server files ที่ต้อง Review/ตามรอย ไม่ Copy มาจาก Candidate ที่ไม่เชื่อถือ
+
+### Validator: รับเฉพาะ Repo ที่อนุญาตและ Digest
+
+เสนอเก็บ Source ในแอป Repo เป็น `ops/validate-release.py` แล้วผู้ดูแลติดตั้งสำเนาที่ `/usr/local/lib/task-demo/validate-release.py` ใช้ Python 3 Standard library ไม่เรียก eval หรือเอา Input ไปต่อ Shell command:
+
+```python filename="ops/validate-release.py"
+import argparse
+import json
+import re
+from pathlib import Path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', required=True)
+parser.add_argument('--output', required=True)
+parser.add_argument('--policy')
+parser.add_argument('--frontend-repository')
+parser.add_argument('--backend-repository')
+args = parser.parse_args()
+
+try:
+    policy = json.loads(Path(args.policy).read_text()) if args.policy else {
+        'frontend_repository': args.frontend_repository,
+        'backend_repository': args.backend_repository,
+    }
+    raw = Path(args.input).read_bytes()
+    if len(raw) > 16384:
+        raise ValueError('candidate too large')
+    candidate = json.loads(raw)
+    commit = candidate['source_commit']
+    if not isinstance(commit, str) or not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('invalid source commit')
+    images = {}
+    for service in ('frontend', 'backend'):
+        repository = policy[service + '_repository']
+        if not isinstance(repository, str) or not re.fullmatch(
+            r'ghcr\.io/[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._/-]*', repository
+        ):
+            raise ValueError('invalid repository policy')
+        ref = candidate['images'][service]
+        if not isinstance(ref, str) or not re.fullmatch(
+            re.escape(repository) + r'@sha256:[0-9a-f]{64}', ref
+        ):
+            raise ValueError('invalid image reference')
+        images[service] = ref
+    source_run_url = candidate['source_run_url']
+    if not isinstance(source_run_url, str) or not re.fullmatch(
+        r'https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/actions/runs/[0-9]+',
+        source_run_url,
+    ):
+        raise ValueError('invalid source run URL')
+    normalized = {'source_commit': commit, 'images': images,
+                  'source_run_url': source_run_url}
+    Path(args.output).write_text(json.dumps(normalized, indent=2) + '\n')
+except (ValueError, KeyError, TypeError, OSError):
+    raise SystemExit('Invalid release candidate or policy; no deployment performed')
+```
+
+Validator ตรวจรูปแบบ/Allowlist เท่านั้น **ไม่พิสูจน์ว่า CI ผ่านหรือมีคนอนุมัติ** ผู้ยืนยัน Environment ต้องเปิด Run และตรวจ Commit/Artifacts จริง และ Image revision label ก็ไม่ใช่ Cryptographic attestation
+
+Policy บน Host เป็น JSON ที่ผู้ดูแลกำหนด Repository names จริงใน `/etc/task-demo/deploy-policy.json` ตัวอย่างเว้นว่างเพื่อให้ Validator ปฏิเสธก่อนตั้งค่า:
+
+```json filename="deploy-policy.example.json"
+{
+  "frontend_repository": "",
+  "backend_repository": ""
+}
+```
+
+### Server helper: ใช้ Candidate ที่ตรวจแล้ว
+
+Source ที่เสนอ `ops/deploy-compose.sh` ติดตั้งเป็น `/usr/local/sbin/task-demo-deploy` ต้องมี Bash, Python 3, flock, curl และ Docker/Compose ตาม Prerequisites ไม่มี Argument สำหรับรับ Shell command จากผู้กด Run:
+
+```bash filename="ops/deploy-compose.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+exec 9>/run/lock/task-demo-deploy.lock
+flock -n 9 || { echo 'Another deployment holds the lock' >&2; exit 1; }
+
+task_tmp=$(mktemp -d)
+trap 'rm -rf -- "$task_tmp"' EXIT
+# Read a bounded JSON payload from stdin; never execute its contents.
+python3 -c '
+import sys
+data = sys.stdin.buffer.read(16385)
+if len(data) > 16384:
+    raise SystemExit("Candidate too large")
+sys.stdout.buffer.write(data)
+' > "$task_tmp/input.json"
+python3 /usr/local/lib/task-demo/validate-release.py \
+  --policy /etc/task-demo/deploy-policy.json \
+  --input "$task_tmp/input.json" --output "$task_tmp/candidate.json"
+read -r FRONTEND_IMAGE BACKEND_IMAGE SOURCE_COMMIT < <(
+  python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); print(r["images"]["frontend"],r["images"]["backend"],r["source_commit"])' \
+    "$task_tmp/candidate.json"
+)
+export FRONTEND_IMAGE BACKEND_IMAGE
+export APP_ENV_FILE=/etc/task-demo/app.env
+mkdir -p /opt/task-demo/releases
+release_dir=$(mktemp -d /opt/task-demo/releases/release.XXXXXXXX)
+cp "$task_tmp/candidate.json" "$release_dir/candidate.json"
+printf 'FRONTEND_IMAGE=%s\nBACKEND_IMAGE=%s\n' \
+  "$FRONTEND_IMAGE" "$BACKEND_IMAGE" > "$release_dir/images.env"
+release_compose=(docker compose --project-name task-demo
+  --env-file /etc/task-demo/app.env --env-file "$release_dir/images.env"
+  -f /opt/task-demo/compose.deploy.yaml)
+"${release_compose[@]}" config -q
+"${release_compose[@]}" pull frontend backend
+for image in "$FRONTEND_IMAGE" "$BACKEND_IMAGE"; do
+  revision=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image")
+  test "$revision" = "$SOURCE_COMMIT" || { echo 'Revision label mismatch' >&2; exit 1; }
+done
+# Preconditions: DB config unchanged; migration/backup plan approved already.
+"${release_compose[@]}" up -d --wait --wait-timeout 120 db
+"${release_compose[@]}" run --rm --no-deps backend python manage.py check
+"${release_compose[@]}" run --rm --no-deps backend python manage.py migrate --plan
+"${release_compose[@]}" run --rm --no-deps backend python manage.py migrate --noinput
+"${release_compose[@]}" up -d --no-deps --wait --wait-timeout 180 backend frontend
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/api/health/ -o /dev/null
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/ -o /dev/null
+"${release_compose[@]}" ps
+printf 'technical-smoke-passed\n' > "$release_dir/result.txt"
+printf '%s\n' "$release_dir" > /opt/task-demo/last-technical-success.txt
+printf 'Technical smoke passed; UAT approval is separate. Record: %s\n' "$release_dir"
+```
+
+หากขั้นใดล้มเหลว Helper หยุดและ **ไม่ Rollback DB อัตโนมัติ** Release directory ที่สร้างแล้วช่วยเก็บ Candidate แต่ไม่ถือว่าปล่อยสำเร็จจนมีผลตรวจ ควรบันทึก Config revision/เวลา/ผู้ดำเนินการจริงใน Project release record เพิ่มด้วย
+
+Script ไม่แก้ Compose/Runtime secrets/DB major และไม่ลบ Volumes แต่คำสั่ง up db อาจ Recreate DB ถ้า Config ปลายทางถูกเปลี่ยน จึงต้องยืนยัน Config เดิมก่อนรัน สิทธิ์ Root/Docker สูงและ Local paths ต้องไม่เป็น Symlink/ไฟล์ที่ผู้ไม่เชื่อถือแก้ได้
+
+## ข้อควรระวัง
+
+- ไม่ Build ใหม่/ดึง Source มาแก้บน Host หรือเปิด API Lab สู่ Public
+- การกด Run ซ้ำหลัง Migration ล้มต้องตรวจสถานะก่อน ไม่ Retry ทั้ง Deploy อย่างไม่รู้ผลเดิม
+- อย่าใช้ Helper ปกติสำหรับ Rollback เพราะมันมี migrate; ใช้ [ขั้นตอน Rollback แยก](/technology-guides/devops/rollback-and-release)
+- HTTP 200 และ Container healthy ยังไม่ใช่ UAT/Production acceptance
+
+## สรุป
+
+- ตรวจรุ่น → Lock → Config/Pull → Migration → เปลี่ยนแอป → ตรวจผู้ใช้
+- Migration ต้อง Review ก่อนเริ่ม ไม่อาศัย Plan ที่พิมพ์ผ่าน Log เป็น Approval
+- บันทึกผลตามที่ตรวจจริง และเก็บรุ่นก่อนหน้าที่เข้ากับ Schema
+- Helper นี้ยังเป็นข้อเสนอ ต้องทดสอบบน Host ทดลองก่อนเปิดใช้
+
+## อ่านต่อ
+
+- [Deployment Workflow](/technology-guides/devops/deployment-workflow)
+- [Release & Rollback](/technology-guides/devops/rollback-and-release)
+- [Deployment Workflow](/technology-guides/devops/deployment-workflow)

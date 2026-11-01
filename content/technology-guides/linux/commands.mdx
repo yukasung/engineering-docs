@@ -1,0 +1,106 @@
+---
+title: "Commands — Linux ที่ใช้บ่อย"
+description: "ค้นคำสั่งสำหรับ Paths Files Permissions Processes Service Logs Network และ Resources พร้อมหน้าที่"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Commands — Linux ที่ใช้บ่อย
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้เป็นรายการอ้างอิงสำหรับ Ubuntu/GNU tools ไม่ใช่ Script ให้ Copy รันทั้งหน้า เริ่ม [Linux Lab](/technology-guides/linux/getting-started) ก่อนใช้ Path ของ Lab ส่วน nginx.service และ HTTP endpoints ต้องมีอยู่ใน Environment ที่ได้รับอนุญาตแล้ว
+
+## ดูระบบและ Files
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร |
+| --- | --- |
+| `cat /etc/os-release` | ดู Distribution ไม่ใช่ Kernel version |
+| `uname -srm` | ดู Kernel และ CPU architecture |
+| `whoami` / `id` | ดูบัญชีและ Groups |
+| `pwd` / `ls -lah` | ดู Path ปัจจุบันและไฟล์รวม Hidden files |
+| `cat src/notes.txt` | อ่านไฟล์เล็กของ Lab |
+| `less logs/app.log` | เปิดอ่านไฟล์ ใช้ q ออก |
+| `grep -n 'ERROR' logs/app.log` | ค้นบรรทัดที่มี ERROR พร้อมเลขบรรทัด; ไม่เจอคืน Exit 1 |
+| `find src -type f -name '*.txt' -print` | หาไฟล์ .txt ใน src ไม่สแกนทั้งระบบ |
+
+## Permissions
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร |
+| --- | --- |
+| `ls -ld . src` | ดู Mode/Owner ของโฟลเดอร์เอง |
+| `stat -c '%a %U:%G %n' src/notes.txt` | ดู Numeric mode และ Owner/Group แบบ GNU |
+
+คำสั่งต่อไป **เปลี่ยนสิทธิ์ไฟล์ของ Lab** อ่าน [Permissions](/technology-guides/linux/files-and-permissions) ก่อน ไม่แทน Path เป็นโฟลเดอร์ระบบ:
+
+```bash
+chmod 640 src/notes.txt
+chmod 750 src
+```
+
+## Processes และ Services
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร |
+| --- | --- |
+| `ps -p 1 -o pid,comm` | ดู Process ที่เป็น PID 1 ของ Environment นี้ |
+| `ps -eo pid,ppid,user,comm,%cpu,%mem --sort=-%cpu` | ดู Process โดยไม่แสดง Command arguments |
+| `systemctl list-units --type=service --state=running --no-pager` | ดู Running units เมื่อมี systemd |
+| `systemctl status nginx.service --no-pager --lines=20` | ดู State/Log บางส่วนของ Unit ที่มีจริง |
+| `systemctl is-active nginx.service` | ดู State ตอนนี้ Non-zero ต้องแปลตามผล |
+| `systemctl is-enabled nginx.service` | ดูการตั้งเริ่มอัตโนมัติ ไม่ใช่การยืนยันว่ากำลังรัน |
+
+การใช้ kill/reload/restart เปลี่ยนระบบ ดูตัวอย่างที่ควบคุมขอบเขตใน [Processes & Services](/technology-guides/linux/processes-and-services) ก่อน ไม่เริ่มจาก kill -9 หรือ restart ทุกบริการ
+
+## Logs และ Resources
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร |
+| --- | --- |
+| `tail -n 100 logs/app.log` | อ่าน 100 บรรทัดท้ายของ Log |
+| `journalctl -u nginx.service --since '30 min ago' -n 100 --no-pager --utc` | จำกัด Unit/เวลา/จำนวนบรรทัดและแสดง UTC |
+| `uptime` | ดู Uptime กับ Load average ไม่ใช่ %CPU อย่างเดียว |
+| `top` | ดู Resource/Process แบบปรับต่อเนื่อง ใช้ q ออก |
+| `free -h` | ดู Memory และ available ประกอบ |
+| `df -h .` | ดูพื้นที่ Filesystem ของ Path นี้ |
+| `df -i .` | ดู Inodes ของ Filesystem |
+| `du -h --max-depth=1 -- "$LINUX_LAB_DIR"` | ดูขนาดข้อมูลใน Lab ที่ตั้งตัวแปรแล้ว |
+
+## Network และ SSH
+
+| คำสั่งตัวอย่าง | ใช้ทำอะไร |
+| --- | --- |
+| `ip -br address` | ดู Interfaces/IP แบบย่อ |
+| `ip route` | ดู Routes ของ Network namespace นี้ |
+| `getent ahosts localhost` | ดูการค้นชื่อผ่านระบบ |
+| `ss -ltn` | ดู TCP listeners โดยไม่แปลงชื่อพอร์ต |
+| `ss -ltnp '( sport = :8000 )'` | จำกัด Port 8000 และขอ Process info ตามสิทธิ์ |
+
+ดู [HTTP พร้อม Timeout](/technology-guides/linux/networking) และ [SSH/Transfer/Tunnel](/technology-guides/linux/ssh-and-file-transfer) สำหรับ Prerequisites/ปลายทางจริง ไม่ใช้ชื่อภายใน Docker/Kubernetes เป็น Browser URL โดยตรง
+
+## ตรวจ Script ก่อนรัน
+
+```bash
+bash -n collect-system-info.sh
+shellcheck collect-system-info.sh
+```
+
+ต้องมีไฟล์จาก [Shell Scripting](/technology-guides/linux/shell-scripting) และ ShellCheck ติดตั้งไว้ Syntax/static checks ไม่ยืนยัน Runtime หรือสิทธิ์บน Server เป้าหมาย
+
+## ข้อควรระวัง
+
+rm, chmod/chown, kill, sudo apt install, systemctl restart และคำสั่งเขียนไฟล์มีผลเปลี่ยนระบบ ตรวจขอบเขตและ Runbook ก่อน ส่วน Logs/status บางตัวอาจเผยข้อมูลลับ ตรวจ Output ก่อนนำไปแปะใน Chat/Issue
+
+## สรุปสิ่งที่ต้องจำ
+
+- ใช้ --help/man ให้ตรงรุ่นเมื่อไม่แน่ใจ Flag
+- ตรวจ Path/Environment ก่อนคำสั่งเปลี่ยนข้อมูล
+- Non-zero ไม่ได้หมายถึงเหตุเดียวกันทุกคำสั่ง
+- Commands เป็นจุดเริ่มต้น ไม่แทนการแปลผลและตรวจผู้ใช้
+
+## อ่านต่อ
+
+- [Troubleshooting](/technology-guides/linux/troubleshooting)
+- [Files & Permissions](/technology-guides/linux/files-and-permissions)
+- [Processes & Services](/technology-guides/linux/processes-and-services)

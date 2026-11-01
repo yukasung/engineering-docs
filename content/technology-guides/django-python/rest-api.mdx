@@ -1,0 +1,130 @@
+---
+title: "REST API — รับส่ง Tasks ผ่าน HTTP"
+description: "Task ViewSet Router Pagination Filtering และคำสั่ง curl ที่ใช้ Session/CSRF ตาม Contract"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# REST API — รับส่ง Tasks ผ่าน HTTP
+
+## เรื่องนี้คืออะไร?
+
+REST API เป็นวิธีจัด URLs รอบข้อมูล เช่น Tasks แล้วใช้ HTTP methods บอกการกระทำ JSON คือรูปแบบข้อความที่ Backend กับ React แลกกัน ตัวอย่างนี้ใช้ `/api/v1/` เป็นขอบเขต Contract รุ่นแรก ไม่ใช่เลขรุ่น Django
+
+## ใช้เมื่อไร?
+
+ใช้เชื่อมหน้าเว็บกับข้อมูล และตรวจว่าแต่ละ Endpoint รับ/ตอบอะไร ต้องทำ [Auth](/technology-guides/django-python/authentication), [Permissions](/technology-guides/django-python/authorization) และ [Errors](/technology-guides/django-python/error-handling) ร่วมกัน
+
+## ตัวอย่าง Code
+
+| Method/URL | ผลเมื่อสำเร็จ |
+| --- | --- |
+| GET `/api/v1/tasks/` | 200 พร้อม `{count,next,previous,results}` ของตัวเอง |
+| POST `/api/v1/tasks/` | 201 พร้อม Task ที่สร้าง |
+| GET `/api/v1/tasks/{id}/` | 200 พร้อม Task ของตัวเอง |
+| PATCH `/api/v1/tasks/{id}/` | 200 พร้อม Task หลังแก้ |
+| DELETE `/api/v1/tasks/{id}/` | 204 ไม่มี Body |
+
+GET อ่าน, POST สร้าง, PATCH แก้บาง Fields, DELETE ลบ ส่วน PUT ใช้แทนข้อมูลทั้ง Object ตาม Contract แต่ **ตัวอย่างนี้ไม่เปิด PUT** จึงตอบ 405 ไม่ใส่ Method ที่ยังไม่ได้ตกลงเพียงเพราะ ViewSet รองรับได้
+
+```python filename="backend/tasks/views.py"
+from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import IsAuthenticated
+from .models import Task
+from .permissions import IsTaskOwner
+from .serializers import TaskSerializer
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated, IsTaskOwner]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def get_queryset(self):
+        rows = Task.objects.filter(owner=self.request.user)
+        status = self.request.query_params.get("status")
+        if status is not None:
+            if status not in Task.Status.values:
+                raise ValidationError({"status": ["สถานะไม่ถูกต้อง"]})
+            rows = rows.filter(status=status)
+        return rows.order_by("-created_at", "-id")
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+```
+
+APIView เหมาะกับงานเฉพาะอย่าง Login ส่วน ViewSet รวม CRUD ของข้อมูลเดียว Router ช่วยสร้าง URL ของ ViewSet โดยไม่เขียนทุกเส้นเอง:
+
+```python filename="backend/api/pagination.py"
+from rest_framework.pagination import PageNumberPagination
+
+
+class TaskPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+```
+
+```python filename="backend/config/urls.py"
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+from api.auth_views import CsrfTokenView, LoginView, LogoutView, MeView
+from tasks.views import TaskViewSet
+
+router = DefaultRouter()
+router.register("tasks", TaskViewSet, basename="task")
+urlpatterns = [
+    path("api/v1/auth/csrf/", CsrfTokenView.as_view()),
+    path("api/v1/auth/login/", LoginView.as_view()),
+    path("api/v1/auth/logout/", LogoutView.as_view()),
+    path("api/v1/auth/me/", MeView.as_view()),
+    path("api/v1/", include(router.urls)),
+]
+handler500 = "api.errors.server_error"
+```
+
+Query `?status=completed&page=2&page_size=20` ใช้ Filter กับ Pagination ที่ Server ทำให้ได้หน้าเล็ก ไม่โหลดทุก Task แล้วกรองใน Browser วันที่เป็น ISO 8601 และ ID/Owner เป็นตัวเลขตาม [Contract](/technology-guides/fullstack)
+
+## วิธีทดสอบ
+
+ทำ [Cookie jar Login](/technology-guides/django-python/authentication) ก่อน แล้วใช้ Terminal เดิมที่มี `csrf_token` หลัง Login และ `.local-client/cookies.txt`:
+
+```bash
+curl --fail-with-body -b .local-client/cookies.txt \
+  http://localhost:8000/api/v1/tasks/
+curl --fail-with-body -b .local-client/cookies.txt -c .local-client/cookies.txt \
+  -H "X-CSRFToken: $csrf_token" -H 'Content-Type: application/json' \
+  --data '{"title":"อ่านคู่มือ API","status":"todo"}' \
+  http://localhost:8000/api/v1/tasks/
+```
+
+เลือก ID ที่ POST คืนมา ไม่เดาว่าเป็น 1 แทน `TASK_ID` ก่อนทดสอบ PATCH/DELETE การลบทำข้อมูล Task หาย ใช้เฉพาะ Task ทดลองของตัวเองหลังยืนยันขอบเขต:
+
+```bash
+curl --fail-with-body -X PATCH -b .local-client/cookies.txt \
+  -H "X-CSRFToken: $csrf_token" -H 'Content-Type: application/json' \
+  --data '{"status":"completed"}' http://localhost:8000/api/v1/tasks/TASK_ID/
+curl --fail-with-body -X DELETE -b .local-client/cookies.txt \
+  -H "X-CSRFToken: $csrf_token" http://localhost:8000/api/v1/tasks/TASK_ID/
+```
+
+## ข้อควรระวัง
+
+ไม่เปิด `Task.objects.all()` ใน Endpoint ของผู้ใช้ ไม่ส่งค่า Owner จาก Client ไป Save และอย่าเปลี่ยน Response เป็น Array ตรง ๆ โดยไม่แก้ React เพราะ List ชุดนี้มี Pagination envelope เสมอ
+
+## สรุปสิ่งที่ต้องจำ
+
+- Method/URL/Status/JSON ต้องตรง Contract
+- ViewSet ลดงาน CRUD แต่ยังต้อง Filter/Permissions
+- Unsafe methods ต้องใช้ Session cookie และ CSRF
+- DELETE 204 ไม่มี JSON ให้อ่าน
+
+## อ่านต่อ
+
+- [React API integration](/technology-guides/react-typescript/api-integration)
+- [DRF ViewSets](https://www.django-rest-framework.org/api-guide/viewsets/)
+- [DRF pagination](https://www.django-rest-framework.org/api-guide/pagination/)

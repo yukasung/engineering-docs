@@ -1,0 +1,88 @@
+---
+title: "Networking — ไล่ DNS Port และ HTTP"
+description: "ตรวจ IP Route Listener DNS และ HTTP โดยแยก Host Container กับ Browser"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Networking — ไล่ DNS Port และ HTTP
+
+## เรื่องนี้คืออะไร?
+
+ปัญหา “เว็บเข้าไม่ได้” อาจอยู่ที่ DNS, เส้นทาง Network, Port, TLS หรือแอปที่ตอบ Error ให้ตรวจทีละชั้น ไม่สรุปจาก ping หรือ Browser error อย่างเดียว
+
+## ทำอย่างไร?
+
+### 1. ตรวจจากจุดที่มีปัญหา
+
+Host, Docker container และ Kubernetes Pod มีขอบเขต Network ต่างกัน `127.0.0.1` หรือ localhost หมายถึงจุดที่รันคำสั่งนั้น Backend ต่อ DB ที่ localhost ภายใน Container จึงไม่ได้หมายถึง DB อีก Container
+
+```bash
+ip -br address
+ip route
+getent ahosts localhost
+```
+
+ip ดู Interfaces/Routes ส่วน getent ใช้การค้นชื่อตามระบบ ไม่ใช่ตรวจ DNS server อย่างเดียว ใช้ชื่อจริงที่ระบบควรเข้าถึงแทน localhost เมื่อวิเคราะห์ DNS ตรวจจาก Container/Pod ที่ล้มด้วยถ้าได้รับสิทธิ์ ไม่ใช้ผลจาก Laptop แทนทั้งหมด
+
+### 2. มีโปรแกรมฟังพอร์ตหรือยัง?
+
+```bash
+ss -ltn
+ss -ltnp '( sport = :8000 )'
+```
+
+-l ดู Listener, -t TCP, -n ไม่แปลงชื่อพอร์ต และ -p ขอชื่อ Process ซึ่งอาจมองไม่เห็นของผู้ใช้อื่นถ้าไม่มีสิทธิ์ เปรียบเทียบ Local Address กับพอร์ตที่แอปควรใช้:
+
+| Listener | ความหมาย |
+| --- | --- |
+| 127.0.0.1:8000 | รับเฉพาะ Loopback ใน Network namespace นี้ |
+| 0.0.0.0:8000 | รับผ่าน IPv4 interfaces ใน Namespace นี้ แต่ยังมีกฎ Network/Firewall |
+| [::]:8000 | IPv6 wildcard; พฤติกรรม IPv4 ต้องตรวจ Socket/ระบบ ไม่เดา |
+
+มี Listener ไม่เท่ากับปลอดภัยให้เปิด Public และ Container ฟัง 0.0.0.0 ไม่ได้ Publish Port ออก Host อัตโนมัติ
+
+### 3. ตรวจ HTTP พร้อมขอบเขตเวลา
+
+ตัวอย่างนี้ใช้เมื่อเปิด [Docker Task Lab](/technology-guides/docker/docker-compose) บนเครื่องทดลองแล้วเท่านั้น API /api/health/ ต้องมีจริง:
+
+```bash
+curl --silent --show-error --fail-with-body \
+  --connect-timeout 3 --max-time 10 \
+  http://127.0.0.1:8080/api/health/
+```
+
+connect-timeout จำกัดช่วงเชื่อมต่อ ส่วน max-time จำกัดคำขอรวม --fail-with-body ทำให้ HTTP 400+ คืน Exit non-zero แต่ยังแสดง Body จึงใช้เฉพาะ Response ที่ไม่เผยข้อมูลลับ ตัวอย่างนี้ไม่ตรวจ API ของ Fullstack v1 โดยอัตโนมัติ เพราะเป็นคนละ Baseline
+
+- **Could not resolve host:** ตรวจชื่อ/NSS/DNS จากจุดที่เรียก
+- **Connection refused:** ปลายทางปฏิเสธ อาจไม่มี Listener/พอร์ตผิดหรือ Network ตอบ Reject ไม่ได้แปลว่า Firewall แน่นอน
+- **Timeout:** อาจ Route/Firewall/ปลายทางช้า ต้องแยกช่วง Connect กับช่วงรอ Response
+- **401/403/404/500:** ติดต่อ HTTP ได้แล้ว ตาม Error code/Logs ของแอปต่อ ไม่เปลี่ยนเป็นปัญหา DNS
+
+## ตัวอย่างการใช้งานจริง
+
+หน้า React โหลดได้ แต่ Task API ล้ม: ดู URL ใน Browser Network → Frontend proxy log → Backend listener/health → DB connection ใน Docker Lab Browser ใช้ `/api/tasks/` และ Proxy จึง Resolve `backend:8000` ภายใน ส่วน Kubernetes ใช้ Service DNS ที่ Browser resolve เองไม่ได้
+
+## ข้อควรระวัง
+
+อย่าใช้ curl -k เพื่อซ่อน TLS certificate error หรือเปิด Firewall ทุกพอร์ตเพื่อทดลอง บน Docker, Published ports อาจมีเส้นทางกฎต่างจาก UFW ต้องดู Configuration จริงตาม [Docker Deployment](/technology-guides/docker/docker-deployment) ก่อนแก้ Firewall/SSH access
+
+ไม่ใส่ Password/Token ใน URL, Shell history หรือ curl verbose output ที่นำไปแชร์ Health 200 ยังต้องตรวจ User flow ว่าอ่าน/เขียน Task ได้ตามสิทธิ์
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจจาก Network namespace ที่ล้ม
+- แยก DNS, Listener, HTTP และ Application errors
+- ใส่ Timeout ให้คำสั่งตรวจ HTTP
+- ไม่ปิด TLS/Firewall เพื่อซ่อนปัญหา
+
+## อ่านต่อ
+
+- [Docker Network](/technology-guides/docker/docker-network)
+- [Kubernetes Services](/technology-guides/kubernetes/services)
+- [Fullstack Troubleshooting](/technology-guides/fullstack/troubleshooting)
+- [ss reference](https://manpages.ubuntu.com/manpages/noble/man8/ss.8.html)
+- [curl reference](https://manpages.ubuntu.com/manpages/noble/man1/curl.1.html)

@@ -1,0 +1,160 @@
+---
+title: "Troubleshooting — ไล่ปัญหาจาก Pod ไปถึงเว็บ"
+description: "ตรวจ 12 ปัญหาที่พบบ่อยด้วย Status Events Logs Service endpoints และ Metrics โดยไม่ลบ Resources สุ่ม"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Troubleshooting — ไล่ปัญหาจาก Pod ไปถึงเว็บ
+
+## เรื่องนี้คืออะไร?
+
+เริ่มแก้ปัญหาจากหลักฐานว่าล้มที่ไหน: Pod ยังไม่รัน, แอปไม่ Ready, Service ไม่มีปลายทาง หรือเว็บเข้าไม่ถึง เก็บเวลา ชื่อ Resource และข้อความ Error ที่ตัดข้อมูลลับแล้ว ไม่เริ่มจาก Delete/Restart จน Log หาย
+
+## เริ่มตรวจอย่างไร?
+
+คำสั่งต่อไปอ่าน State ของ Local lab ต้องมี Context/Namespace ตาม [Getting Started](/technology-guides/kubernetes/getting-started):
+
+```bash
+kubectl --context kind-task-lab -n task-demo get pods -o wide
+kubectl --context kind-task-lab -n task-demo get events --sort-by=.metadata.creationTimestamp
+kubectl --context kind-task-lab -n task-demo get services
+kubectl --context kind-task-lab -n task-demo describe deployment backend
+```
+
+ดู READY `1/1` เทียบกับ STATUS, จำนวน RESTARTS และ Node ส่วน Events เรียงเวลาเพื่อดู FailedScheduling, FailedMount หรือ Probe failure Events มีอายุเก็บจำกัด จึงไม่ใช่ Audit log ถาวร
+
+คำสั่งราย Pod ให้แทน `POD_NAME` ด้วยชื่อจริงจาก get pods ตัวพิมพ์ใหญ่นี้เป็น Placeholder ไม่ใช่ชื่อ Pod ของระบบ:
+
+```bash
+kubectl --context kind-task-lab -n task-demo describe pod POD_NAME
+kubectl --context kind-task-lab -n task-demo logs POD_NAME -c backend --tail=100
+kubectl --context kind-task-lab -n task-demo logs POD_NAME -c backend --previous --tail=100
+```
+
+describe ดู Events/Conditions/Last State; logs อ่าน Container ปัจจุบัน; --previous อ่าน Container instance ก่อนหน้าใน Pod เดิมถ้ามี ไม่ดึง Log ของ Pod ที่ถูกลบไปแล้วทุกตัว ต้องใช้ชื่อ Container frontend/db แทน backend เมื่อตรวจบริการนั้น และกรอง Log ก่อนแชร์
+
+## 1. Pod เป็น Pending
+
+- **อาการ:** รอนาน ไม่ได้ Node หรือยังสร้าง Container ไม่สำเร็จ
+- **สาเหตุที่เป็นไปได้:** CPU/Memory ไม่พอ, Taints/Affinity ไม่ตรง หรือ PVC ยังไม่ Bound
+- **วิธีตรวจสอบ:** describe pod ดู Events เช่น Insufficient memory; ใช้ get nodes และ get pvc แยกสาเหตุ
+- **วิธีแก้ไข:** ปรับ Requests/Capacity ให้ตรงงาน หรือแก้ Storage ตามข้อ 11 ไม่ลด Requests สุ่มจนแอปแย่งทรัพยากร
+- **วิธีป้องกัน:** วัด Resource และเผื่อ Capacity สำหรับ maxSurge ตอน Rollout
+
+## 2. CrashLoopBackOff
+
+- **อาการ:** RESTARTS เพิ่มและ Container กลับมาตายซ้ำ
+- **สาเหตุที่เป็นไปได้:** Command/Config ผิด, Exception ตอนเริ่ม, DB ยังไม่พร้อม หรือ OOMKilled
+- **วิธีตรวจสอบ:** ดู logs --previous และ Last State/Exit Code จาก describe pod
+- **วิธีแก้ไข:** แก้ Source/Config/Resource ตาม Error ผ่าน Git ถ้า OOM ให้ตรวจ Memory profile และ Limit ไม่ใช่เพิ่ม Restart
+- **วิธีป้องกัน:** ทดสอบ Image entrypoint/ค่าตั้ง และให้ Startup probe มี Budget ที่วัดแล้ว
+
+## 3. ImagePullBackOff
+
+- **อาการ:** Container ไม่เริ่ม Events บอก Pull Image ไม่ได้
+- **สาเหตุที่เป็นไปได้:** ชื่อ/Tag ผิด, ไม่มีสิทธิ์ Registry, Image ไม่มี Platform นั้น หรือยังไม่ Load Local image เข้า kind
+- **วิธีตรวจสอบ:** describe pod อ่าน Message ให้แยก NotFound/Unauthorized/Network แล้วตรวจชื่อ Image ใน Manifest
+- **วิธีแก้ไข:** ใช้ Image/Digest ที่มีจริง ตั้ง imagePullSecrets ผ่านช่องทางที่ปลอดภัย หรือ kind load ตาม Getting Started และใช้ IfNotPresent
+- **วิธีป้องกัน:** ตรวจ Pull/Platform ก่อน Release ไม่เขียน Credential ใน Image URL หรือ YAML
+
+## 4. Service ติดต่อ Pod ไม่ได้
+
+- **อาการ:** ไม่มีปลายทางหรือ Connection refused/Timeout
+- **สาเหตุที่เป็นไปได้:** Selector/Labels ไม่ตรง, targetPort ผิด, Pod ไม่ Ready, Process bind แค่ localhost หรือ NetworkPolicy ปิดเส้นทาง
+- **วิธีตรวจสอบ:** ใช้สองคำสั่งนี้ ดู Selector/Ports แล้วดู EndpointSlice addresses กับ conditions.ready:
+
+```bash
+kubectl --context kind-task-lab -n task-demo describe service backend
+kubectl --context kind-task-lab -n task-demo get endpointslices -l kubernetes.io/service-name=backend -o yaml
+```
+
+- **วิธีแก้ไข:** ทำ Labels/port http/Process 0.0.0.0:8000 ให้ตรง แล้วตรวจ Readiness/Network policy ไม่แก้ด้วย Publish DB หรือทุกพอร์ต
+- **วิธีป้องกัน:** ตรวจ selector กับ Pod template ทุก PR และทดสอบเส้นทางผ่าน Service จริง
+
+## 5. Backend ต่อ PostgreSQL ไม่ได้
+
+- **อาการ:** Ready ตอบ 503 หรือ API มี Database connection error
+- **สาเหตุที่เป็นไปได้:** DB_HOST เป็น localhost, DNS/Service/Network ผิด, Credential ไม่ตรงฐานที่ Init แล้ว หรือ Connections เต็ม
+- **วิธีตรวจสอบ:** ดู db Pod/Service/PVC และ Log ที่ไม่เผย Password ตรวจเฉพาะ DNS จาก Backend ได้ด้วย:
+
+```bash
+kubectl --context kind-task-lab -n task-demo exec deployment/backend -- \
+  python -c "import socket; print(socket.gethostbyname('db'))"
+```
+
+- **วิธีแก้ไข:** ใช้ DB_HOST=db, Port 5432 ตาม Config ตรวจสิทธิ์/Secret rotation/Connection budget การผ่าน DNS ไม่ได้ยืนยัน SQL ให้ตรวจ Ready และ Task API เพิ่ม
+- **วิธีป้องกัน:** ทดสอบ Migration/Connection ก่อน Rollout และไม่ใช้การลบ PVC เพื่อเปลี่ยน Password
+
+## 6. Readiness ไม่ผ่าน
+
+- **อาการ:** Pod Running แต่ READY เป็น 0/1 และ Service ไม่ใช้ปลายทางนั้น
+- **สาเหตุที่เป็นไปได้:** ไม่มี Endpoint, Host header ไม่อยู่ใน ALLOWED_HOSTS, DB ไม่พร้อม หรือ Probe timeout สั้นเกิน
+- **วิธีตรวจสอบ:** describe pod อ่าน HTTP status/Timeout เทียบ Code ใน Image กับ `/health/ready/` และตรวจ Dependency
+- **วิธีแก้ไข:** แก้ Endpoint/Config/DB และ Timeout ตามผลวัด ไม่ลบ Probe เพื่อให้ Traffic เข้า Pod ที่ยังเสีย
+- **วิธีป้องกัน:** ทดสอบ Ready ทั้งกรณีพร้อม/ไม่พร้อมและควบคุมต้นทุนของการตรวจ
+
+## 7. Liveness ทำให้ Restart ซ้ำ
+
+- **อาการ:** Events มี Liveness probe failed และ RESTARTS เพิ่ม
+- **สาเหตุที่เป็นไปได้:** Live ไปตรวจ DB, Startup ช้า, แอปค้าง หรือ CPU ถูก Throttle จนตอบไม่ทัน
+- **วิธีตรวจสอบ:** เทียบ Path/Timeout กับ [Health Checks](/technology-guides/kubernetes/health-checks) ดู Last State/Logs/Resource metrics เมื่อมี
+- **วิธีแก้ไข:** แยก Live ออกจาก Dependency ใช้ Startup สำหรับเวลาเริ่มและแก้แอปค้างจริง ไม่เพิ่ม Threshold เพื่อซ่อนทุกสาเหตุ
+- **วิธีป้องกัน:** ทดสอบภายใต้ Load/Dependency failure ใน Lab ที่อนุญาตและเฝ้าดู Restart rate
+
+## 8. Deployment rollout ค้าง
+
+- **อาการ:** rollout status Timeout หรือ Conditions เป็น ProgressDeadlineExceeded
+- **สาเหตุที่เป็นไปได้:** Pod ใหม่ไม่ Ready, Pull image ไม่ได้, Capacity ไม่พอสำหรับ Surge หรือ Admission policy ปฏิเสธ
+- **วิธีตรวจสอบ:** describe deployment และ get pods ดู ReplicaSet รุ่นใหม่ แล้วตาม describe/logs ของ Pod นั้น
+- **วิธีแก้ไข:** แก้สาเหตุก่อน หากต้องกลับรุ่นทำตาม [Rollout / Rollback](/technology-guides/kubernetes/rollout-rollback) โดยตรวจ Schema/Config ไม่คาดว่าจะ Undo อัตโนมัติ
+- **วิธีป้องกัน:** เตรียม Capacity, Image และ Schema-compatible migration ก่อน Deploy
+
+## 9. Pods Running แต่เปิดเว็บไม่ได้
+
+- **อาการ:** ไม่มี Public URL, Connection refused, 502 หรือ Browser บอกหา Host backend ไม่พบ
+- **สาเหตุที่เป็นไปได้:** มีแต่ ClusterIP, ยังไม่เปิด port-forward, Controller/DNS/TLS ไม่ครบ หรือ React ใช้ Cluster DNS
+- **วิธีตรวจสอบ:** แยก Browser URL → ทางเข้าจริง → frontend Service/Pod → Proxy → backend ตรวจ Browser Network และ Proxy log แบบไม่เปิดข้อมูลลับ
+- **วิธีแก้ไข:** Lab เปิด frontend port-forward แล้วใช้ localhost:8080 และ Relative `/api/` Production ต้องตั้ง Gateway/Ingress/LoadBalancer จริง ไม่สร้าง Ingress อย่างเดียวแล้วรอ URL
+- **วิธีป้องกัน:** ทดสอบจาก Browser ภายนอก Cluster หลัง Rollout ไม่ดูเพียง kubectl get pods
+
+## 10. HPA ไม่เพิ่ม Pods
+
+- **อาการ:** TARGETS เป็น unknown, ScalingActive=False หรือจำนวนไม่เพิ่ม
+- **สาเหตุที่เป็นไปได้:** Metrics API ไม่มี/อ่านไม่ได้, CPU requests หาย, Metric ยังต่ำกว่า Target, ติด maxReplicas หรือ Pods ใหม่ Pending
+- **วิธีตรวจสอบ:** `top pods`, `get hpa` และ `describe hpa backend` ดู Conditions/Events เทียบ Requests และ Available capacity
+- **วิธีแก้ไข:** แก้ Metrics Server/Requests/Capacity ให้ถูกก่อนปรับ Target ตรวจว่าไม่ถูก Apply replicas จาก Manifest ทับ
+- **วิธีป้องกัน:** วัด Load และ Metrics pipeline ก่อนเปิด Autoscaling ไม่แก้ด้วยปิด TLS verification ของ Metrics โดยไม่วิเคราะห์
+
+## 11. Mount Persistent storage ไม่ได้
+
+- **อาการ:** PVC Pending หรือ Pod มี FailedMount/Multi-Attach error
+- **สาเหตุที่เป็นไปได้:** StorageClass/Provisioner ไม่มี, ขนาด/Zone ไม่ตรง, CSI driver ล้ม หรือ Volume ยังผูก Node เดิม
+- **วิธีตรวจสอบ:** get pvc, describe pvc data-db-0, describe pod db-0 และ Events ดูเหตุผลก่อนแตะข้อมูล
+- **วิธีแก้ไข:** แก้ Class/Driver/Topology หรือรอ Detach ตามระบบ ห้าม Force attach/Delete PVC จนเสี่ยงเขียนข้อมูลสองทาง
+- **วิธีป้องกัน:** ทดสอบ Persistence/Drain/Restore และอ่าน Reclaim/Retention policy ก่อนใช้งานจริง
+
+## 12. ใช้ Docker Compose ได้ แต่ Kubernetes ไม่ได้
+
+- **อาการ:** Image เดิมเปิดไม่ได้หรือ Proxy หา backend ไม่เจอ
+- **สาเหตุที่เป็นไปได้:** ลืม Load Image/ส่ง Env, ใช้ Docker DNS 127.0.0.11, คิดว่ามี depends_on, Volume path/Permission หรือ Probe ไม่ตรงแอป
+- **วิธีตรวจสอบ:** เทียบ Image, Command, Env key names, Ports และ Paths ระหว่าง Dockerfile/Compose กับ Manifest ไม่ dump ค่าจริงของ Secret
+- **วิธีแก้ไข:** ใช้ [Frontend proxy ของ Kubernetes](/technology-guides/kubernetes/services) และ Config/Secret ที่ระบุ จัด DB/Migration/Readiness ตามลำดับ ไม่แปลง YAML แล้วถือว่าพฤติกรรมเหมือนกัน
+- **วิธีป้องกัน:** มี Checklist ของ Runtime แต่ละแบบและทดสอบแอปจริงหลังเปลี่ยน Platform
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจ State/Events/Logs ก่อนเปลี่ยนระบบ
+- Running ไม่เท่ากับ Ready หรือเว็บเข้าถึงได้
+- อ่าน Network เป็นช่วง ๆ ไม่แก้ทุกชั้นพร้อมกัน
+- รักษาหลักฐานและข้อมูลก่อน Restart/Delete/Rollback
+
+## อ่านต่อ
+
+- [Commands](/technology-guides/kubernetes/commands)
+- [Debug Services](https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/)
+- [Docker Troubleshooting](/technology-guides/docker/troubleshooting)
+- [PostgreSQL Troubleshooting](/technology-guides/postgresql/troubleshooting)

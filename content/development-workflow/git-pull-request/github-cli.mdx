@@ -1,0 +1,103 @@
+---
+title: "GitHub CLI — ดู PR และ Checks จาก Terminal"
+description: "ใช้ gh ดูสถานะ Diff และ Checks พร้อมตัวอย่างสร้าง Draft PR ที่ระบุ Base Head และ Body file"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# GitHub CLI — ดู PR และ Checks จาก Terminal
+
+## เรื่องนี้คืออะไร?
+
+GitHub CLI หรือ gh ช่วยทำงานกับ GitHub ผ่าน Terminal เช่น ดู PR และ Checks ส่วน git ยังเป็นเครื่องมือดูแล Commit/Branch ในเครื่อง ไม่ต้องใช้ gh จึงจะใช้ Git ได้
+
+หน้าที่ จำนวนผู้ Review และกติกา Merge ต้องตกลงตามโปรเจกต์ หน้านี้เพิ่มเฉพาะวิธีใช้เครื่องมือ ไม่ตั้ง Rulesets หรือส่งข้อความแทนใคร
+
+## เตรียมอะไรบ้าง?
+
+ติดตั้งจาก [GitHub CLI](https://cli.github.com/) ตาม Platform และมีสิทธิ์ Repository ที่ต้องใช้ ตรวจรุ่นก่อน:
+
+```bash
+gh --version
+```
+
+หากยังไม่ Login และได้รับอนุญาตให้ใช้บัญชีนั้นแล้ว ตัวอย่างต่อไปเริ่ม Interactive authentication กับ GitHub ต้องตรวจ Account/Host/วิธีเก็บ Credential ของเครื่อง ไม่ใส่ Token ใน Command line:
+
+```bash
+gh auth login --web --git-protocol https
+gh auth status
+```
+
+auth status อาจแสดงข้อมูลบัญชี อย่าแชร์ Output โดยไม่ตรวจ Credential store ขึ้นกับ Platform และการตั้งค่าจริง งานเขียนเอกสารนี้ไม่ได้ Login/เปลี่ยนบัญชีให้
+
+## ทำอย่างไร?
+
+### ดูงานที่เกี่ยวข้อง
+
+รันใน Clone ของ Repo ที่มี Remote ถูกต้อง การอ่าน PR/Checks ต้องต่อ GitHub และใช้สิทธิ์จริง:
+
+```bash
+gh pr status
+gh pr list --state open
+gh pr view --web
+```
+
+status ดูงานที่เกี่ยวข้อง list ดู PR ที่เปิดอยู่ และ view `--web` เปิด PR ของ Branch ปัจจุบัน ถ้าคำสั่งหาไม่พบให้ตรวจ Remote/Branch/สิทธิ์ อย่าเปลี่ยน Repository ปลายทางจากการเดา
+
+### ดู Diff และ Checks ของ PR
+
+แทน PR_NUMBER ด้วยเลขจริงจาก Repository นั้นก่อน ไม่ใช้เลขตัวอย่างเป็นคำขอของทีม:
+
+```bash
+gh pr view PR_NUMBER
+gh pr diff PR_NUMBER
+gh pr checks PR_NUMBER
+gh pr checks PR_NUMBER --watch
+```
+
+checks แสดงงานตรวจที่มีอยู่ `--watch` ติดตามจนจบ ขึ้นกับ CI ของ Repo และอาจคืน Non-zero เมื่อยังรอหรือไม่ผ่าน อย่าตีความว่าไม่มี Checks เท่ากับผ่านทุกอย่าง หรือ Checks เขียวแทน Review/ทดสอบ UAT แล้ว
+
+ถ้าจะนำ PR มาตรวจในเครื่อง ใช้ `gh pr checkout PR_NUMBER` หลังตรวจ/จัดเก็บงานค้างแล้ว คำสั่งนี้เปลี่ยน Checkout ในเครื่อง อ่าน Source ก่อนรัน Scripts ของ PR จากผู้ส่งที่ยังไม่เชื่อถือ เพราะ Install/Test scripts สามารถรัน Code ได้
+
+### เตรียม Draft PR ของงาน Login
+
+Prerequisites: อยู่ feature/login ที่ Commit/Push แล้ว มี develop เป็น Base จริง และผลตรวจพร้อม สร้างไฟล์ส่วนตัว `pr-body.md` แล้วกรอกสิ่งที่แก้ ผลที่ทำจริง และสิ่งที่ยังไม่ตรวจ
+
+ตัวอย่างรูปแบบย่อ ไม่ใช่ผล Test ที่รันแล้ว:
+
+```markdown
+เพิ่มอะไร: หน้า Login และข้อความตรวจ Input
+วิธีทดสอบ/ผล: ใส่คำสั่งและผลที่ทำจริงก่อนเปิด PR
+ยังไม่ตรวจ: ระบุขอบเขตที่ยังไม่ทำ
+API / Database / Deployment: ระบุผลกระทบจริง
+```
+
+**คำสั่งถัดไปสร้าง PR จริงบน GitHub** ตรวจ Repository, Base/Head, ชื่อและเนื้อหาก่อน ไม่ใช่ Dry run และงานเอกสารนี้ไม่ได้รันคำสั่งนี้:
+
+```bash
+gh pr create --draft --base develop --head feature/login \
+  --title "เพิ่มหน้า Login" --body-file pr-body.md
+```
+
+Draft ใช้คุยแนวทาง/งานที่ยังไม่พร้อม Merge ไม่ได้เป็นการอนุมัติหรือเปิดให้ข้าม Checks เมื่อแก้ไข Commit/Push เข้า Branch เดิม PR เดิมจะอัปเดต ดูรายละเอียด Files changed ใน GitHub เพิ่มเพราะ Base/วิธีเปรียบเทียบ/สถานะล่าสุดอาจเปลี่ยนได้
+
+## ข้อควรระวัง
+
+ไม่ใส่ Secret/ข้อมูลผู้ใช้จริงใน Body, Diff หรือภาพแนบ PR ก่อน Merge ต้องผ่านเงื่อนไขจริงของ Repo และให้ผู้มีสิทธิ์ดำเนินการ คู่มือนี้ไม่สั่ง Merge/Approve อัตโนมัติและไม่อ้างว่าตั้ง Branch protection แล้ว
+
+## สรุปสิ่งที่ต้องจำ
+
+- gh ใช้กับ GitHub ส่วน git ดู Commit/Branch
+- ตรวจ Repo และ Account ก่อนอ่าน/เขียนข้อมูล
+- Checks เป็นข้อมูลที่ต้องแปลผล ไม่แทน Review ทั้งหมด
+- pr create มีผลจริง ต้องตรวจ Body/Base/Head
+
+## อ่านต่อ
+
+- [Overview](/)
+- [gh pr create](https://cli.github.com/manual/gh_pr_create)
+- [gh pr checks](https://cli.github.com/manual/gh_pr_checks)
+- [gh auth login](https://cli.github.com/manual/gh_auth_login)

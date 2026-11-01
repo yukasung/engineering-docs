@@ -1,0 +1,145 @@
+---
+title: "PostgreSQL Troubleshooting — ตรวจจาก Error และปลายทางจริง"
+description: "สิบเอ็ดปัญหาที่พบบ่อย ตั้งแต่ Connection Constraints Locks Migration จนถึง Restore"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# PostgreSQL Troubleshooting — ตรวจจาก Error และปลายทางจริง
+
+## เรื่องนี้คืออะไร?
+
+Troubleshooting คือการไล่ปัญหาจาก Error และข้อมูลที่ตรวจได้ เริ่มจากยืนยัน Host/Port/Database/User แล้วค่อยเลือกแก้ ไม่เปลี่ยนสิทธิ์หรือลบข้อมูลเพื่อให้ข้อความ Error หายอย่างเดียว
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อแอปหรือเครื่องมือฐานข้อมูลทำงานไม่เหมือนที่คาด คำสั่งที่เปลี่ยนข้อมูลให้ทดลองบน Lab แยก ส่วนระบบร่วมให้ประสานผู้รับผิดชอบและเก็บหลักฐานก่อนแก้
+
+## ทำอย่างไร?
+
+เมื่อยังเชื่อมได้ เริ่มด้วย Query อ่านอย่างเดียว เก็บ Error code/เวลา/รุ่นที่ปล่อย โดยไม่เผย Password หรือข้อมูลลูกค้า:
+
+```sql filename="database-diagnostics.sql"
+SELECT current_database(), current_user, current_schema();
+SHOW server_version;
+SHOW search_path;
+
+SELECT pid, state, wait_event_type, wait_event,
+       pg_blocking_pids(pid) AS blocking_pids
+FROM pg_stat_activity
+WHERE datname = current_database();
+```
+
+มุมมองการทำงานของ Session อาจเห็นไม่ครบตามสิทธิ์ ขอสิทธิ์อ่านที่จำเป็นจากผู้ดูแล ไม่เพิ่ม Superuser ให้แอปเพื่อดูข้อมูลตรวจปัญหา
+
+### 1. เชื่อม PostgreSQL ไม่ได้
+
+- **อาการ**: Connection refused, Timeout หรือหา Host ไม่พบ
+- **สาเหตุที่เป็นไปได้**: DB หยุด, Port ผิด, Firewall, DNS หรือใช้ `localhost` จาก Container คนละตัว
+- **วิธีตรวจสอบ**: เทียบ Host/Port กับ [Docker Lab](/technology-guides/postgresql/postgresql-docker), ใช้ `docker compose ps` และ `docker compose logs --tail=50 db` ใน Project ที่ถูกต้อง
+- **วิธีแก้ไข**: เปิดบริการที่รับผิดชอบและใช้ปลายทางถูกต้อง Host ใช้ `127.0.0.1:5433` ส่วน Django ใน Network เดียวกันใช้ `db:5432`
+- **วิธีป้องกัน**: เก็บ Environment matrix, จำกัดพอร์ต และตรวจ Health ไม่เปิด DB Public เพื่อแก้การเชื่อมต่อ
+
+### 2. Authentication failed
+
+- **อาการ**: Password authentication failed หรือ Auth method ไม่รองรับ
+- **สาเหตุที่เป็นไปได้**: User/Password ผิด, ต่อคนละ Server หรือ Client/นโยบาย Auth ไม่ตรง
+- **วิธีตรวจสอบ**: ตรวจ Credential source และ Logs อย่างจำกัด ไม่พิมพ์ค่าลับ การเปลี่ยน POSTGRES_PASSWORD ใน `.env` ไม่เปลี่ยน Role ที่สร้างแล้ว
+- **วิธีแก้ไข**: ให้ผู้ดูแล Rotate/กำหนด Credential ที่ถูกต้องและอัปเดต Client ตามแผน ไม่ใช้ Trust หรือปิด TLS เพื่อข้าม Error
+- **วิธีป้องกัน**: แยก Secret ตาม Environment และมีแผน Rotate/ส่งค่าตั้งที่ตามรอยได้
+
+### 3. Database ไม่มีอยู่
+
+- **อาการ**: `database does not exist`
+- **สาเหตุที่เป็นไปได้**: สะกดผิด, ต่อคนละ Port/Cluster หรือ POSTGRES_DB ถูกแก้หลัง Initialize แล้ว
+- **วิธีตรวจสอบ**: ตรวจชื่อจาก Connection profile และให้ผู้มีสิทธิ์ดู `SELECT datname FROM pg_database ORDER BY datname;` บน Server ที่ยืนยันแล้ว
+- **วิธีแก้ไข**: แก้ Connection หรือสร้างฐานใหม่เฉพาะเมื่อเป็นขั้นเตรียมที่อนุมัติ ไม่สร้างชื่อเดียวกันเพื่อซ่อนว่าแอปต่อผิด Server
+- **วิธีป้องกัน**: แยกขั้น Provision database ออกจาก Migration และบันทึกปลายทางจริง
+
+### 4. Table ไม่มีอยู่
+
+- **อาการ**: `relation does not exist`
+- **สาเหตุที่เป็นไปได้**: Migration ยังไม่ใช้, Schema/search_path ผิด, ชื่อตัวใหญ่เล็กที่ใส่ Quotes หรือแอปต่อผิด DB
+- **วิธีตรวจสอบ**: ดู `information_schema.tables`, current_database/search_path และ `python manage.py showmigrations` ใน Django project ที่ถูกต้อง
+- **วิธีแก้ไข**: Apply Migration ที่ Review แล้ว หรืออ้าง Schema/table ให้ตรง ไม่ CREATE ตารางด้วยมือเลียนแบบ ORM เพื่อให้ Error หาย
+- **วิธีป้องกัน**: ตรวจ Migration status และ Smoke test หลัง Deploy
+
+### 5. Duplicate key violation
+
+- **อาการ**: SQLSTATE `23505`
+- **สาเหตุที่เป็นไปได้**: Email/SKU ซ้ำ, คำขอซ้ำ, Identity/Sequence ผิดหลังนำเข้าด้วยวิธีพิเศษ
+- **วิธีตรวจสอบ**: อ่านชื่อ Constraint และค้นเฉพาะ Key ที่เกี่ยวข้องโดยจำกัดข้อมูลส่วนบุคคล ตรวจว่าเป็นชนิดธุรกิจซ้ำหรือปัญหา Sequence จริง
+- **วิธีแก้ไข**: แจ้งข้อมูลซ้ำอย่างเหมาะสมหรือแก้ Mapping ผ่านกระบวนการที่ควบคุม ใช้ ON CONFLICT เฉพาะเมื่อความหมายการเขียนทับถูกตกลง ไม่ลบ Constraint/Reset Sequence แบบเดา
+- **วิธีป้องกัน**: Unique constraints, Idempotency ของคำขอ และตรวจ Sequences หลัง Restore
+
+### 6. Foreign key violation
+
+- **อาการ**: SQLSTATE `23503`
+- **สาเหตุที่เป็นไปได้**: อ้างลูกค้า/สินค้าที่ไม่มี หรือพยายามลบแถวที่มีประวัติอ้างถึง
+- **วิธีตรวจสอบ**: ดู Constraint กับ Parent key และลำดับ Insert/Delete ของ Transaction
+- **วิธีแก้ไข**: ใช้ Parent ที่ถูกต้อง หรือปิดใช้งานข้อมูลตามนโยบายรักษาประวัติ ไม่ Disable FK/ใส่ CASCADE ทุกจุด
+- **วิธีป้องกัน**: ออกแบบ Relationships และ Delete behavior พร้อม Tests ข้อมูลขาด
+
+### 7. Deadlock detected
+
+- **อาการ**: SQLSTATE `40P01` หรืองานรอ Lock
+- **สาเหตุที่เป็นไปได้**: หลาย Transaction ล็อก Rows สลับลำดับหรือถือ Lock นาน
+- **วิธีตรวจสอบ**: อ่าน Deadlock details ใน Logs โดยผู้มีสิทธิ์ ดู blocking_pids และเส้นทาง SQL ของแต่ละงาน
+- **วิธีแก้ไข**: Rollback งานที่ล้มเหลว แก้ Lock order/Transaction boundary และ Retry ทั้งชุดเมื่อเหมาะสมแบบจำกัด ไม่ Kill ทุก Connection
+- **วิธีป้องกัน**: ล็อกหลายสินค้าตาม Key order เดียวกัน ใช้ Timeout และไม่รอ Network ภายนอกขณะถือ Lock
+
+### 8. Migration failed
+
+- **อาการ**: Apply ไม่ครบหรือ Deploy หยุดที่ SQL/Constraint error
+- **สาเหตุที่เป็นไปได้**: ข้อมูลเดิมผิดเงื่อนไข, Dependency ขาด, Lock timeout, สิทธิ์ไม่พอ หรือ State ไม่ตรง Schema
+- **วิธีตรวจสอบ**: หยุดปล่อยต่อ เก็บ Error ตรวจ `showmigrations`, `migrate --plan` และ Schema จริง ไม่สรุปว่าไม่มีอะไรเปลี่ยนเพียงเพราะขั้นสุดท้ายล้ม
+- **วิธีแก้ไข**: Review สถานะที่ Apply จริงและ Forward fix/Recovery ที่อนุมัติ ไม่ใช้ `--fake` หรือลบไฟล์ที่ใช้งานแล้วเพื่อข้าม
+- **วิธีป้องกัน**: ทดสอบกับข้อมูลเก่า ตรวจ Locks/Permissions และใช้ Migration job เดียว
+
+### 9. SQL ช้า
+
+- **อาการ**: Query/API ใช้เวลามากขึ้น
+- **สาเหตุที่เป็นไปได้**: อ่าน Rows มาก, Join ผิด, Index/สถิติไม่เหมาะ, Lock wait หรือ Connections เต็ม
+- **วิธีตรวจสอบ**: เก็บ SQL กับ Parameters ที่ปิดข้อมูลลับ ตรวจ EXPLAIN และเวลารอ ถ้าจะใช้ EXPLAIN ANALYZE ต้องรู้ว่ารันคำสั่งจริง
+- **วิธีแก้ไข**: จำกัดข้อมูล/แก้ Join, ทดลอง Index ที่ตรง Query หรือแก้ Lock/Connection budget ตามสาเหตุ ไม่เพิ่ม Index ทุก Column
+- **วิธีป้องกัน**: วัดกับข้อมูลใกล้จริงและติดตาม Latency/จำนวน Queries ก่อนเพิ่ม API replicas
+
+### 10. ข้อมูล Docker หาย
+
+- **อาการ**: DB ว่างหลังสร้าง Container ใหม่
+- **สาเหตุที่เป็นไปได้**: เปลี่ยน Project/Context/Volume, Mount ผิดตำแหน่ง หรือเคยลบ Volume
+- **วิธีตรวจสอบ**: ดู `docker context show`, `docker volume ls`, `docker volume inspect order-lab_db-data` และ Mounts ของ DB ชื่อจริง
+- **วิธีแก้ไข**: หยุดเขียน ตรวจ Volume เดิมหรือกู้จาก Backup ที่ยืนยันได้ ไม่ Initialize ซ้ำทับพื้นที่ที่อาจกู้ได้
+- **วิธีป้องกัน**: Named Volume/Project name คงที่ ไม่ใช้ down -v เป็นงานประจำ และเก็บ Backup แยก Host
+
+### 11. Backup หรือ Restore ไม่ผ่าน
+
+- **อาการ**: pg_dump/pg_restore/psql Error หรือ Counts หลัง Restore ไม่ตรง
+- **สาเหตุที่เป็นไปได้**: Format ผิด, Client/Server รุ่นไม่รองรับ, ไฟล์ไม่ครบ, Roles/Extensions/สิทธิ์ขาด, ดิสก์เต็ม หรือกู้ทับฐานที่ไม่ว่าง
+- **วิธีตรวจสอบ**: อ่าน Error/Exit status, ตรวจ Version, `pg_restore --list` สำหรับ Custom format และปลายทางใหม่ การ List ได้ไม่ยืนยันว่ากู้สำเร็จ
+- **วิธีแก้ไข**: เลือกเครื่องมือให้ตรง Format, เตรียม Dependencies/สิทธิ์ และ Restore ลงฐานใหม่อีกชื่อเมื่อแก้สาเหตุแล้ว ไม่ลบฐานใช้งานเพื่อทดสอบ
+- **วิธีป้องกัน**: ซ้อม Restore พร้อม Verification, ตรวจ Retention/พื้นที่ และแจ้งเตือน Scheduled backup ที่ล้มเหลว
+
+## ตัวอย่างการใช้งานจริง
+
+UAT แจ้งว่า `customers.phone_number` ไม่มี แต่ Local ใช้ได้ ให้เริ่มจากยืนยัน DB ปลายทางและสถานะ Migration แล้วส่งไฟล์ที่ขาดผ่าน Release process ไม่เพิ่ม Column ตรงบน UAT แล้วปล่อย State ค้าง
+
+## ข้อควรระวัง
+
+คำสั่งอย่าง `DROP`, `TRUNCATE`, `DELETE` และ Restore แบบล้างของเดิมอาจทำข้อมูลหาย อย่าใช้เป็นทางลัดแก้ปัญหา เก็บหลักฐานเท่าที่จำเป็นและประสานเจ้าของระบบก่อนเปลี่ยนค่าของ Environment ร่วม
+
+## สรุป
+
+- ตรวจปลายทางและ Error code ก่อนแก้
+- แยกปัญหา Connection, Schema, ข้อมูล, Locks และ Backup
+- แก้ผ่าน Source/Migration/Runbook ที่ควบคุม
+- อย่าลบข้อมูลหรือปิดข้อป้องกันเพื่อซ่อนสาเหตุ
+
+## อ่านต่อ
+
+- [Quick Reference](/technology-guides/postgresql/quick-reference)
+- [Concurrency](/technology-guides/postgresql/concurrency)
+- [Backup & Restore](/technology-guides/postgresql/backup-restore)

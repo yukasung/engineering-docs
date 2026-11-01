@@ -1,0 +1,91 @@
+---
+title: "Getting Started — เริ่มใช้ Terminal บน Linux"
+description: "รู้จัก Shell Paths sudo Packages และสร้างพื้นที่ทดลองแยกจากงานจริง"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Getting Started — เริ่มใช้ Terminal บน Linux
+
+## เรื่องนี้คืออะไร?
+
+Terminal เป็นหน้าต่างรับ/แสดงข้อความ ส่วน Shell เป็นโปรแกรมอ่านคำสั่ง เช่น Bash คำสั่งทั่วไปมีรูปแบบ `command options arguments` เช่น `ls -lh /tmp` คือดูรายการใน /tmp พร้อมขนาดที่อ่านง่าย
+
+## เตรียมอะไรบ้าง?
+
+ใช้ Linux VM/เครื่องทดลองที่ได้รับอนุญาต Ubuntu 24.04 LTS เป็น Baseline หากอยู่ macOS อย่ารัน Flags ของ GNU tools แล้วคาดว่าผลเหมือนกันทั้งหมด ใน Container อาจไม่มี sudo, man หรือ systemd ซึ่งไม่ได้แปลว่าระบบเสีย
+
+```bash
+uname -srm
+cat /etc/os-release
+whoami
+id
+pwd
+```
+
+uname ดู Kernel/CPU, os-release ดู Distribution, whoami/id ดูบัญชีและ Groups, pwd ดูโฟลเดอร์ปัจจุบัน ไม่ต้องใช้ root เพื่ออ่านข้อมูลเหล่านี้
+
+## ทำอย่างไร?
+
+### รู้จัก Paths และความช่วยเหลือ
+
+`/` คือรากของ Filesystem; `/etc` มักเก็บ Config; `/var/log` เก็บ Logs; `/tmp` เป็นที่ชั่วคราว ส่วน `~` คือ Home ของผู้ใช้ปัจจุบัน Absolute path เริ่มด้วย / ส่วน Relative path อ้างจาก pwd `.` คือโฟลเดอร์นี้ `..` คือโฟลเดอร์แม่
+
+```bash
+ls -lah
+cd /tmp
+pwd
+ls --help
+man ls
+```
+
+ls -a รวมไฟล์ซ่อนที่ขึ้นต้นจุด; cd เปลี่ยนโฟลเดอร์ ใช้ Tab ช่วยเติมชื่อ ส่วน man ใช้ q ออก ถ้าเครื่องไม่มี man ให้ดู --help หรือคู่มือของรุ่นนั้น ไม่ต้องติดตั้งทุกเครื่องมือบน Production เพื่ออ่านคู่มือ
+
+### สร้างพื้นที่ฝึกของตัวเอง
+
+เปิด Bash และคัดคำสั่งนี้ใน **Terminal เดียวกัน** ตัวแปร LINUX_LAB_DIR จะถูกใช้ต่อในบทอื่น mktemp สร้างโฟลเดอร์ใหม่ชื่อไม่ซ้ำ ไม่ใช้ /etc หรือโฟลเดอร์งานจริงเป็น Lab:
+
+```bash
+export LINUX_LAB_DIR
+LINUX_LAB_DIR="$(mktemp -d -t engineering-hub-linux.XXXXXX)"
+mkdir -p "$LINUX_LAB_DIR/src" "$LINUX_LAB_DIR/logs" "$LINUX_LAB_DIR/archive"
+printf 'feature: add Login\nowner: demo-team\n' > "$LINUX_LAB_DIR/src/notes.txt"
+printf 'INFO app=backend event=start\nERROR app=backend code=DB_UNAVAILABLE\n' > "$LINUX_LAB_DIR/logs/app.log"
+cd "$LINUX_LAB_DIR"
+pwd
+```
+
+ข้อมูลสมมติทั้งหมด `>` สร้างหรือเขียนทับไฟล์จึงใช้เฉพาะพื้นที่ใหม่ที่เพิ่งสร้าง ใส่เครื่องหมาย `"..."` รอบตัวแปร Path เพื่อรักษาชื่อที่มีช่องว่าง ถ้าเปิด Terminal ใหม่ให้ตั้ง Path กลับไป Lab ที่สร้างจริง ห้ามเดาจากชื่อชั่วคราวของผู้อื่น
+
+### Package และ sudo
+
+Package manager ช่วยติดตั้งโปรแกรม Ubuntu ใช้ apt ส่วน Distribution อื่นอาจใช้ dnf/apk คำสั่งอ่านข้อมูล เช่น `apt show curl` ต่างจากการติดตั้ง
+
+ตัวอย่างต่อไป **เปลี่ยน Packages ในเครื่อง** ใช้เฉพาะเครื่องทดลองที่ได้รับอนุญาต sudo ให้สิทธิ์สูงเฉพาะคำสั่งนั้น ไม่ใช่สิ่งที่ต้องเติมหน้าทุกคำสั่ง:
+
+```bash
+sudo apt update
+sudo apt install curl iproute2 procps
+```
+
+update ดึงรายการ Packages ยังไม่ Upgrade โปรแกรมทั้งหมด ส่วน install ติดตั้ง/แก้ Dependencies ตามแผนที่ apt แสดง อ่านรายการก่อนยืนยัน ไม่ใช้ apt upgrade/reboot บนเครื่องร่วมเป็นขั้นตอนแก้ปัญหาอัตโนมัติ และไม่รัน Script จาก URL ที่ยังไม่ได้ตรวจผ่าน sudo
+
+## ข้อควรระวัง
+
+Prompt ที่เป็น # มักหมายถึง root แต่ตรวจด้วย id ให้แน่ใจ ไฟล์ใน /tmp อาจถูกล้างตามระบบ จึงไม่ใช่ที่เก็บงาน/Backup ถาวร หากใช้เครื่อง Server จริงต้องรู้ Host/Environment จาก Inventory และช่องทางเข้าที่ได้รับอนุญาตก่อน
+
+## สรุปสิ่งที่ต้องจำ
+
+- แยก Terminal, Shell และคำสั่ง
+- ตรวจบัญชี ระบบ และ pwd ก่อนทำงาน
+- ฝึกในโฟลเดอร์ชั่วคราวของตัวเอง
+- sudo/ติดตั้ง Package มีผลกับระบบ ต้องมีเหตุและสิทธิ์
+
+## อ่านต่อ
+
+- [Files & Permissions](/technology-guides/linux/files-and-permissions)
+- [Ubuntu software management](https://ubuntu.com/server/docs/tutorial/managing-software/)
+- [Bash 5.2 manual](https://manpages.ubuntu.com/manpages/noble/man1/bash.1.html)

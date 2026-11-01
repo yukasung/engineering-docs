@@ -1,0 +1,133 @@
+---
+title: "Docker Troubleshooting — ไล่ปัญหาจากหลักฐาน"
+description: "สิบปัญหา Docker ที่พบบ่อย พร้อมวิธีตรวจ แก้ และป้องกันโดยไม่ล้างข้อมูลก่อน"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Docker Troubleshooting — ไล่ปัญหาจากหลักฐาน
+
+## เรื่องนี้คืออะไร?
+
+Troubleshooting คือการไล่หาสาเหตุจากสิ่งที่เกิดขึ้นจริง เริ่มจากสถานะและ Logs แล้วตรวจค่าตั้งทีละส่วน ไม่ Restart หรือ Delete ทุกอย่างจนไม่เหลือหลักฐาน
+
+## ใช้ทำอะไร?
+
+ใช้เมื่อเปิด Lab ไม่ได้ หรือทีมพบปัญหาหลังเปลี่ยนแพ็ก คำสั่ง `docker compose` ในหน้านี้อ้าง `task-demo` แบบ Local บน Server ต้องใช้ `--env-file`/`-f` และสิทธิ์ตาม [Deployment](/technology-guides/docker/docker-deployment) ด้วย
+
+## ขั้นตอนการทำงาน
+
+เริ่มด้วยสามคำสั่งนี้จากโฟลเดอร์ที่ถูกต้อง:
+
+```bash
+docker compose ps -a
+docker compose logs --tail=100 backend
+docker compose config -q
+```
+
+เก็บเฉพาะ Error, เวลา และชื่อรุ่นที่จำเป็น ไม่ส่ง Secret/ข้อมูลผู้ใช้ออกนอกทีม ถ้าต้องดูค่าที่ Compose resolve แล้ว ให้ตรวจในเครื่องอย่างระมัดระวัง `config` แบบไม่ใส่ `-q` อาจพิมพ์ Password ได้
+
+### 1. Container หยุดทันที
+
+- **อาการ**: `ps -a` เป็น Exited หรือ Restarting
+- **สาเหตุที่เป็นไปได้**: CMD ผิด, ไฟล์หาย, ค่าตั้งไม่ครบ หรือคำสั่งครั้งเดียวจบตามปกติ
+- **วิธีตรวจสอบ**: อ่าน Logs และใช้ `docker inspect CONTAINER_NAME --format '{{.State.ExitCode}} {{.State.OOMKilled}}'` โดยแทนชื่อจริงจาก `docker ps -a`
+- **วิธีแก้ไข**: แก้ Source/Config แล้ว Build/Recreate ตามสาเหตุ ถ้าเป็นงาน Migration จบด้วย 0 อาจไม่ใช่ปัญหา หาก OOM ให้ตรวจงาน/Memory ไม่เพิ่ม Limit แบบเดา
+- **วิธีป้องกัน**: ทดสอบ CMD กับ Image จริงและเก็บ Logs ไม่ให้ Restart policy กลบ Error
+
+### 2. Port ถูกใช้อยู่
+
+- **อาการ**: “port is already allocated” หรือ Bind ไม่ได้
+- **สาเหตุที่เป็นไปได้**: มีโปรแกรมบน Host หรือ Lab อีกชุดใช้ `8080`
+- **วิธีตรวจสอบ**: ดู `docker ps` และคำสั่งดูพอร์ตของ OS เช่น `ss -ltn` บน Linux
+- **วิธีแก้ไข**: หยุดเฉพาะงานของตัวเองที่ไม่ใช้แล้ว หรือเปลี่ยน `APP_PORT` ใน `.env` และใช้ `docker compose up -d frontend` เพื่อสร้างตามค่าใหม่
+- **วิธีป้องกัน**: จด Host ports ของแต่ละ Lab และไม่เปิดพอร์ตเกินจำเป็น
+
+### 3. ต่อ PostgreSQL ไม่ได้
+
+- **อาการ**: Backend แจ้ง Connection refused, Name resolution หรือ Authentication failed
+- **สาเหตุที่เป็นไปได้**: ใช้ `localhost`, DB ยังไม่พร้อม, Credentials ไม่ตรงข้อมูลเดิม หรือคนละ Network
+- **วิธีตรวจสอบ**: ดู `docker compose logs --tail=100 db` และตรวจ DNS ด้วย `docker compose exec backend python -c "import socket; print(socket.gethostbyname('db'))"` จากนั้นตรวจ Health/ข้อความ Error จริง
+- **วิธีแก้ไข**: ใช้ `db:5432`, รอ DB Healthy และแก้ Credentials ผ่านกระบวนการที่ถูกต้อง การเปลี่ยน POSTGRES Password ใน `.env` ไม่เปลี่ยน Role ที่ Initialize แล้ว
+- **วิธีป้องกัน**: Health conditions, Connect timeout และแผน Rotate Password ไม่ลบ Volume เพื่อแก้รหัสผิด
+
+### 4. สร้าง Container ใหม่แล้วข้อมูลหาย
+
+- **อาการ**: รายการ Task ว่างหลัง Up ใหม่
+- **สาเหตุที่เป็นไปได้**: ไม่ Mount Volume, ใช้ Project/Context อื่น, ชี้ Volume ใหม่ หรือเคย `down -v`
+- **วิธีตรวจสอบ**: ดู `docker context show`, `docker volume ls`, `docker volume inspect task-demo_db-data` และ Mounts ของ DB ใน `docker inspect CONTAINER_NAME --format '{{json .Mounts}}'`
+- **วิธีแก้ไข**: หยุดการเขียนก่อน ตรวจ Volume เดิมและเลือกกลับอย่างควบคุม หากลบแล้วใช้ Backup ที่กู้ได้ ไม่สร้างข้อมูลปลอมทับเพื่อให้เหมือนเดิม
+- **วิธีป้องกัน**: กำหนด Project name คงที่ เก็บ Named Volume และซ้อม Restore
+
+### 5. Image ใหญ่เกินไป
+
+- **อาการ**: Build/Push/Pull ช้าและดิสก์เต็มเร็ว
+- **สาเหตุที่เป็นไปได้**: COPY `node_modules`, Build tools หรือไฟล์ที่ไม่ใช้เข้า Runtime
+- **วิธีตรวจสอบ**: ใช้ `docker images`, `docker image history IMAGE_NAME`, `docker system df` และอ่าน `.dockerignore` ใน Context จริง
+- **วิธีแก้ไข**: ใช้ Multi-stage ของ Frontend, ตัดไฟล์ไม่จำเป็น และไม่เก็บ pip cache ใน Image ไม่ลดขนาดด้วย Base ที่แอปไม่รองรับ
+- **วิธีป้องกัน**: ตรวจขนาด/ช่องโหว่ในรอบ Build และตามการเปลี่ยน Dependencies
+
+### 6. Permission denied
+
+- **อาการ**: คุยกับ Docker socket ไม่ได้ หรือแอปเขียนไฟล์ไม่ได้
+- **สาเหตุที่เป็นไปได้**: สิทธิ์ Host ไม่พอ, UID ของ Bind mount ไม่ตรง หรือ Paths เป็น Read-only
+- **วิธีตรวจสอบ**: แยกว่าขัดที่ CLI หรือใน Container ดู `docker compose exec backend id` และเจ้าของไฟล์ที่ต้องใช้
+- **วิธีแก้ไข**: ให้ผู้ดูแลกำหนดสิทธิ์ตามหน้าที่ หรือแก้ Ownership เฉพาะโฟลเดอร์แอปที่จำเป็น ไม่ `chmod 777` ทุกอย่างและไม่สลับ Runtime เป็น root เพื่อปิด Error
+- **วิธีป้องกัน**: ใช้ UID ที่ตกลง ทดสอบ Non-root และเข้าใจสิทธิ์ระดับ root ของ Docker group
+
+### 7. Environment ไม่เข้า Container
+
+- **อาการ**: Django แจ้งค่าหาย หรือใช้ค่ารุ่นก่อน
+- **สาเหตุที่เป็นไปได้**: `.env` ใช้ Interpolation อย่างเดียว, `env_file` ผิด, Shell ทับค่า หรือ Restart ตัวเดิมหลังแก้ค่า
+- **วิธีตรวจสอบ**: `docker compose config -q` และตรวจเพียงว่าค่ามี/ไม่มี เช่น `docker compose exec backend python -c "import os; print(bool(os.environ.get('DJANGO_SECRET_KEY')))"` ไม่พิมพ์ Secret จริง
+- **วิธีแก้ไข**: แก้ Source ของค่าตั้ง แล้วใช้ `docker compose up -d backend` เพื่อ Recreate เมื่อ Config เปลี่ยน ถ้าไม่เปลี่ยนในมุม Compose ให้ตรวจไฟล์/Context ก่อนเลือก `--force-recreate` อย่างจำกัด
+- **วิธีป้องกัน**: แยก `.env.example` กับไฟล์จริง และอธิบาย Precedence ให้ทีมรู้
+
+### 8. Service คุยกันไม่ได้
+
+- **อาการ**: Frontend แสดง 502 หรือ Browser หา `backend` ไม่พบ
+- **สาเหตุที่เป็นไปได้**: API URL ใช้ชื่อ Docker จาก Browser, Network ไม่ตรง, Backend ฟังเฉพาะ Loopback หรือ Proxy ยังใช้ปลายทางเก่า
+- **วิธีตรวจสอบ**: ดู `docker network inspect task-demo_app`, Backend health และ `docker compose logs --tail=100 frontend` แยก Browser DNS ออกจาก Docker DNS
+- **วิธีแก้ไข**: Browser ใช้ `/api/`, Nginx ส่งต่อ `backend:8000`, Gunicorn ฟัง `0.0.0.0:8000` และ Proxy resolve ชื่อใหม่ได้ตามไฟล์ตัวอย่าง
+- **วิธีป้องกัน**: ไม่ Hardcode Container IP และตรวจทั้ง Browser → Frontend → API → DB
+
+ถ้า Engine แจ้ง `all predefined address pools have been fully subnetted` จะยังสร้าง Network ใหม่ไม่ได้ ให้ผู้ดูแลตรวจ Network/address plan ก่อนเลือก Subnet ที่ไม่ชนสำหรับ Project นั้น ไม่ใช้ `docker network prune` ลบ Networks ของงานอื่นเพื่อให้ Lab ผ่าน
+
+### 9. เครื่องตัวเองผ่าน แต่ Ubuntu ไม่ผ่าน
+
+- **อาการ**: Image เปิดบน Mac ได้ แต่ Server เป็น Exec format error, Import error หรือไฟล์ไม่พบ
+- **สาเหตุที่เป็นไปได้**: CPU architecture ต่าง, ชื่อไฟล์ตัวใหญ่เล็กต่าง, CRLF ใน Script, Build คนละรุ่น หรือ Server มีทรัพยากรไม่พอ
+- **วิธีตรวจสอบ**: เทียบ Image digest/Platform กับ `uname -m`, ดู Logs และ `docker stats --no-stream` รวมถึง Disk
+- **วิธีแก้ไข**: Build/test สำหรับ Platform เป้าหมาย แก้ Paths/Line endings ใน Git และปล่อยแพ็กที่ผ่านแล้ว ไม่ SSH แก้โค้ดตรงบน Server
+- **วิธีป้องกัน**: ทดสอบ Linux/Platform จริงก่อน UAT และล็อก Manifest/Lockfile ไม่พึ่งไฟล์ที่ถูก Mount เฉพาะเครื่องตัวเอง
+
+### 10. Migration ล้มเหลวระหว่าง Deploy
+
+- **อาการ**: `migrate` ไม่จบ, ตารางขาด หรือ Task API Error หลังปล่อย
+- **สาเหตุที่เป็นไปได้**: Dependency ของ Migration ไม่ครบ, DB role ไม่มีสิทธิ์, Data เดิมไม่ผ่านเงื่อนไข, Lock หรือหลายงานรันแข่งกัน
+- **วิธีตรวจสอบ**: หยุดปล่อยต่อ เก็บ Error แล้วตรวจ `python manage.py showmigrations` และ `python manage.py migrate --plan` ผ่าน Container/DB เป้าหมายที่ถูกต้อง การอ่าน Plan ยังไม่ยืนยันว่า DB เปลี่ยนสำเร็จ
+- **วิธีแก้ไข**: ตรวจสถานะที่ Apply จริงและผลต่อข้อมูลก่อนแก้ผ่าน Migration ใหม่/Forward fix หรือแผนกู้คืนที่อนุมัติ ไม่ `--fake`, ลบ Migration หรือย้อน Destructive changes เพื่อให้ผ่านเฉย ๆ
+- **วิธีป้องกัน**: ทดสอบกับข้อมูลใกล้เคียงจริง ใช้ Expand-and-Contract, Backup/Restore และ Migration job เดียวต่อ Release
+
+## ตัวอย่างการใช้งานจริง
+
+เพิ่ม Task แล้ว 500 แต่หน้าเว็บยังเปิดได้ แปลว่า Frontend static อย่างเดียวไม่ได้ยืนยัน Backend ให้ตรวจ API Health และ Logs หากเป็น “relation does not exist” จึงตรวจ Migration ไม่ Build Nginx ซ้ำโดยไม่มีเหตุผล
+
+## ข้อควรระวัง
+
+อย่าสั่ง Prune/ลบ Volume เพื่อเริ่มใหม่ก่อนรู้สาเหตุ โดยเฉพาะ DEV/UAT/Production ที่มีข้อมูลร่วม การแก้ต้องผ่าน Source/PR/ขั้นตอนปล่อยของทีม หากเป็น Incident ให้แจ้งผู้รับผิดชอบและเก็บหลักฐานที่ไม่เปิดเผยข้อมูลลับ
+
+## สรุปสิ่งที่ต้องจำ
+
+- ดูสถานะ Logs และค่าตั้งทีละส่วน
+- แยกปัญหา Engine, Image, App, Network และข้อมูล
+- แก้ใน Source แล้วทดสอบแพ็กใหม่
+- เก็บข้อมูลและหลักฐานก่อนเลือกวิธีแก้
+
+## อ่านต่อ
+
+- [Commands Cheat Sheet](/technology-guides/docker/docker-commands)
+- [PostgreSQL Migration](/technology-guides/postgresql/migrations)

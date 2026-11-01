@@ -1,0 +1,232 @@
+---
+title: "Authentication — Login และ Protected Routes"
+description: "เก็บสถานะผู้ใช้จาก Django ส่ง Session Cookie และรับ CSRF token ใหม่หลัง Login"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# Authentication — Login และ Protected Routes
+
+## เรื่องนี้คืออะไร?
+
+Authentication ตรวจว่าเป็นใคร ส่วน Authorization ตรวจว่าคนนั้นทำอะไรได้ React เก็บสถานะหน้าจอจาก `/auth/me/` แต่ Django เป็นผู้ตัดสินสิทธิ์จริง การซ่อน Route หรือปุ่มไม่ป้องกันคนเรียก API โดยตรง
+
+ตัวอย่างใช้ Session Cookie แบบ HttpOnly จึงอ่าน Session จาก JavaScript ไม่ได้ ไม่เก็บรหัสผ่านหรือ Token อายุยาวใน localStorage
+
+## ทำงานอย่างไร?
+
+เริ่มที่สถานะ checking → เรียก me → authenticated หรือ guest หาก Network ล้มเหลวให้แสดง Error พร้อมลองใหม่ ไม่ตีความว่าทุก Error คือ Logout ส่วน Login ส่งผ่าน Helper ที่ขอ CSRF ก่อน แล้วเก็บ CSRF token **ใหม่** จาก Login response เพราะ Django เปลี่ยน Token ตอน Login
+
+### ตรวจข้อมูลผู้ใช้
+
+ไฟล์ `frontend/src/types/auth.ts`:
+
+```ts
+import { ApiError, isRecord } from '../services/api'
+export interface User { id: number; username: string }
+export function parseUser(value: unknown): User {
+  if (!isRecord(value) || typeof value.id !== 'number' ||
+      !Number.isSafeInteger(value.id) || value.id <= 0 ||
+      typeof value.username !== 'string') throw new ApiError(502, 'BAD_RESPONSE')
+  return { id: value.id, username: value.username }
+}
+export function parseLogin(value: unknown) {
+  if (!isRecord(value) || typeof value.csrfToken !== 'string' ||
+      value.csrfToken.length === 0) throw new ApiError(502, 'BAD_RESPONSE')
+  return { user: parseUser(value.user), csrfToken: value.csrfToken }
+}
+```
+
+### Auth state กลาง
+
+ไฟล์ `frontend/src/features/auth/AuthProvider.tsx`:
+
+```tsx
+import { createContext, useCallback, useContext, useEffect, useState,
+  type ReactNode } from 'react'
+import { isAbort, isAuthRequired, requestJson, setCsrfToken, userMessage } from '../../services/api'
+import { parseLogin, parseUser, type User } from '../../types/auth'
+
+type AuthState = { kind: 'checking' } | { kind: 'guest' } |
+  { kind: 'authenticated'; user: User } | { kind: 'error'; message: string }
+type AuthContextValue = {
+  state: AuthState
+  login: (username: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  expireSession: () => void
+  refresh: () => void
+}
+const AuthContext = createContext<AuthContextValue | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({ kind: 'checking' })
+  const [revision, setRevision] = useState(0)
+  const expireSession = useCallback(() => {
+    setCsrfToken(null); setState({ kind: 'guest' })
+  }, [])
+  const refresh = useCallback(() => setRevision(value => value + 1), [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    setState({ kind: 'checking' })
+    requestJson('/auth/me/', { signal: controller.signal }).then(value => {
+      if (active) setState({ kind: 'authenticated', user: parseUser(value) })
+    }).catch(cause => {
+      if (!active || isAbort(cause)) return
+      if (isAuthRequired(cause)) expireSession()
+      else setState({ kind: 'error', message: userMessage(cause) })
+    })
+    return () => { active = false; controller.abort() }
+  }, [revision, expireSession])
+
+  const login = useCallback(async (username: string, password: string) => {
+    const result = parseLogin(await requestJson('/auth/login/', {
+      method: 'POST', body: { username, password },
+    }))
+    setCsrfToken(result.csrfToken)
+    setState({ kind: 'authenticated', user: result.user })
+  }, [])
+  const logout = useCallback(async () => {
+    try { await requestJson('/auth/logout/', { method: 'POST' }) }
+    catch (cause) { if (!isAuthRequired(cause)) throw cause }
+    expireSession()
+  }, [expireSession])
+
+  return <AuthContext.Provider value={{ state, login, logout, expireSession, refresh }}>
+    {children}
+  </AuthContext.Provider>
+}
+export function useAuth() {
+  const value = useContext(AuthContext)
+  if (!value) throw new Error('useAuth requires AuthProvider')
+  return value
+}
+```
+
+403 ที่มี Code `AUTHENTICATION_REQUIRED` จึงกลับ Login ส่วน `CSRF_FAILED` ให้ขอ Token ใหม่ในครั้งถัดไปและแจ้งให้ส่งใหม่ ไม่ Logout ทุก 403 Logout ล้มเหลวจาก Network ต้องแจ้งผู้ใช้ เพราะยังยืนยันไม่ได้ว่า Server ลบ Session แล้ว
+
+### Login form
+
+ไฟล์ `frontend/src/features/auth/LoginForm.tsx`:
+
+```tsx
+import { useState, type FormEvent } from 'react'
+import { ApiError, userMessage } from '../../services/api'
+
+type Props = { onLogin: (username: string, password: string) => Promise<void> }
+export function LoginForm({ onLogin }: Props) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [fields, setFields] = useState<Record<string, string[]>>({})
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (saving) return
+    setSaving(true); setError(''); setFields({})
+    try { await onLogin(username, password) }
+    catch (cause) {
+      setError(userMessage(cause))
+      if (cause instanceof ApiError) setFields(cause.details)
+    } finally { setPassword(''); setSaving(false) }
+  }
+  return <form onSubmit={submit}>
+    <label htmlFor="username">ชื่อผู้ใช้</label>
+    <input id="username" autoComplete="username" required maxLength={150}
+      value={username} disabled={saving}
+      onChange={event => setUsername(event.target.value)} />
+    {fields.username && <p>{fields.username.join(' ')}</p>}
+    <label htmlFor="password">รหัสผ่าน</label>
+    <input id="password" type="password" autoComplete="current-password" required
+      maxLength={1024} value={password} disabled={saving}
+      onChange={event => setPassword(event.target.value)} />
+    {fields.password && <p>{fields.password.join(' ')}</p>}
+    {error && <p role="alert">{error}</p>}
+    <button type="submit" disabled={saving}>{saving ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}</button>
+  </form>
+}
+```
+
+รหัสผ่านอยู่ใน State ชั่วคราวและล้างหลังส่ง ไม่ Log และไม่บันทึกลง Storage อย่าใช้ Credential จริงในตัวอย่างหรือ Test fixture
+
+### Route ที่ต้อง Login
+
+ไฟล์ `frontend/src/app/RequireAuth.tsx`:
+
+```tsx
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuth } from '../features/auth/AuthProvider'
+export function RequireAuth() {
+  const { state, refresh } = useAuth()
+  if (state.kind === 'checking') return <p role="status">กำลังตรวจสอบผู้ใช้…</p>
+  if (state.kind === 'error') return <div>
+    <p role="alert">{state.message}</p><button onClick={refresh}>ลองใหม่</button>
+  </div>
+  if (state.kind === 'guest') return <Navigate to="/login" replace />
+  return <Outlet />
+}
+```
+
+ไฟล์ `frontend/src/app/App.tsx`:
+
+```tsx
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { useAuth } from '../features/auth/AuthProvider'
+import { LoginForm } from '../features/auth/LoginForm'
+import { TaskPage } from '../features/tasks/TaskPage'
+import { RequireAuth } from './RequireAuth'
+
+function LoginPage() {
+  const { state, login, refresh } = useAuth()
+  const navigate = useNavigate()
+  if (state.kind === 'checking') return <p role="status">กำลังตรวจสอบผู้ใช้…</p>
+  if (state.kind === 'authenticated') return <Navigate to="/tasks" replace />
+  if (state.kind === 'error') return <div>
+    <p role="alert">{state.message}</p><button onClick={refresh}>ลองใหม่</button>
+  </div>
+  return <LoginForm onLogin={async (username, password) => {
+    await login(username, password); navigate('/tasks', { replace: true })
+  }} />
+}
+function AuthenticatedTasks() {
+  const { state } = useAuth()
+  return state.kind === 'authenticated'
+    ? <TaskPage key={state.user.id} userId={state.user.id} /> : null
+}
+export function App() {
+  return <Routes>
+    <Route path="/login" element={<LoginPage />} />
+    <Route element={<RequireAuth />}>
+      <Route path="/tasks" element={<AuthenticatedTasks />} />
+    </Route>
+    <Route path="*" element={<Navigate to="/tasks" replace />} />
+  </Routes>
+}
+```
+
+`key` ตามผู้ใช้ทำให้ Task state เก่าถูกล้างเมื่อเปลี่ยนบัญชี Production hosting ต้องส่ง index.html สำหรับ Client routes เช่น `/tasks` โดยไม่ Rewrite API เป็น HTML
+
+## วิธีทดสอบ
+
+ลอง Refresh หน้า, Login, Logout และ Session หมดอายุ ตรวจ Network/Cookies จริงเพิ่มจาก Unit tests ดู [Login flow](/technology-guides/fullstack/authentication-flow) และ [Testing](/technology-guides/react-typescript/testing)
+
+## ข้อควรระวัง
+
+Token-based authentication เหมาะกับบาง Client เช่น Mobile หรือ External API แต่ต้องออกแบบอายุ Token, การเพิกถอน และการเก็บให้เหมาะสม ไม่แทน Session เป็น JWT หรือ localStorage โดยอัตโนมัติ Cookie authentication ต้องป้องกัน CSRF แม้ Frontend แยกออกจาก Django แล้ว
+
+## สรุปสิ่งที่ต้องจำ
+
+- me เป็นแหล่งข้อมูลผู้ใช้หลัง Refresh
+- Session Cookie ไม่ต้องอ่านจาก JavaScript
+- ใช้ CSRF ใหม่หลัง Login และล้าง State หลัง Logout
+- Backend ตรวจ Ownership ทุก Endpoint
+
+## อ่านต่อ
+
+- [Django Authentication](/technology-guides/django-python/authentication)
+- [Django Authorization](/technology-guides/django-python/authorization)
+- [Error Handling](/technology-guides/react-typescript/error-handling)

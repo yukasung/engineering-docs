@@ -1,0 +1,93 @@
+---
+title: "Constraints — ให้ฐานข้อมูลช่วยกันข้อมูลผิด"
+description: "PK FK UNIQUE NOT NULL CHECK DEFAULT พร้อมตัวอย่างผ่านและถูกปฏิเสธ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# Constraints — ให้ฐานข้อมูลช่วยกันข้อมูลผิด
+
+## เรื่องนี้คืออะไร?
+
+Constraint คือเงื่อนไขที่ฐานข้อมูลตรวจให้ทุกครั้งที่เขียนข้อมูล เช่นจำนวนสินค้าต้องมากกว่าศูนย์ แม้แอปตรวจแล้วก็ยังควรมีเงื่อนไขสำคัญใน DB เพราะอาจมีหลายแอปหรือหลายคนเขียนพร้อมกัน
+
+## ใช้เมื่อไร?
+
+ใช้กำหนดกติกาที่ต้องจริงเสมอ เช่น Email ไม่ซ้ำ Order ต้องอ้างลูกค้าที่มีอยู่ และ Stock ไม่ติดลบ ไม่ใช้ตรวจความพร้อมจ่ายเงินหรือกติกาข้ามหลายตารางด้วย CHECK แถวเดียว
+
+## ทำอย่างไร?
+
+Constraints ของ Lab อยู่ใน [schema.sql](/technology-guides/postgresql/database-design) แล้ว ไม่ต้องเพิ่มซ้ำ:
+
+| เงื่อนไข | ผล |
+| --- | --- |
+| PRIMARY KEY | รหัสไม่ซ้ำ/ไม่เป็น NULL และมี Unique index รองรับ |
+| FOREIGN KEY | ค่าต้องอ้างแถวที่มีอยู่ ช่วย Referential integrity หรือความถูกต้องของการอ้างอิง |
+| UNIQUE | กันค่าซ้ำ เช่น SKU/Email; ค่า NULL หลายแถวอนุญาตได้ตามค่าเริ่มต้น จึงต้องออกแบบ NULL ด้วย |
+| NOT NULL | ห้ามไม่มีค่า แต่ไม่กันข้อความว่าง `''` ให้เอง |
+| CHECK | ตรวจเงื่อนไขของแถว เช่น `stock >= 0`; ผล NULL ก็อาจผ่าน จึงใช้ NOT NULL ร่วมเมื่อจำเป็น |
+| DEFAULT | เติมเมื่อไม่ระบุ Column ไม่ใช่การตรวจความถูกต้อง และไม่แทนค่าที่ส่ง NULL มาเอง |
+
+### ตัวอย่างที่ผ่าน
+
+```sql filename="valid-constraints.sql"
+BEGIN;
+INSERT INTO products (sku, name, unit_price)
+VALUES ('SKU-TEMP', 'Temporary Product', 25.50)
+RETURNING sku, stock, active;
+ROLLBACK;
+```
+
+DB เติม `stock=0`, `active=true` แล้วคืนด้วย `RETURNING` จากนั้น Rollback เพื่อไม่เปลี่ยนข้อมูลตั้งต้น
+
+### ตัวอย่างที่ต้องไม่ผ่าน
+
+ลองทีละ Block ในฐานทดลอง หลัง Error ต้อง `ROLLBACK` ก่อนทำงานต่อ หากใช้ Script ที่ตั้ง Stop on error การตัดการเชื่อมต่อจะยกเลิก Transaction ที่ยังไม่ Commit แทน ห้ามปิด Constraint เพื่อให้ตัวอย่างผิดผ่าน:
+
+```sql filename="invalid-stock.sql"
+BEGIN;
+UPDATE products SET stock = -1 WHERE sku = 'SKU-001';
+ROLLBACK;
+```
+
+คาดว่า CHECK ปฏิเสธด้วย SQLSTATE `23514` และ Stock เดิมยังอยู่
+
+```sql filename="invalid-duplicate.sql"
+BEGIN;
+INSERT INTO customers (name, email)
+VALUES ('Duplicate Demo', 'demo@example.invalid');
+ROLLBACK;
+```
+
+คาดว่า UNIQUE ปฏิเสธด้วย `23505` เพราะมี Email นี้ใน Seed แล้ว การเทียบ TEXT แบบ UNIQUE ใน Lab ยังแยกตัวใหญ่เล็ก ไม่ได้ทำ Email normalization ให้
+
+```sql filename="invalid-foreign-key.sql"
+BEGIN;
+INSERT INTO orders (customer_id) VALUES (-1);
+ROLLBACK;
+```
+
+คาดว่า FK ปฏิเสธด้วย `23503` เพราะไม่มีลูกค้ารหัสนี้ การใช้รหัส `-1` เป็นแค่ตัวอย่างค่าที่ไม่มีใน Lab ไม่ใช่วิธีกำหนดรหัสจริง
+
+## ตัวอย่างการใช้งานจริง
+
+แอปสองตัวรับ Email เดียวกันเกือบพร้อมกัน แม้แต่ละตัว SELECT แล้วไม่พบ Email ทั้งสองอาจพยายาม INSERT ได้ ให้ UNIQUE เป็นผู้ตัดสินครั้งสุดท้าย แล้วแอปแสดงข้อความเหมาะสมเมื่อเกิด Duplicate ไม่แสดง SQL หรือค่าลับให้ผู้ใช้
+
+## ข้อควรระวัง
+
+CHECK `stock >= 0` กันค่าติดลบ แต่ไม่กัน Lost update ที่เขียนสต็อกผิดแต่ยังเป็นเลขบวก ต้องใช้ [Concurrency control](/technology-guides/postgresql/concurrency) ด้วย และ FK ไม่สร้าง Index ฝั่งที่อ้างให้อัตโนมัติทุก Column ดู [Indexes](/technology-guides/postgresql/indexes)
+
+## สรุป
+
+- Validation ในแอปช่วยอธิบาย Error ส่วน DB กันข้อมูลผิดจากทุกช่องทาง
+- DEFAULT ต่างจาก Constraint ที่บังคับความถูกต้อง
+- Constraint Error ต้องจัดการและจบ Transaction ให้ถูก
+- ทดสอบทั้งข้อมูลที่ผ่านและที่ควรถูกปฏิเสธ
+
+## อ่านต่อ
+
+- [PostgreSQL constraints](https://www.postgresql.org/docs/17/ddl-constraints.html)
+- [Transactions และ Error handling](/technology-guides/postgresql/transactions)

@@ -1,0 +1,118 @@
+---
+title: "Configuration — ConfigMap Secret และ Namespace"
+description: "แยกค่าตั้งออกจาก Image ส่ง Environment ให้ Django และเก็บ Secret นอก Git"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Configuration — ConfigMap Secret และ Namespace
+
+## เรื่องนี้คืออะไร?
+
+ConfigMap เก็บค่าตั้งที่ไม่ลับ เช่น DB host ส่วน Secret ใช้เก็บค่าที่ต้องจำกัดการเข้าถึง เช่น Password ทั้งสองอย่างเป็น Resources ใน Namespace ต้องสร้างให้ตรง Namespace ของ Pod ที่ใช้อ้างอิง
+
+Environment variables คือค่าที่ส่งเข้าโปรแกรมตอนเริ่ม Django อ่านผ่าน `os.environ` ตาม [Settings ของ Docker Lab](/technology-guides/docker/reference-project) ไม่อ่าน ConfigMap โดยรู้จัก Kubernetes เอง
+
+## ทำงานอย่างไร?
+
+### สร้าง Namespace และ ConfigMap
+
+```yaml filename="k8s/namespace.yaml"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: task-demo
+---
+```
+
+```yaml filename="k8s/app-config.yaml"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: task-demo
+data:
+  POSTGRES_DB: "task_demo"
+  POSTGRES_USER: "task_app"
+  DB_HOST: "db"
+  DB_PORT: "5432"
+  DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,backend,kube-health.internal"
+```
+
+Environment ที่ได้เป็น Strings จึงใส่เครื่องหมายคำพูดกับ Port/Boolean ด้วย ค่า Host ของ Probe คือ `kube-health.internal` ที่ตั้ง Header ใน Deployment ไม่ต้องมี DNS record เพราะ kubelet ติดต่อ Pod IP แล้วแนบ Host นี้
+
+### เตรียม Secret จริงของ Lab นอก Git
+
+หลังคัดไฟล์ในพื้นที่ทดลองและตรวจว่า Context ชี้ Lab:
+
+```bash
+kubectl --context kind-task-lab apply -f k8s/namespace.yaml
+kubectl --context kind-task-lab -n task-demo apply -f k8s/app-config.yaml
+mkdir -p .local-secrets
+chmod 700 .local-secrets
+```
+
+สร้าง `.local-secrets/app.env` ผ่าน Editor ด้วยรูปแบบด้านล่าง จากนั้นใส่ค่าสุ่มสองค่าที่แตกต่างกันก่อนใช้ ห้ามเว้นว่าง `.local-secrets/` ต้องถูก Ignore โดย Git และจำกัดสิทธิ์ไฟล์:
+
+```dotenv filename=".local-secrets/app.env.example"
+DJANGO_SECRET_KEY=
+POSTGRES_PASSWORD=
+```
+
+```bash
+chmod 600 .local-secrets/app.env
+kubectl --context kind-task-lab -n task-demo create secret generic app-secrets \
+  --from-env-file=.local-secrets/app.env
+```
+
+create ใช้เมื่อยังไม่มี app-secrets และไม่พ่นค่าลับออก Terminal ถ้ามีแล้วต้องทำขั้นตอน Update/Rotation ที่ควบคุม ไม่ลบ Secret ที่กำลังใช้อยู่เพื่อให้ create ผ่าน และไม่ใช้ `--from-literal=รหัสจริง` จนติด Shell history
+
+### รูปแบบ YAML ของ Secret
+
+ตัวอย่างนี้ใช้ดูโครงสร้างเท่านั้น ค่าว่าง **ห้าม Apply เป็น Secret ของ Lab** ให้ใช้วิธีจากไฟล์ส่วนตัวข้างบนเป็นหลัก:
+
+```yaml filename="k8s/secret.example.yaml"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: task-demo
+type: Opaque
+stringData:
+  DJANGO_SECRET_KEY: ""
+  POSTGRES_PASSWORD: ""
+```
+
+`stringData` รับ String ปกติแล้ว API จัดการรูปแบบจัดเก็บให้ Base64 ใน field `data` เป็นการ Encode ไม่ใช่ Encryption **Secret ไม่ได้รับประกันว่าถูกเข้ารหัสบน Disk ทุก Cluster** ต้องตั้ง Encryption at rest, RBAC และควบคุมผู้ที่สร้าง/exec Pods ซึ่งอาจอ่านค่าได้ด้วย
+
+## ตัวอย่างการใช้งานจริง
+
+Backend Deployment ใช้ envFrom จาก app-config และ app-secrets ส่วน DB อ่านเฉพาะ Keys ที่จำเป็นด้วย configMapKeyRef/secretKeyRef ดูไฟล์ต้นฉบับที่ [Deployments](/technology-guides/kubernetes/deployments) และ [Storage](/technology-guides/kubernetes/storage)
+
+เมื่อเปลี่ยน Environment ใน ConfigMap/Secret โปรแกรมที่รันอยู่ไม่รับค่าใหม่เอง ต้อง Rollout อย่างควบคุมหลัง Review ส่วน Secret rotation ต้องประสานผู้ใช้/ฐานข้อมูลและวางแผนกลับ ไม่ใช่เปลี่ยน Password ใน Secret แล้ว PostgreSQL เก่าเปลี่ยนตาม
+
+## แยก Environment อย่างไร?
+
+ใช้ Manifest/Overlay ที่ตามรอยใน Git แยกค่าของ DEV/UAT/Production พร้อม Secret references และ RBAC ที่เหมาะสม Namespace อาจช่วยแยกภายใน Cluster แต่บางระบบต้องแยก Cluster/Accounts ตามข้อกำหนด ไม่สรุปว่าการมี Namespace ทำให้ปลอดภัยครบแล้ว
+
+Frontend ที่ใช้ Vite มี `VITE_*` ฝังตอน Build เป็นหลัก การเปลี่ยน ConfigMap ของ Backend ไม่เปลี่ยน Bundle ของ Browser Lab ใช้ Relative `/api/` จึงไม่ต้องใส่ Cluster DNS ใน Frontend Build
+
+## ข้อควรระวัง
+
+อย่า Commit YAML/ไฟล์ .env ที่มีค่าจริง ไม่ใช้ `kubectl get secret -o yaml`, `printenv` หรือ Log Request headers เป็นขั้น Debug ปกติ ถ้าต้องตรวจให้ดูเฉพาะชื่อ/Key และใช้สิทธิ์เท่าที่จำเป็น
+
+## สรุปสิ่งที่ต้องจำ
+
+- ConfigMap ไม่ลับ Secret ต้องจำกัดการเข้าถึง
+- Base64 ไม่ใช่ Encryption
+- Config/Secret ต้องอยู่ Namespace เดียวกับ Pod ที่อ้าง
+- Environment เปลี่ยนต้องวางแผน Restart/Rotation
+
+## อ่านต่อ
+
+- [Storage](/technology-guides/kubernetes/storage)
+- [Docker secrets guidance](/technology-guides/docker/docker-compose)
+- [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)

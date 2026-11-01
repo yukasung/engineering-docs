@@ -1,0 +1,96 @@
+---
+title: "Files & Permissions — จัดการไฟล์และสิทธิ์ให้พอดี"
+description: "ค้นหา Copy Move Archive และเข้าใจ Owner Group Mode กับ Directory traversal"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Files & Permissions — จัดการไฟล์และสิทธิ์ให้พอดี
+
+## เรื่องนี้คืออะไร?
+
+Linux ใช้ Owner, Group และ Mode กำหนดว่าใครอ่าน/เขียน/ใช้งานไฟล์ได้ Permission denied จึงอาจเกิดจากบัญชีผิด โฟลเดอร์แม่เข้าไม่ได้ หรือข้อกำหนดอื่น ไม่ใช่เพราะต้องเพิ่มสิทธิ์ทุกคนเสมอ
+
+## ทำอย่างไร?
+
+### อ่านและค้นหาไฟล์
+
+ใช้ Terminal และ LINUX_LAB_DIR จาก [Getting Started](/technology-guides/linux/getting-started) `${...:?}` หยุดคำสั่งเมื่อยังไม่มีตัวแปร แทนการไปทำงานผิด Path:
+
+```bash
+cd "${LINUX_LAB_DIR:?ให้เริ่ม Linux Lab ก่อน}"
+ls -lah src logs
+cat src/notes.txt
+grep -n 'Login' src/notes.txt
+find src -type f -name '*.txt' -print
+```
+
+cat แสดงไฟล์เล็ก grep -n หา Matching lines พร้อมเลขบรรทัด ส่วน find จำกัดการค้นใน src และใส่ Quote รอบ '*.txt' เพื่อให้ find เป็นผู้ตีความ Pattern สำหรับไฟล์ใหญ่ใช้ less ไม่ cat Log หลาย GB ลง Terminal
+
+### Copy และ Move โดยตรวจปลายทาง
+
+คำสั่งนี้แก้เฉพาะไฟล์ Lab; -i ถามก่อนเขียนทับเมื่อปลายทางมีอยู่แล้ว:
+
+```bash
+cp -i -- src/notes.txt archive/notes-copy.txt
+mv -i -- archive/notes-copy.txt archive/notes-reviewed.txt
+ls -l archive/notes-reviewed.txt
+```
+
+`--` จบ Options ป้องกันชื่อไฟล์ที่ขึ้นต้นขีดถูกตีความเป็น Flag หากจะลบ ให้ตรวจ pwd/ls และใช้ `rm -i -- archive/notes-reviewed.txt` กับสำเนาที่ไม่ต้องการแล้วเท่านั้น การลบจาก Shell มักไม่เข้า Trash และไม่มี Undo ทั่วไป ไม่ใช้ rm -rf เป็นขั้นฝึกพื้นฐาน
+
+### อ่าน Mode ของไฟล์และ Directory
+
+```bash
+id
+ls -ld . src logs
+ls -l src/notes.txt
+stat -c '%a %U:%G %n' src/notes.txt
+chmod 640 src/notes.txt
+chmod 750 src
+```
+
+stat -c เป็น GNU syntax ของ Lab; chmod เปลี่ยน Mode ของไฟล์ที่เราเป็นเจ้าของ ตัวเลขเรียง Owner/Group/Others โดย r=4, w=2, x=1:
+
+| Mode | ความหมาย |
+| --- | --- |
+| 600 ไฟล์ | เจ้าของอ่าน/เขียน คนอื่นไม่มีสิทธิ์ |
+| 640 ไฟล์ | เจ้าของอ่าน/เขียน Group อ่านได้ |
+| 750 Directory | เจ้าของจัดการได้ Group เข้า/ดูรายการได้ Others เข้าไม่ได้ |
+
+สำหรับ Directory, x คือสิทธิ์ผ่าน/เข้าโฟลเดอร์ ไม่ใช่เปิดไฟล์เป็นโปรแกรม ต้องมี x ของทุกโฟลเดอร์แม่ด้วย ส่วน w ของ Directory เกี่ยวกับการสร้าง/ลบชื่อไฟล์ ไม่เท่ากับ w ของไฟล์นั้น
+
+`chown OWNER:GROUP PATH` เปลี่ยนเจ้าของ/กลุ่มและมักต้องสิทธิ์ผู้ดูแล ให้เลือกบัญชีที่ Service รันจริงและแก้เฉพาะ Path ที่จำเป็น ไม่ทำ chown -R ทั้งระบบ `umask 027` จำกัด Permission เริ่มต้นของไฟล์ใหม่ใน Shell เช่น ปกติไฟล์จะได้ 640 และ Directory 750 โดยไม่เพิ่มสิทธิ์ Execute ให้ไฟล์ทั่วไปเอง
+
+## ตัวอย่างการใช้งานจริง
+
+Backend อ่าน Config ไม่ได้: ตรวจบัญชีที่รันจริง, UID/GID, Mode และโฟลเดอร์แม่ก่อน ใน Container ชื่อ User ต่างจาก Host ได้ ต้องดู UID/GID ของ Volume mount หาก Mode ถูกแล้วยังถูกปฏิเสธให้ดู ACL/AppArmor/Read-only mount ต่อ ไม่ปิด Security control เพื่อแก้เฉพาะหน้า
+
+### เก็บสำเนาไฟล์ Lab
+
+```bash
+tar -czf archive/notes.tar.gz -C src notes.txt
+tar -tzf archive/notes.tar.gz
+mkdir -p archive/restored
+tar -xzf archive/notes.tar.gz -C archive/restored
+cmp src/notes.txt archive/restored/notes.txt
+```
+
+-c สร้าง Archive, -t ดูรายการ, -x แตกไฟล์ และ -C เลือกโฟลเดอร์ cmp ไม่แสดงข้อความและ Exit 0 เมื่อเหมือนกัน สำเนานี้มีเพียงไฟล์ข้อความ ไม่ใช่ Backup PostgreSQL และไม่ทดสอบกู้ระบบ อย่าแตก Archive ที่ไม่รู้ที่มาด้วย root/ทับโฟลเดอร์จริง
+
+## สรุปสิ่งที่ต้องจำ
+
+- Quote Paths และตรวจต้นทาง/ปลายทางก่อนเขียนทับ
+- File mode และ Directory mode มีความหมายต่างกัน
+- ไม่แก้ Permission denied ด้วย 777/root ทันที
+- Archive ไฟล์ไม่แทน Database backup
+
+## อ่านต่อ
+
+- [Logs & Resources](/technology-guides/linux/logs-and-resources)
+- [Docker Volume permissions](/technology-guides/docker/docker-volume)
+- [PostgreSQL Backup / Restore](/technology-guides/postgresql/backup-restore)
+- [chmod reference](https://manpages.ubuntu.com/manpages/noble/man1/chmod.1.html)

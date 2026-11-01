@@ -1,0 +1,169 @@
+---
+title: "React Testing — Form Login และ API Errors"
+description: "ใช้ Vitest และ React Testing Library ตรวจพฤติกรรมผู้ใช้และ Request helper โดยไม่ต่อระบบจริง"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# React Testing — Form Login และ API Errors
+
+## เรื่องนี้คืออะไร?
+
+Unit test ตรวจส่วนเล็ก เช่น แปลง API error ส่วน Component test ตรวจ Form ผ่านการกรอกและกดปุ่ม Integration test เชื่อมหลายส่วนเข้าด้วยกัน ตัวอย่างนี้ใช้ Vitest รัน Test และ React Testing Library ช่วยทดสอบผ่านสิ่งที่ผู้ใช้เห็น
+
+ติดตั้ง Packages ตาม [Getting Started](/technology-guides/react-typescript/getting-started) รวม jsdom ซึ่งจำลอง DOM ใน Node โดยยังไม่ใช่ Browser จริง
+
+## ทำอย่างไร?
+
+ไฟล์ `frontend/vitest.config.ts`:
+
+```ts
+import { defineConfig } from 'vitest/config'
+export default defineConfig({
+  test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'], restoreMocks: true },
+})
+```
+
+ไฟล์ `frontend/src/test-setup.ts`:
+
+```ts
+import { cleanup } from '@testing-library/react'
+import { afterEach, vi } from 'vitest'
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+```
+
+### Component test
+
+ไฟล์ `frontend/src/components/TaskForm.test.tsx`:
+
+```tsx
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { ApiError } from '../services/api'
+import { TaskForm } from './TaskForm'
+
+describe('TaskForm', () => {
+  it('ส่ง Input ที่จำเป็นและล้างหลังสำเร็จ', async () => {
+    const submit = vi.fn().mockResolvedValue(undefined)
+    render(<TaskForm onSubmit={submit} />)
+    fireEvent.change(screen.getByLabelText('ชื่องาน'), { target: { value: 'เพิ่ม Login' } })
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มงาน' }))
+    await waitFor(() => expect(submit).toHaveBeenCalledWith({
+      title: 'เพิ่ม Login', description: '', status: 'todo',
+    }))
+    await waitFor(() => expect((screen.getByLabelText('ชื่องาน') as HTMLInputElement).value).toBe(''))
+  })
+  it('แสดง Field error โดยไม่ล้าง Input', async () => {
+    const submit = vi.fn().mockRejectedValue(new ApiError(400, 'VALIDATION_ERROR', {
+      title: ['กรุณาระบุชื่องาน'],
+    }))
+    render(<TaskForm onSubmit={submit} />)
+    fireEvent.change(screen.getByLabelText('ชื่องาน'), { target: { value: '   ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'เพิ่มงาน' }))
+    await screen.findByRole('alert')
+    expect(screen.getByText('กรุณาระบุชื่องาน')).toBeDefined()
+    expect((screen.getByLabelText('ชื่องาน') as HTMLInputElement).value).toBe('   ')
+  })
+})
+```
+
+### Login form test
+
+ไฟล์ `frontend/src/features/auth/LoginForm.test.tsx`:
+
+```tsx
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { expect, it, vi } from 'vitest'
+import { ApiError } from '../../services/api'
+import { LoginForm } from './LoginForm'
+
+it('Login ไม่ผ่าน แจ้งข้อความและล้างรหัสผ่าน', async () => {
+  // ข้อความทดสอบเท่านั้น ไม่ใช่ Credential ที่ใช้เข้า Service ใด
+  const login = vi.fn().mockRejectedValue(new ApiError(403, 'INVALID_CREDENTIALS'))
+  render(<LoginForm onLogin={login} />)
+  fireEvent.change(screen.getByLabelText('ชื่อผู้ใช้'), { target: { value: 'test-user' } })
+  fireEvent.change(screen.getByLabelText('รหัสผ่าน'), { target: { value: 'invalid-test-input' } })
+  fireEvent.click(screen.getByRole('button', { name: 'เข้าสู่ระบบ' }))
+  expect((await screen.findByRole('alert')).textContent).toBeTruthy()
+  await waitFor(() => expect((screen.getByLabelText('รหัสผ่าน') as HTMLInputElement).value).toBe(''))
+  expect(localStorage.length).toBe(0)
+})
+```
+
+### API helper tests
+
+ไฟล์ `frontend/src/services/api.test.ts`:
+
+```ts
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ApiError, requestJson, setCsrfToken } from './api'
+
+beforeEach(() => setCsrfToken(null))
+describe('requestJson', () => {
+  it('แปลง Network failure เป็นข้อความที่ควบคุมได้', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
+    await expect(requestJson('/tasks/')).rejects.toMatchObject({ code: 'NETWORK_ERROR', status: 0 })
+  })
+  it('เก็บ Field errors จาก 400', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 'VALIDATION_ERROR', message: 'ข้อมูลไม่ถูกต้อง',
+        details: { title: ['กรุณาระบุชื่องาน'] } },
+    }), { status: 400 })))
+    await expect(requestJson('/tasks/')).rejects.toMatchObject({
+      status: 400, details: { title: ['กรุณาระบุชื่องาน'] },
+    })
+  })
+  it('ไม่แสดง HTML error ดิบจาก Proxy', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<h1>internal debug data</h1>', { status: 500 })))
+    try { await requestJson('/tasks/'); throw new Error('expected failure') }
+    catch (cause) {
+      expect(cause).toBeInstanceOf(ApiError)
+      expect((cause as ApiError).message).not.toContain('internal debug data')
+    }
+  })
+  it('ขอ CSRF ก่อน DELETE และไม่อ่าน JSON ของ 204', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ csrfToken: 'test-csrf-placeholder' })))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(requestJson('/tasks/42/', { method: 'DELETE' })).resolves.toBeUndefined()
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/auth/csrf/')
+    const options = fetchMock.mock.calls[1][1] as RequestInit
+    expect(options.credentials).toBe('include')
+    expect(new Headers(options.headers).get('X-CSRFToken')).toBe('test-csrf-placeholder')
+  })
+})
+```
+
+Response ของ Test เป็น Mock ไม่ได้ส่ง HTTP ออกไป Token ตัวอย่างไม่มีสิทธิ์ใช้งานจริง
+
+## วิธีทดสอบ
+
+```bash
+npm test
+npm run build
+```
+
+รันใน `frontend/` ของพื้นที่ทดลอง คำสั่งแรกตรวจพฤติกรรม ส่วน Build ตรวจ TypeScript และ Bundle ไม่ใช่หลักฐานว่า Cookie/CORS ทำงานจริง ต้องทดสอบ Login → Create → Update → Delete → Logout ใน Browser ที่ต่อ Django เพิ่ม
+
+## ข้อควรระวัง
+
+jsdom ไม่บังคับ SameSite/Secure/CSRF แบบ Browser และ Mock fetch ไม่ทดสอบ Backend permission อย่าอ้างว่า Login ปลอดภัยเพียงเพราะ Form tests ผ่าน ดู Django tests ที่ส่ง Request จริงผ่าน Test client ควบคู่กัน
+
+## สรุปสิ่งที่ต้องจำ
+
+- ทดสอบพฤติกรรมที่ผู้ใช้เห็น
+- ครอบคลุมสำเร็จ Error และ Input ที่ไม่ควรหาย
+- Mock ช่วยแยกปัญหา แต่ไม่แทน Integration/Browser tests
+- Test data ต้องไม่ใช้ Credential จริง
+
+## อ่านต่อ
+
+- [Django Testing](/technology-guides/django-python/testing)
+- [Troubleshooting](/technology-guides/fullstack/troubleshooting)
+- [Vitest](https://vitest.dev/guide/)
+- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)

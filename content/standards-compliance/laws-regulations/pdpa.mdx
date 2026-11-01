@@ -1,0 +1,76 @@
+---
+title: "PDPA สำหรับทีมพัฒนา"
+description: "แนวทางแปลงคำถามด้าน Personal data เป็น Requirement ทางเทคนิคที่ Owner, DPO หรือ Legal ต้องยืนยัน"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PDPA": "พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562; ต้องตรวจประกาศและข้อกำหนดปัจจุบัน"}
+---
+
+# PDPA สำหรับทีมพัฒนา
+
+## เรื่องนี้คืออะไร?
+
+พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 (PDPA) เกี่ยวข้องเมื่อระบบเก็บ ใช้ หรือเปิดเผย Personal data หน้านี้ช่วยทีมเตรียมคำถามทางเทคนิค ไม่ใช่คำปรึกษากฎหมาย การตีความ Lawful basis, Retention, Cross-border transfer และหน้าที่เฉพาะต้องให้ Owner, DPO หรือ Legal ยืนยัน
+
+## ใช้เมื่อไร?
+
+ใช้ตั้งแต่เก็บ Requirement ไม่ใช่รอจนระบบเสร็จ โดยเฉพาะเมื่อมีข้อมูลลูกค้า พนักงาน ผู้สมัครงาน ผู้ติดต่อ หรือข้อมูลที่เชื่อมกลับไปหาบุคคลได้
+
+## คำถามก่อนออกแบบ
+
+- เก็บข้อมูลอะไร และข้อมูลใด Sensitive
+- ใช้เพื่อ Purpose อะไร และใครยืนยัน Lawful basis
+- ใครเป็น Controller/Processor และใครเข้าถึงได้
+- เก็บที่ไหน ส่งต่อใคร หรือออกนอกประเทศหรือไม่
+- เก็บนานเท่าไร และลบ/ทำลายอย่างไร
+- รองรับ Data subject request อย่างไร
+- บันทึก Consent หรือ Notice อย่างไรเมื่อเกี่ยวข้อง
+- แจ้งและจัดการ Data breach ตาม Process ใด
+
+## สิ่งที่ทีมพัฒนาควรเตรียม
+
+- Data flow และ System/Integration ที่เกี่ยวข้อง
+- Field inventory และ Data classification
+- Access control, Audit trail และ Retention behavior
+- Export, Correction, Restriction และ Deletion capability ตาม Requirement ที่ยืนยัน
+- Test data ที่ไม่ใช้ข้อมูล Production โดยไม่จำเป็น
+- Incident contact และ Evidence ที่ไม่กระจายข้อมูลส่วนบุคคลเพิ่ม
+
+## ทำอย่างไร?
+
+1. ทำ Data inventory ระบุ Field, Source, Purpose และผู้รับข้อมูล
+2. วาด Data flow ตั้งแต่รับข้อมูลจนลบหรือทำลาย
+3. ให้ Controller/Owner และ DPO หรือ Legal ยืนยัน Lawful basis และ Notice
+4. แปลงคำตอบเป็น Access, Retention, Export, Correction และ Deletion requirements
+5. ทดสอบด้วยข้อมูลจำลอง และเก็บ Evidence โดยไม่แนบ Personal data เกินจำเป็น
+
+## ตัวอย่าง: Customer Management
+
+ระบบรับชื่อ อีเมล เบอร์โทร และประวัติการติดต่อ ทีมต้องแยก Purpose ของการให้บริการออกจากการตลาด ระบุผู้มีสิทธิ์ดูแต่ละ Field และกำหนดขั้นตอนรับคำขอของเจ้าของข้อมูล ไม่ควรใส่ Checkbox Consent เดียวเพื่อครอบคลุมทุกกิจกรรม
+
+## ข้อควรระวัง
+
+- Consent ไม่ใช่คำตอบเดียวสำหรับทุก Purpose
+- Encryption ไม่ทำให้ Requirement ด้าน Purpose, Access หรือ Retention หายไป
+- ห้าม Copy Production data ไป DEV/UAT โดยไม่มีการอนุมัติและ Control
+- ระยะเวลาแจ้งเหตุ, เงื่อนไข DPO และข้อยกเว้นต้องตรวจจากกฎหมาย/ประกาศปัจจุบันตามข้อเท็จจริง ห้ามเดาจาก Checklist นี้
+
+## แหล่งอ้างอิงทางการ
+
+- [ราชกิจจานุเบกษา — พระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562](https://ratchakitcha.soc.go.th/documents/17082307.pdf)
+- [สำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล](https://www.pdpc.or.th/)
+
+## สรุป
+
+- เริ่มจาก Data, Purpose, Parties และ Flow
+- ให้ผู้รับผิดชอบยืนยันข้อกฎหมาย
+- ออกแบบ Access, Retention และ Data subject requests ให้ทดสอบได้
+- ไม่ใช้ข้อมูลจริงเกินความจำเป็น
+
+## อ่านต่อ
+
+- [Compliance Checklist](/standards-compliance/compliance-checklist)
+- [Thai IT Laws](/standards-compliance/laws-regulations/thai-it-laws)
+- [Frameworks](/standards-compliance/frameworks)

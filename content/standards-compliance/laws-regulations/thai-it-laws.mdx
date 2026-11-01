@@ -1,0 +1,64 @@
+---
+title: "Thai IT Laws สำหรับทีม Engineering"
+description: "คำถามทางเทคนิคเบื้องต้นสำหรับ Cybersecurity Act, Computer Crime Act และ Electronic Transactions Act"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Cybersecurity Act": "พ.ศ. 2562; include current subordinate rules", "Computer Crime Act": "พ.ศ. 2550 แก้ไขเพิ่มเติม พ.ศ. 2560; include current subordinate rules", "Electronic Transactions Act": "พ.ศ. 2544 และที่แก้ไขเพิ่มเติม"}
+---
+
+# Thai IT Laws สำหรับทีม Engineering
+
+## ภาพรวม (Overview)
+
+หน้านี้สรุปคำถามที่ทีมควรส่งให้ Legal/Compliance ไม่ใช่คำวินิจฉัยว่ากฎหมายใช้กับองค์กรหรือระบบใด ต้องตรวจตัวบท ฉบับแก้ไข ประกาศลำดับรอง และข้อเท็จจริงปัจจุบันทุกครั้ง
+
+## กฎหมายแต่ละฉบับเกี่ยวกับอะไร?
+
+| กฎหมาย | ประเด็นที่ทีมต้องถาม | ตัวอย่างสิ่งที่อาจต้องออกแบบ |
+| --- | --- | --- |
+| พ.ร.บ. การรักษาความมั่นคงปลอดภัยไซเบอร์ พ.ศ. 2562 | องค์กร/ระบบเป็นหน่วยงานหรือโครงสร้างพื้นฐานสำคัญทางสารสนเทศ (CII) หรืออยู่ใต้ประกาศใดหรือไม่ | Risk assessment, Incident contact, Monitoring, Response และ Evidence ตามข้อกำหนดที่ยืนยัน |
+| พ.ร.บ. คอมพิวเตอร์ พ.ศ. 2550 และแก้ไข พ.ศ. 2560 | องค์กรมีบทบาท “ผู้ให้บริการ” หรือเกี่ยวข้องกับข้อมูล/ระบบตามกฎหมายอย่างไร | Log integrity, Authorized access, Notice/takedown workflow และ Legal preservation ตามคำยืนยัน |
+| พ.ร.บ. ธุรกรรมทางอิเล็กทรอนิกส์ พ.ศ. 2544 และที่แก้ไข | ธุรกรรม เอกสาร หรือการลงนามต้องพิสูจน์ตัวบุคคล เจตนา ความครบถ้วน และเวลาอย่างไร | Authentication, Audit trail, Document integrity, Timestamp และ Evidence export |
+
+## ทำอย่างไร?
+
+1. ทำ Service/Data/System inventory และระบุผู้ให้บริการภายนอก
+2. ให้ Legal ยืนยันบทบาทและกฎหมายลำดับรองที่เกี่ยวข้อง
+3. สร้าง Requirement matrix: Source → Requirement → Owner → Test → Evidence
+4. ออกแบบ Log โดยกำหนด Purpose, Access, Integrity, Retention และ Disposal
+5. ซ้อม Incident/Evidence workflow กับผู้รับผิดชอบจริง
+
+## ตัวอย่าง: Customer Management
+
+ระบบมี Audit log สำหรับการเปลี่ยนข้อมูลลูกค้า ทีมไม่ควรตั้ง Retention เป็นตัวเลขจากบทความทั่วไป แต่ต้องถามว่าบริษัทมีบทบาทผู้ให้บริการหรือ CII หรือไม่ มี Contract/Policy ใดบังคับ และ Personal data ใน Log ต้องลดหรือปกป้องอย่างไร
+
+สำหรับ e-Signature ให้เลือกวิธีตามความเสี่ยงและ Requirement ของธุรกรรม ไม่ควรถือว่าการกดปุ่มทุกแบบให้หลักฐานเพียงพอเท่ากัน
+
+## ข้อควรระวัง
+
+- Cybersecurity Act ไม่ได้ทำให้ทุกบริษัท Software มีหน้าที่เหมือน CII
+- อย่าเก็บ Log ทุกอย่างตลอดไป “เผื่อใช้” เพราะเพิ่ม Privacy, Security และ Cost risk
+- Evidence ต้องรักษาความครบถ้วนและ Chain of custody ตาม Process ที่ยืนยัน
+- การเก็บ Log ไม่อนุญาตให้ทีมเข้าถึงเนื้อหาหรือ Personal data โดยไม่มี Purpose
+
+## แหล่งอ้างอิงทางการ
+
+- [สำนักงานคณะกรรมการการรักษาความมั่นคงปลอดภัยไซเบอร์แห่งชาติ](https://www.ncsa.or.th/)
+- [ราชกิจจานุเบกษา — พ.ร.บ. คอมพิวเตอร์ พ.ศ. 2550](https://ratchakitcha.soc.go.th/documents/217553.pdf)
+- [ราชกิจจานุเบกษา — พ.ร.บ. คอมพิวเตอร์ (ฉบับที่ 2) พ.ศ. 2560](https://www.ratchakitcha.soc.go.th/DATA/PDF/2560/A/010/24.PDF)
+- [ETDA — พ.ร.บ. ธุรกรรมทางอิเล็กทรอนิกส์ ฉบับอัปเดต](https://www.etda.or.th/th/คลังความรู้-(Useful-Resource)/กฎหมาย-HTML/พระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์/พระราชบัญญัติว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์-พ-ศ-2544-(ฉบับอัพเดท).aspx)
+
+## สรุป
+
+- เริ่มจากบทบาทและข้อเท็จจริง ไม่ใช่ชื่อ Technology
+- ให้ Legal/Compliance ยืนยันกฎหมายและประกาศลำดับรอง
+- แปลงข้อกำหนดเป็น Test และ Evidence ที่ตามรอยได้
+- กำหนด Log/Retention ตาม Purpose และ Source ที่ยืนยัน
+
+## อ่านต่อ
+
+- [PDPA](/standards-compliance/laws-regulations/pdpa)
+- [Audit & Compliance](/standards-compliance/audit-compliance)
+- [Frameworks](/standards-compliance/frameworks)

@@ -1,0 +1,158 @@
+---
+title: "Hooks — โหลดข้อมูลและจัดการหน้าจอ Task"
+description: "ใช้ useState useEffect และ AbortController เพื่อแสดง Loading Error Empty และข้อมูลล่าสุด"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# Hooks — โหลดข้อมูลและจัดการหน้าจอ Task
+
+## เรื่องนี้คืออะไร?
+
+Hook คือฟังก์ชันของ React สำหรับใช้ State และเชื่อมกับสิ่งภายนอก Component เช่น API `useState` จำข้อมูล ส่วน `useEffect` ใช้เริ่มและหยุดการโหลดเมื่อหน้าจอหรือข้อมูลที่เกี่ยวข้องเปลี่ยน
+
+Custom hook คือการรวม Logic ที่เกี่ยวข้องไว้ในฟังก์ชันชื่อ `use...` เริ่มจาก State ใน Component แล้วค่อยแยกเมื่ออ่านยากหรือใช้ซ้ำ ไม่ต้องสร้าง Hook ครอบทุกบรรทัด
+
+## ทำงานอย่างไร?
+
+ไฟล์ `frontend/src/features/tasks/useTasks.ts`:
+
+```ts
+import { useCallback, useEffect, useState } from 'react'
+import { isAbort, isAuthRequired, userMessage } from '../../services/api'
+import type { TaskPageResponse } from '../../types/task'
+import { listTasks } from './api'
+
+type ListState = { kind: 'loading' } | { kind: 'error'; message: string } |
+  { kind: 'ready'; data: TaskPageResponse }
+export function useTasks(userId: number, page: number, expireSession: () => void) {
+  const [state, setState] = useState<ListState>({ kind: 'loading' })
+  const [revision, setRevision] = useState(0)
+  const reload = useCallback(() => setRevision(value => value + 1), [])
+  useEffect(() => {
+    const controller = new AbortController()
+    let active = true
+    setState({ kind: 'loading' })
+    listTasks(page, controller.signal).then(data => {
+      if (active) setState({ kind: 'ready', data })
+    }).catch(cause => {
+      if (!active || isAbort(cause)) return
+      if (isAuthRequired(cause)) expireSession()
+      else setState({ kind: 'error', message: userMessage(cause) })
+    })
+    return () => { active = false; controller.abort() }
+  }, [userId, page, revision, expireSession])
+  return { state, reload }
+}
+```
+
+`AbortController` ขอหยุด Fetch เก่าเมื่อออกจากหน้า/เปลี่ยนหน้า และ `active` ป้องกันผลเก่ากลับมาทับ State ใหม่ Effect อาจเริ่มและ Cleanup เพิ่มใน Development StrictMode จึงต้องเขียนให้ Cleanup ได้จริง ไม่ปิด StrictMode เพื่อซ่อนปัญหา
+
+## ตัวอย่าง Code
+
+ไฟล์ `frontend/src/features/tasks/TaskPage.tsx` ประกอบ Form, List และคำสั่งแก้ไข:
+
+```tsx
+import { useEffect, useRef, useState } from 'react'
+import { TaskForm } from '../../components/TaskForm'
+import { isAbort, isAuthRequired, userMessage } from '../../services/api'
+import { useAuth } from '../auth/AuthProvider'
+import { createTask, deleteTask, updateTask } from './api'
+import { useTasks } from './useTasks'
+
+export function TaskPage({ userId }: { userId: number }) {
+  const { expireSession, logout } = useAuth()
+  const [page, setPage] = useState(1)
+  const { state, reload } = useTasks(userId, page, expireSession)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const mutation = useRef<AbortController | null>(null)
+  useEffect(() => () => mutation.current?.abort(), [])
+
+  async function mutate(work: (signal: AbortSignal) => Promise<unknown>) {
+    if (mutation.current) return
+    const controller = new AbortController()
+    mutation.current = controller
+    setBusy(true); setError('')
+    try {
+      await work(controller.signal)
+      if (!controller.signal.aborted) {
+        // กลับหน้าแรก ป้องกันเลขหน้าที่ไม่มีแล้วหลังลบ Task สุดท้าย
+        setPage(1); reload()
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted && isAuthRequired(cause)) expireSession()
+      throw cause
+    } finally {
+      mutation.current = null
+      if (!controller.signal.aborted) setBusy(false)
+    }
+  }
+  async function action(work: (signal: AbortSignal) => Promise<unknown>) {
+    try { await mutate(work) }
+    catch (cause) { if (!isAbort(cause)) setError(userMessage(cause)) }
+  }
+  async function signOut() {
+    setBusy(true); setError('')
+    try { await logout() }
+    catch (cause) { setError(userMessage(cause)) }
+    finally { setBusy(false) }
+  }
+
+  return <main>
+    <h1>งานของฉัน</h1>
+    <button disabled={busy} onClick={() => void signOut()}>ออกจากระบบ</button>
+    <TaskForm disabled={busy} onSubmit={async input => {
+      await mutate(signal => createTask(input, signal))
+    }} />
+    {error && <p role="alert">{error}</p>}
+    {state.kind === 'loading' && <p role="status">กำลังโหลดงาน…</p>}
+    {state.kind === 'error' && <div><p role="alert">{state.message}</p>
+      <button onClick={reload}>ลองโหลดใหม่</button></div>}
+    {state.kind === 'ready' && <>
+      {state.data.results.length === 0 ? <p>ยังไม่มีงาน ลองเพิ่มงานแรก</p> :
+        <ul>{state.data.results.map(task => <li key={task.id}>
+          <span>{task.title} — {task.status}</span>
+          <button disabled={busy || task.status === 'completed'} onClick={() =>
+            void action(signal => updateTask(task.id, { status: 'completed' }, signal))}>
+            ทำเสร็จแล้ว
+          </button>
+          <button disabled={busy} onClick={() => {
+            if (window.confirm(`ลบงาน “${task.title}” หรือไม่?`)) {
+              void action(signal => deleteTask(task.id, signal))
+            }
+          }}>ลบ</button>
+        </li>)}</ul>}
+      <button disabled={busy || page <= 1} onClick={() => setPage(value => value - 1)}>ก่อนหน้า</button>
+      <span> หน้า {page} </span>
+      <button disabled={busy || !state.data.next} onClick={() => setPage(value => value + 1)}>ถัดไป</button>
+    </>}
+  </main>
+}
+```
+
+หน้า List แยก Loading, Error, Empty และ Data ออกจากกัน คำสั่งที่ผู้ใช้กดอยู่ใน Event handler ไม่วาง POST ใน Effect ปุ่ม “ทำเสร็จแล้ว” คือการ Update ผ่าน PATCH ส่วนตัวอย่างเปลี่ยนชื่ออยู่ที่ [API service](/technology-guides/react-typescript/api-integration)
+
+## วิธีทดสอบ
+
+ใช้ Network throttling ทำให้โหลดช้า แล้วเปลี่ยนหน้า/ออกจากหน้า ผลเก่าต้องไม่ทับผู้ใช้ใหม่ ทดสอบไม่มี Task, API ล้มเหลว, Retry GET และสร้าง/ลบสำเร็จแล้ว List เปลี่ยนตาม Server
+
+## ข้อควรระวัง
+
+Abort ฝั่ง Browser ไม่รับประกันว่า Server ยกเลิกการเขียนแล้ว ถ้า Connection หลุดหลัง POST ให้ตรวจ List ก่อนส่งซ้ำ ตัวอย่างยังไม่มี Idempotency key ซึ่งเป็นรหัสช่วยกันคำขอเขียนซ้ำ
+
+## สรุปสิ่งที่ต้องจำ
+
+- State บอกว่าหน้าจอกำลังทำอะไร
+- Effect ที่โหลดข้อมูลต้องมี Cleanup
+- กดบันทึกใน Event handler ไม่ใช่ Effect
+- Retry GET ได้ตามความเหมาะสม ไม่ Retry การเขียนแบบไม่ตรวจผล
+
+## อ่านต่อ
+
+- [Components](/technology-guides/react-typescript/components)
+- [API Integration](/technology-guides/react-typescript/api-integration)
+- [React: Synchronizing with Effects](https://react.dev/learn/synchronizing-with-effects)

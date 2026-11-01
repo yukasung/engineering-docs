@@ -1,0 +1,110 @@
+---
+title: "ใช้ SDD กับ Claude Code"
+description: "ใช้ CLAUDE.md, Feature spec, Plan และ Validation เพื่อให้ Claude Code ทำงานในขอบเขตที่ทีมตรวจได้"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Claude Code": "current; UI และความสามารถอาจเปลี่ยน ให้ตรวจเอกสารทางการ"}
+---
+
+# ใช้ SDD กับ Claude Code
+
+## เรื่องนี้คืออะไร?
+
+Claude Code เป็น Coding agent ที่ทำงานกับ Repository ได้ คู่มือนี้อธิบายวิธีให้ Context ผ่าน `CLAUDE.md` และ Feature spec โดยใช้ Prompt ภาษาธรรมชาติ ไม่ผูกกับคำสั่งลัดที่อาจเปลี่ยนในอนาคต
+
+`CLAUDE.md` ใช้กับข้อตกลงถาวรของ Project ส่วน `requirements.md` และ `plan.md` ใช้กับ Feature ปัจจุบัน ทั้งสองอย่างต้องไม่ขัดกัน
+
+## ต้องเตรียมอะไร?
+
+- เปิด Claude Code ที่ Root ของ Repository ที่ถูกต้อง
+- มี Git working tree ที่ตรวจสถานะได้
+- มี `CLAUDE.md` หรือบอก Path ของ Project rules ที่ใช้อยู่
+- มี Requirements และ Acceptance criteria อย่างน้อยหนึ่งชุด
+- รู้คำสั่ง Lint, Test และ Build ของ Repository
+
+คู่มือนี้ไม่ติดตั้งหรือ Configure Claude Code ดูขั้นตอนปัจจุบันจาก [Claude Code setup](https://docs.anthropic.com/en/docs/claude-code/getting-started) และการใช้ `CLAUDE.md` จาก [Claude Code memory](https://code.claude.com/docs/en/memory)
+
+## ทำอย่างไร?
+
+1. ขอให้ Claude ตรวจ Working tree, `CLAUDE.md`, Project docs และ Feature spec แบบ Read-only
+2. ให้สรุป Requirements ที่เข้าใจ พร้อมคำถามและ Conflict
+3. ให้เสนอ Plan โดยระบุไฟล์, Tests, Migration และ Risks
+4. ให้ Human Review Spec และ Plan
+5. สั่ง Implement เฉพาะ Plan ที่ยืนยันแล้ว
+6. ให้รัน Validation commands ที่เหมาะสมและเทียบ Acceptance criteria
+7. ตรวจ Diff และผล Tests ก่อนเปิด Pull Request
+
+## Prompt ที่ใช้บ่อย
+
+### 1. Analyze requirements
+
+```text
+อ่าน CLAUDE.md และ docs/specs/task-creation/requirements.md แล้ว Inspect Repository แบบ Read-only
+สรุป Scope, Business rules, Acceptance criteria, จุดคลุมเครือ และผลกระทบที่ต้องตรวจ
+ยังไม่แก้ไฟล์ และอย่าเดาคำตอบของ Business rule
+```
+
+### 2. Create specification
+
+```text
+ช่วยร่าง requirements.md สำหรับ Task Creation จากข้อมูลที่ให้
+แยก Objective, Requirements, Business rules, Acceptance criteria, Edge cases และ Out of scope
+ระบุคำถามที่ยังต้องให้ Human ตอบ และยังไม่ Implement
+```
+
+### 3. Create implementation plan
+
+```text
+อ่าน CLAUDE.md, requirements.md และโค้ดที่เกี่ยวข้อง แล้วสร้าง plan.md
+ระบุไฟล์ที่จะเปลี่ยน ลำดับงาน Tests, Migration impact, Security risks และสิ่งที่ไม่แก้
+ยังไม่แก้ Production code
+```
+
+### 4. Implement approved plan
+
+```text
+Implement ตาม requirements.md และ plan.md ที่ Review แล้ว
+แก้เฉพาะ Scope นี้ อัปเดต Tests และรายงานทันทีถ้า Repository จริงขัดกับ Plan
+อย่าเปลี่ยน Requirement หรือแก้ไฟล์นอก Scope โดยไม่อธิบาย
+```
+
+### 5. Validate implementation
+
+```text
+ตรวจ Diff และรันคำสั่ง Validation ที่ระบุใน CLAUDE.md กับ plan.md
+เทียบผลทีละ Acceptance criterion แล้วอัปเดต validation.md ด้วยผลที่เกิดขึ้นจริง
+ห้ามอ้างว่าผ่านหากไม่ได้รันหรือไม่มีหลักฐาน
+```
+
+### 6. Review changes
+
+```text
+Review Diff นี้เทียบ requirements.md โดยเน้น Correctness, Authorization, Data integrity, Edge cases และ Tests
+รายงาน Finding ตามระดับความรุนแรง พร้อมไฟล์และเหตุผล
+อย่าแก้โค้ดจนกว่าจะยืนยัน Finding
+```
+
+## ตัวอย่างการใช้งานจริง
+
+สำหรับ Task Creation ให้เริ่มจากขอ Claude อ่าน Ownership rule ก่อน หาก Plan เสนอให้ Frontend ส่ง `user_id` แล้ว Backend เชื่อตาม ให้หยุด Review เพราะขัด Requirement ที่ผู้ใช้สร้าง Task ให้ตนเองเท่านั้น ดูตัวอย่างเต็มที่ [Task Creation](/development-workflow/spec-driven-development/task-creation-example)
+
+## ข้อควรระวัง
+
+- อย่าใส่ Secret, Token หรือข้อมูลผู้ใช้จริงใน Prompt หรือ Spec
+- อย่าถือว่า `CLAUDE.md` กับ `AGENTS.md` ถูกตีความเหมือนกัน
+- อย่าให้ผลสรุปของ Agent แทน Diff, Tests และ Human review
+- ตรวจ Documentation ปัจจุบันก่อนใช้งาน Feature หรือคำสั่งเฉพาะของ Claude Code
+
+## สรุป
+
+- ให้ Claude อ่านกติกาและ Spec ก่อน Plan
+- แยก Planning กับ Implementation ให้ Human มีจุดตรวจ
+- Validation ต้องอ้างผลจริงและ Acceptance criteria
+- ใช้ Prompt ภาษาธรรมชาติที่บอก Scope และสิ่งที่ห้ามทำชัดเจน
+
+## อ่านต่อ
+
+- [Prompt Templates](/development-workflow/spec-driven-development/prompts)
+- [ทำงานร่วมกัน](/development-workflow/spec-driven-development/collaboration)

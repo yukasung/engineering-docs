@@ -1,0 +1,208 @@
+---
+title: "Django Testing — ตรวจ Model API Session และสิทธิ์"
+description: "Django TestCase DRF APIClient และ CSRF tests ที่ไม่ข้ามขั้น Login"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Django Testing — ตรวจ Model API Session และสิทธิ์
+
+## เรื่องนี้คืออะไร?
+
+Tests คือคำสั่งตรวจผลที่คาดหวังซ้ำได้ Unit test เน้นส่วนเล็ก เช่นกติกาของ Model ส่วน Integration test ตรวจหลายส่วนร่วมกัน เช่น URL → Auth → Serializer → DB ไม่ใช้ Mock ทุกชั้นแล้วเรียกว่าได้ตรวจทั้งระบบ
+
+## ใช้เมื่อไร?
+
+ใช้ก่อนเปิด PR และทุกครั้งที่เปลี่ยน Contract/Auth/Permissions ตัวอย่างใช้ Django TestCase กับ DRF APIClient ไม่เพิ่ม Framework Python อีกชุด
+
+## ตัวอย่าง Code
+
+ต้องมีไฟล์ Backend ทุกบทและ Migration ของ `tasks` แล้ว ย้ายหรือลบ `tasks/tests.py` ว่างจาก Scaffold ก่อนใช้ Package `tasks/tests/` สร้าง `tasks/tests/__init__.py` ว่าง และกำหนด `TEST_PASSWORD` ผ่าน Environment เป็นค่าสุ่มสำหรับ Test เท่านั้น ห้ามใช้ Password ของผู้ใช้จริง Django สร้าง/ลบ Test database ตามการตั้งค่า จึงต้องยืนยันปลายทางและสิทธิ์ก่อนรัน
+
+```python filename="backend/tasks/tests/test_models.py"
+import os
+from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
+from django.test import TestCase
+from tasks.models import Task
+
+
+class TaskModelTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="model-demo", password=os.environ["TEST_PASSWORD"],
+        )
+
+    def test_defaults(self):
+        task = Task.objects.create(owner=self.user, title="อ่านคู่มือ")
+        self.assertEqual(task.status, "todo")
+        self.assertEqual(task.description, "")
+        self.assertIsNotNone(task.created_at)
+
+    def test_invalid_status_is_rejected_by_database(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Task.objects.create(owner=self.user, title="Bad", status="unknown")
+```
+
+API tests ต่อไปใช้ `force_authenticate()` เพื่อเน้น CRUD/สิทธิ์ **ไม่ได้ตรวจ Login หรือ CSRF**:
+
+```python filename="backend/tasks/tests/test_api.py"
+import os
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from rest_framework.test import APIClient
+from tasks.models import Task
+
+
+class TaskApiTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.alice = User.objects.create_user(username="alice", password=os.environ["TEST_PASSWORD"])
+        self.bob = User.objects.create_user(username="bob", password=os.environ["TEST_PASSWORD"])
+        self.task = Task.objects.create(owner=self.alice, title="Alice only")
+        self.client = APIClient()
+        self.client.force_authenticate(self.bob)
+
+    def test_list_is_owner_scoped_and_paginated(self):
+        response = self.client.get("/api/v1/tasks/", secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
+
+    def test_other_users_task_is_hidden_for_all_object_methods(self):
+        url = f"/api/v1/tasks/{self.task.pk}/"
+        for method in ["get", "patch", "delete"]:
+            response = getattr(self.client, method)(url, secure=True)
+            self.assertEqual(response.status_code, 404)
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.title, "Alice only")
+
+    def test_owner_is_assigned_by_server(self):
+        response = self.client.post("/api/v1/tasks/", {
+            "title": "Bob task", "owner": self.alice.pk,
+        }, format="json", secure=True)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["owner"], self.bob.pk)
+
+    def test_validation_envelope(self):
+        response = self.client.post("/api/v1/tasks/", {"title": "   "}, format="json", secure=True)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"]["code"], "VALIDATION_ERROR")
+        self.assertIn("title", response.data["error"]["details"])
+
+    def test_update_and_delete_own_task(self):
+        own = Task.objects.create(owner=self.bob, title="Bob")
+        url = f"/api/v1/tasks/{own.pk}/"
+        response = self.client.patch(url, {"status": "completed", "owner": self.alice.pk}, format="json", secure=True)
+        self.assertEqual(response.status_code, 200)
+        own.refresh_from_db()
+        self.assertEqual(own.status, "completed")
+        self.assertEqual(own.owner_id, self.bob.pk)
+        self.assertEqual(self.client.delete(url, secure=True).status_code, 204)
+```
+
+ชุด Auth เปิด `enforce_csrf_checks=True` และใช้ HTTPS request ใน Test client ให้ตรง Secure defaults ของ Settings:
+
+```python filename="backend/tasks/tests/test_auth.py"
+import os
+from django.contrib.auth import get_user_model
+from django.contrib.sessions.models import Session
+from django.test import TestCase
+from rest_framework.test import APIClient
+
+
+class SessionAuthTests(TestCase):
+    def setUp(self):
+        self.password = os.environ["TEST_PASSWORD"]
+        get_user_model().objects.create_user(username="session-demo", password=self.password)
+        self.client = APIClient(enforce_csrf_checks=True)
+        self.client.defaults["HTTP_ORIGIN"] = "https://testserver"
+
+    def token(self):
+        return self.client.get("/api/v1/auth/csrf/", secure=True).data["csrfToken"]
+
+    def login(self):
+        old = self.token()
+        response = self.client.post("/api/v1/auth/login/", {
+            "username": "session-demo", "password": self.password,
+        }, format="json", secure=True, HTTP_X_CSRFTOKEN=old)
+        self.assertEqual(response.status_code, 200)
+        return old, response.data["csrfToken"]
+
+    def test_anonymous_login_requires_csrf(self):
+        response = self.client.post("/api/v1/auth/login/", {
+            "username": "session-demo", "password": self.password,
+        }, format="json", secure=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"]["code"], "CSRF_FAILED")
+        self.assertEqual(Session.objects.count(), 0)
+
+    def test_bad_origin_is_rejected(self):
+        response = self.client.post("/api/v1/auth/login/", {
+            "username": "session-demo", "password": self.password,
+        }, format="json", secure=True, HTTP_X_CSRFTOKEN=self.token(),
+           HTTP_ORIGIN="https://untrusted.example.invalid")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["error"]["code"], "CSRF_FAILED")
+
+    def test_rotation_cookie_flags_and_authenticated_write(self):
+        old, new = self.login()
+        self.assertNotEqual(old, new)
+        for name in ["sessionid", "csrftoken"]:
+            cookie = self.client.cookies[name]
+            self.assertTrue(cookie["secure"])
+            self.assertTrue(cookie["httponly"])
+            self.assertEqual(cookie["samesite"], "Lax")
+        self.assertEqual(self.client.get("/api/v1/auth/me/", secure=True).status_code, 200)
+        rejected = self.client.post("/api/v1/tasks/", {"title": "Old token"}, format="json", secure=True, HTTP_X_CSRFTOKEN=old)
+        self.assertEqual(rejected.status_code, 403)
+        self.assertEqual(rejected.data["error"]["code"], "CSRF_FAILED")
+        accepted = self.client.post("/api/v1/tasks/", {"title": "New token"}, format="json", secure=True, HTTP_X_CSRFTOKEN=new)
+        self.assertEqual(accepted.status_code, 201)
+
+    def test_logout_requires_csrf_and_invalidates_session(self):
+        _, token = self.login()
+        self.assertEqual(self.client.post("/api/v1/auth/logout/", secure=True).status_code, 403)
+        response = self.client.post("/api/v1/auth/logout/", secure=True, HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(response.status_code, 204)
+        me = self.client.get("/api/v1/auth/me/", secure=True)
+        self.assertEqual(me.status_code, 403)
+        self.assertEqual(me.data["error"]["code"], "AUTHENTICATION_REQUIRED")
+
+    def test_deleted_session_is_not_authenticated(self):
+        self.login()
+        Session.objects.all().delete()  # เฉพาะ Test database ที่สร้างไว้ใน TestCase
+        response = self.client.get("/api/v1/auth/me/", secure=True)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["error"]["code"], "AUTHENTICATION_REQUIRED")
+```
+
+## วิธีทดสอบ
+
+รันใน Backend ทดลองที่ตั้ง Test DB แยกแล้ว:
+
+```bash
+python manage.py test tasks
+```
+
+เพิ่ม Tests สำหรับ Invalid credentials, Status filter ผิด, Pagination หลายหน้า, Handler 500 และการจำกัด Role เมื่อเพิ่มกติกา ชุดตัวอย่างไม่ใช่ Security coverage ครบ และ Test client ไม่ใช่ Browser ที่บังคับ Cookie/CORS เหมือนจริงทุกอย่าง ต้องตรวจ [Fullstack flow](/technology-guides/fullstack) บน Browser/HTTPS เป้าหมายเพิ่ม
+
+## ข้อควรระวัง
+
+อย่าให้ Tests ชี้ UAT/Production หรือส่งงานภายนอกจริง Test ที่ใช้ SQLite อาจตรวจ Auth/API logic ได้ แต่ไม่ยืนยัน SQL/Locks/Constraints ทุกอย่างของ PostgreSQL ต้องระบุ DB ที่รันจริงในผลตรวจ
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจทั้งกรณีสำเร็จและข้อมูล/สิทธิ์ที่ต้องถูกปฏิเสธ
+- force_authenticate ไม่ได้ทดสอบ Session flow
+- เปิด CSRF checks เมื่อทดสอบ Login/Unsafe methods
+- รายงาน DB/ขอบเขตที่รันทดสอบจริง
+
+## อ่านต่อ
+
+- [DRF testing](https://www.django-rest-framework.org/api-guide/testing/)
+- [React testing](/technology-guides/react-typescript/testing)

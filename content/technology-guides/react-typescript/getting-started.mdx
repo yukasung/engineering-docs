@@ -1,0 +1,130 @@
+---
+title: "React Getting Started — เตรียม Vite และ API proxy"
+description: "Vite React TypeScript strict พร้อมค่าตั้ง Local และ Dependencies ของตัวอย่างทดสอบ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# React Getting Started — เตรียม Vite และ API proxy
+
+## เรื่องนี้คืออะไร?
+
+Vite เป็นเครื่องมือเปิด Dev server และ Build หน้าเว็บ ตัวอย่างนี้เป็น React SPA หรือหน้าเว็บที่เปลี่ยนหน้าด้วย JavaScript ไม่ใช้โครงสร้าง Next.js ของ Hub มาเป็น Backend ของ Task App
+
+## ใช้เมื่อไร?
+
+ใช้เตรียม `frontend` ใต้ `task-reference` ที่แยกจาก Repository เอกสาร ต้องมี Node.js 22.22.2+ สำหรับชุด Dependencies/Tests ที่เลือก และ Backend ตามบท Django ที่ `127.0.0.1:8000`
+
+## ตัวอย่าง Code
+
+สร้าง `frontend/` และไฟล์ตามโครงสร้างบทถัดไป Manifest นี้เป็นของ **ตัวอย่าง** ไม่แทน package.json ของ Hub:
+
+```json filename="frontend/package.json"
+{
+  "name": "task-reference-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev":"vite", "build":"tsc --noEmit && vite build", "test":"vitest run"},
+  "dependencies": {"react":"19.3.1", "react-dom":"19.3.1", "react-router-dom":"7.18.5"},
+  "devDependencies": {
+    "@types/react":"19.3.0", "@types/react-dom":"19.3.0", "@types/node":"22.20.5",
+    "typescript":"6.0.3", "vite":"8.3.5", "vitest":"5.0.5", "jsdom":"30.1.3",
+    "@testing-library/react":"16.3.3", "@testing-library/dom":"10.4.1"
+  }
+}
+```
+
+```json filename="frontend/tsconfig.json"
+{
+  "compilerOptions": {
+    "target":"ES2022", "lib":["ES2022","DOM","DOM.Iterable"],
+    "module":"ESNext", "moduleResolution":"Bundler", "jsx":"react-jsx",
+    "strict":true, "noEmit":true, "skipLibCheck":true,
+    "types":["vite/client","node"]
+  },
+  "include":["src","vite.config.ts","vitest.config.ts"]
+}
+```
+
+```typescript filename="frontend/vite.config.ts"
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  server: {
+    host: 'localhost', port: 5173, strictPort: true,
+    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } }
+  }
+})
+```
+
+Browser เรียก `/api/v1` ที่ `localhost:5173` แล้ว Vite ส่งต่อให้ Django ไม่ใส่ localhost ในทุก Component Proxy นี้ใช้ **Dev เท่านั้น** Production ต้องมี Reverse proxy/เส้นทาง API ที่ตั้งจริง
+
+```dotenv filename="frontend/.env.example"
+VITE_API_BASE_URL=/api/v1
+```
+
+ค่าที่ขึ้นต้น `VITE_` เป็นข้อมูลสาธารณะและมักฝังตอน Build ห้ามใส่ Secret ถ้าต้องเลื่อน Image เดิมระหว่าง Environment ให้ใช้ Relative URL หลัง Proxy หรือ Runtime configuration ที่ออกแบบไว้ ไม่ Build URLs ต่างกันแล้วอ้างว่า Artifact เดิม
+
+```html filename="frontend/index.html"
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Reference</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+```tsx filename="frontend/src/main.tsx"
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
+import { AuthProvider } from './features/auth/AuthProvider'
+import { App } from './app/App'
+
+const root = document.getElementById('root')
+if (!root) throw new Error('Missing root element')
+createRoot(root).render(
+  <StrictMode><BrowserRouter><AuthProvider><App /></AuthProvider></BrowserRouter></StrictMode>
+)
+```
+
+ต้องเพิ่มไฟล์จากบท Components/Hooks/API/Auth/Error Handling ให้ครบก่อน Build ดู [รายการไฟล์](/technology-guides/react-typescript/project-structure) จากนั้นรันเฉพาะในโฟลเดอร์ Frontend ทดลอง:
+
+```bash
+npm install
+npm run build
+npm test
+npm run dev
+```
+
+Commit `package-lock.json` ที่ได้ แล้วใช้ `npm ci` สำหรับติดตั้งรอบถัดไป อย่ารัน `npm install` ทุกครั้งที่ Promote Release โดยไม่ตรวจ Lock
+
+## วิธีทดสอบ
+
+เปิด `http://localhost:5173` ดู Network ว่าคำขอ `/api/v1` ถูก Proxy และ Django มี Local trusted origin ตามคู่มือ ทดสอบทั้ง Login/CSRF และ HTTP 500 ไม่ดูแค่ Build ผ่าน
+
+## ข้อควรระวัง
+
+`localhost` กับ `127.0.0.1` เป็นคนละ Host สำหรับ Cookies ใช้ Origin ที่ตกลงให้สม่ำเสมอ อย่าเปิด Dev server สู่ Public เพื่อทดสอบ และอย่าเปิด CORS wildcard เพื่อแก้ Proxy ที่ตั้งผิด
+
+## สรุปสิ่งที่ต้องจำ
+
+- Vite project แยกจาก Hub และต้องมีไฟล์ครบ
+- เก็บ API Base ที่เดียวและใช้ Dev proxy
+- VITE variables เป็น Public ไม่ใช่ที่เก็บ Secret
+- Lock Dependencies และตรวจ Flow ใน Browser เพิ่ม
+
+## อ่านต่อ
+
+- [Project Structure](/technology-guides/react-typescript/project-structure)
+- [Vite server proxy](https://vite.dev/config/server-options#server-proxy)

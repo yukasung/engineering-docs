@@ -1,0 +1,104 @@
+---
+title: "Reusable Prompt Templates"
+description: "Prompt สั้นพร้อมใช้สำหรับร่าง Review วาง Plan Implement Validate และแก้ Findings ตาม Spec"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Claude Code": "Prompt ภาษาธรรมชาติ", "OpenAI Codex": "Prompt ภาษาธรรมชาติ"}
+---
+
+# Reusable Prompt Templates
+
+## เรื่องนี้คืออะไร?
+
+Template เหล่านี้ใช้ได้กับ Claude Code และ Codex โดยเปลี่ยนชื่อ Instruction file และ Spec path ให้ตรง Repository ทุก Prompt บังคับให้ Inspect ของจริง จำกัด Scope และรายงานผลตรวจ ไม่พึ่ง Command หรือ Model เฉพาะ
+
+## 1. Draft Requirements
+
+```text
+อ่าน [AGENTS.md หรือ CLAUDE.md] และ Inspect Repository แบบ Read-only
+ร่าง [SPEC_PATH]/requirements.md สำหรับ [FEATURE]
+ระบุ Objective, Users, Functional requirements, Business rules, Acceptance criteria,
+Edge cases, Security/Data impact และ Out of scope
+แยกคำถามที่ต้องให้ Human ตอบ ห้าม Implement หรือแก้ไฟล์นอก Spec
+สรุปไฟล์ที่สร้างและข้อที่ยังไม่ยืนยันแบบกระชับ
+```
+
+## 2. Review Requirements
+
+```text
+อ่าน [INSTRUCTION_FILE] และ [SPEC_PATH]/requirements.md
+Review ความชัดเจน ความขัดแย้ง Acceptance criteria, Edge cases, Authorization,
+Data integrity และ Scope โดยอ้าง Repository จริงเมื่อเกี่ยวข้อง
+ยังไม่แก้ Requirement ให้รายงาน Finding และคำถามตามความสำคัญ
+สรุปว่าพร้อมทำ Plan หรือยัง พร้อมเหตุผล
+```
+
+## 3. Create Implementation Plan
+
+```text
+อ่าน [INSTRUCTION_FILE], requirements.md และ Inspect โค้ดที่เกี่ยวข้อง
+สร้าง [SPEC_PATH]/plan.md โดยระบุไฟล์ ลำดับงาน Dependencies, Tests,
+Migration/Deployment impact, Risks และ Validation commands
+อย่า Implement และอย่าเพิ่มงานนอก Acceptance criteria
+สรุป Plan และ Blocker แบบกระชับ
+```
+
+## 4. Implement Feature
+
+```text
+อ่าน [INSTRUCTION_FILE], requirements.md และ plan.md ที่ Review แล้ว
+Implement [FEATURE] เฉพาะ Scope ที่ระบุ พร้อม Tests
+อย่าเปลี่ยน Requirement หรือแก้ Unrelated files เงียบ ๆ
+ถ้าพบ Conflict สำคัญให้หยุดและขอคำตอบ
+รัน Checks ที่เกี่ยวข้อง แล้วสรุปไฟล์ที่เปลี่ยน ผลตรวจ และ Known limitations
+```
+
+## 5. Validate Against Spec
+
+```text
+อ่าน [INSTRUCTION_FILE], requirements.md, plan.md และ Diff ปัจจุบัน
+รัน Validation commands ที่ Repository รองรับ แล้วเทียบทีละ Acceptance criterion
+อัปเดต validation.md ด้วยคำสั่งและผลจริง ระบุสิ่งที่ไม่ได้ทดสอบ
+ห้ามอ้างว่าผ่านจากการอ่านโค้ดเพียงอย่างเดียว
+สรุป Pass/Fail/Blocked และหลักฐานแบบกระชับ
+```
+
+## 6. Review Pull Request
+
+```text
+Review PR/Diff เทียบ [INSTRUCTION_FILE] และ [SPEC_PATH]/requirements.md
+เน้น Bug, Regression, Authorization, Data integrity, Migration safety และ Tests ที่ขาด
+ไม่แก้โค้ดในรอบนี้ รายงานเฉพาะ Finding ที่ทำซ้ำได้ พร้อมไฟล์ ผลกระทบ และเหตุผล
+แยกสิ่งที่ตรวจไม่ได้ แล้วสรุปความเสี่ยงคงเหลือ
+```
+
+## 7. Fix Review Findings
+
+```text
+อ่าน [INSTRUCTION_FILE], Spec และ Review findings ที่ Human ยืนยันแล้ว
+แก้เฉพาะ Finding หมายเลข [IDS] พร้อมเพิ่มหรือแก้ Tests ที่พิสูจน์ปัญหา
+อย่ารับ Finding อื่นหรือเปลี่ยน Scope โดยอัตโนมัติ
+รัน Checks ที่เกี่ยวข้อง แล้วสรุปการแก้ ผลตรวจ และสิ่งที่ยังค้าง
+```
+
+## วิธีใช้ให้ได้ผล
+
+- แทน Placeholder เช่น `[SPEC_PATH]` ด้วย Path จริง
+- ให้ Agent อ่านเฉพาะไฟล์ที่เกี่ยวข้องก่อน ไม่ส่ง Secret หรือข้อมูลจริง
+- บอกชัดว่าเป็น Planning, Implementation หรือ Review
+- ระบุคำสั่งตรวจจาก Repository แทนคำว่า “ทดสอบให้ครบ”
+- Human ต้อง Review Output ก่อนใช้เป็น Decision หรือ Merge
+
+## สรุป
+
+- Prompt ที่ดีระบุ Context, Scope, Output และ Validation
+- ใช้ Spec path เดียวกันตลอด Workflow
+- แยก Review จาก Fix เพื่อให้ Human ยืนยัน Finding
+- ขอผลจริง ไม่ขอคำรับรองกว้าง ๆ ว่า “เรียบร้อย”
+
+## อ่านต่อ
+
+- [ใช้กับ Claude Code](/development-workflow/spec-driven-development/claude-code)
+- [ใช้กับ Codex](/development-workflow/spec-driven-development/codex)

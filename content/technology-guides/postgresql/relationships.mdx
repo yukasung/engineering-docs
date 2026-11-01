@@ -1,0 +1,76 @@
+---
+title: "Relationships — เชื่อมตารางด้วยรหัส"
+description: "One-to-one One-to-many Many-to-many และ JOIN จาก Schema ระบบสั่งซื้อ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# Relationships — เชื่อมตารางด้วยรหัส
+
+## เรื่องนี้คืออะไร?
+
+Relationship คือความสัมพันธ์ของข้อมูล เช่นลูกค้าหนึ่งคนสั่งซื้อได้หลายครั้ง เราเก็บรหัสอ้างอิงแทนการพิมพ์ข้อมูลลูกค้าซ้ำทุก Order แล้วใช้ JOIN เมื่อต้องอ่านร่วมกัน
+
+## ใช้เมื่อไร?
+
+ใช้ตอนกำหนด Foreign Key หรือเขียนหน้ารายการ Order และรายงานยอดขาย ต้องรู้ว่าคำถามนั้นต้องการหนึ่งแถวต่อ Order หรือต่อรายการสินค้า
+
+## ทำอย่างไร?
+
+ใช้ Schema/Seed จาก [Database Design](/technology-guides/postgresql/database-design) ก่อน บทนี้ไม่สร้างตารางซ้ำ
+
+| ความสัมพันธ์ | ความหมาย/ตัวอย่าง |
+| --- | --- |
+| One-to-one | หนึ่งฝั่งมีได้ไม่เกินหนึ่งแถวที่สัมพันธ์กัน ใช้ FK ร่วมกับ UNIQUE; Lab นี้ยังไม่มีความจำเป็นจึงไม่เพิ่มตาราง |
+| One-to-many | `customers` หนึ่งคน → `orders` หลายใบ โดย FK อยู่ที่ Orders |
+| Many-to-many | Orders หลายใบ ↔ Products หลายชิ้น ผ่าน `order_items` ซึ่งเก็บจำนวน/ราคาได้ด้วย |
+
+PK ของ `order_items` คือ `(order_id, product_id)` จึงให้สินค้าหนึ่งตัวปรากฏหนึ่งรายการต่อ Order หากธุรกิจต้องให้ SKU เดียวอยู่หลายบรรทัดเพราะส่วนลด/ล็อต ต้องเปลี่ยนกติกา Key ก่อน ไม่ฝืนข้อมูลให้เข้ากับ Lab
+
+### 1. อ่านรายการของแต่ละ Order
+
+```sql filename="relationship-queries.sql"
+SELECT o.id AS order_id, c.email, p.sku,
+       oi.quantity, oi.unit_price,
+       oi.quantity * oi.unit_price AS line_total_thb
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+ORDER BY o.id, p.sku;
+
+SELECT c.email, COUNT(o.id) AS order_count
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.email
+ORDER BY c.email;
+```
+
+Query แรกให้หนึ่งแถวต่อรายการสินค้า ไม่ใช่ต่อ Order ส่วน `LEFT JOIN` ใน Query สองยังแสดงลูกค้าที่ไม่มี Order และ `COUNT(o.id)` จะนับเป็น 0 ไม่ใช้ `COUNT(*)` ซึ่งอาจนับแถวฝั่งลูกค้าด้วย
+
+### 2. ตั้งพฤติกรรมตอนลบ
+
+Lab ใช้ `ON DELETE RESTRICT` ให้ DB ปฏิเสธการลบลูกค้า/สินค้า/Order ที่ถูกอ้างอยู่ เพื่อรักษาประวัติ ถ้าต้องปิดขายสินค้าให้ตั้ง `active=false` ผ่านขั้นตอนที่ควบคุม ไม่ลบทิ้งเพื่อให้หายจากหน้าเว็บ และไม่เปลี่ยนเป็น CASCADE ทุก FK เพื่อเลี่ยง Error
+
+## ตัวอย่างการใช้งานจริง
+
+หลัง Seed ลูกค้า `demo@example.invalid` มี Order หนึ่งใบ ส่วน `second@example.invalid` ยังมีศูนย์ใบ หน้าลูกค้าควรใช้ LEFT JOIN ถ้าต้องแสดงทั้งสองคน แต่หน้ารายการสินค้าที่สั่งซื้อใช้ JOIN ปกติได้
+
+## ข้อควรระวัง
+
+การ JOIN หลายตารางแบบ One-to-many อาจคูณจำนวนแถว เช่น Join Order items กับหลาย Movements แล้ว SUM ราคาอาจได้ยอดซ้ำ ให้รวมยอดแต่ละด้านก่อนแล้วค่อย Join หรือเลือกเฉพาะข้อมูลที่ต้องการ ไม่ใช้ `DISTINCT` ปิดอาการโดยยังไม่รู้สาเหตุ
+
+## สรุป
+
+- FK อยู่ฝั่งที่อ้างถึงข้อมูลอีกตาราง
+- Many-to-many ใช้ตารางกลางที่มี Key/ข้อมูลของความสัมพันธ์
+- เลือก JOIN ตามว่าต้องเก็บแถวที่ยังไม่มีข้อมูลอีกฝั่งหรือไม่
+- ระวังแถวเพิ่มจากการ Join แล้วรวมยอดซ้ำ
+
+## อ่านต่อ
+
+- [Constraints](/technology-guides/postgresql/constraints)
+- [SQL joins](https://www.postgresql.org/docs/17/queries-table-expressions.html)

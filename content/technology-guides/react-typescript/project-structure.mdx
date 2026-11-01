@@ -1,0 +1,71 @@
+---
+title: "React Project Structure — แยก UI ข้อมูล และ API"
+description: "จัดโฟลเดอร์ตามหน้าที่และ Feature โดยใช้ Local state ก่อน Global state library"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# React Project Structure — แยก UI ข้อมูล และ API
+
+## เรื่องนี้คืออะไร?
+
+โครงสร้างโปรเจกต์ช่วยให้ตามงานจากหน้าจอไป API ได้ง่าย ไม่ได้ทำให้โค้ดดีเพียงเพราะมีหลายโฟลเดอร์ เริ่มจากส่วนที่มีงานจริงแล้วค่อยแยกเมื่อใหญ่ขึ้น
+
+## ใช้เมื่อไร?
+
+ใช้เพิ่ม Login/Task หรือ Review ว่า Components กำลังทำหน้าที่มากเกินไปหรือไม่
+
+## ตัวอย่าง Code
+
+```text
+frontend/src/
+├── app/
+│   ├── App.tsx
+│   └── RequireAuth.tsx
+├── components/TaskForm.tsx
+├── features/
+│   ├── auth/
+│   │   ├── AuthProvider.tsx
+│   │   └── LoginForm.tsx
+│   └── tasks/
+│       ├── api.ts
+│       ├── useTasks.ts
+│       └── TaskPage.tsx
+├── hooks/                 ← เพิ่มเมื่อมี Hook ที่หลาย Features ใช้จริง
+├── services/api.ts
+├── types/
+│   ├── task.ts
+│   └── auth.ts
+└── main.tsx
+```
+
+`app` วาง Routing/ขอบเขตแอป; `components` เป็น UI ที่ใช้ซ้ำ; `features` รวมหน้าจอกับ Logic ของงาน; `services` ดูแล HTTP ที่ใช้ร่วมกัน; `types` เก็บชนิด/Runtime parser ของ Contract ส่วน `hooks/` ไม่ต้องมีไฟล์เปล่าเผื่อทุกเรื่อง `useTasks` อยู่กับ Feature จนกว่าจะมีเหตุผลให้ใช้ร่วม
+
+### Props, State และ Pages
+
+**Props** คือข้อมูล/Callback ที่ส่งเข้า Component ส่วน **State** คือค่าที่เปลี่ยนแล้ว React แสดงผลใหม่ เช่น Title ในฟอร์ม Page เป็น Component ที่ประกอบหลายส่วนให้ตรง URL ไม่ใช่ชั้น Business logic ของ Backend
+
+Form fields กับการเปิด/ปิดข้อความใช้ Local state ได้ Auth context ใช้แชร์ผู้ใช้ปัจจุบันระหว่างหน้า ส่วน Tasks เป็น Server data ที่โหลดตาม User/Page ไม่ย้ายทุกอย่างเข้า Context เดียวหรือเพิ่ม Redux ก่อนมีปัญหาจริง
+
+## วิธีทดสอบ
+
+ตามเส้นทาง TaskPage → useTasks → tasks/api → services/api → Django URL ได้ ตรวจว่า Task/User types ตรง [Contract](/technology-guides/fullstack) และไม่ Import Database access เข้าหน้าเว็บ
+
+## ข้อควรระวัง
+
+อย่าสร้าง Type ซ้ำในทุก Component จน Fields ไม่ตรงกัน และอย่าแก้ Array ใน State ตรง ๆ ให้ใช้ Setter/ข้อมูลใหม่หรือโหลดผลล่าสุดจาก Server ตาม Flow ที่เลือก
+
+## สรุปสิ่งที่ต้องจำ
+
+- แยกตามหน้าที่และ Feature ที่มีงานจริง
+- Props ส่งข้อมูล State ดูแลสิ่งที่เปลี่ยนบน UI
+- Local state พอสำหรับ Form/หน้าจอเล็ก
+
+## อ่านต่อ
+
+- [Components](/technology-guides/react-typescript/components)
+- [Hooks](/technology-guides/react-typescript/hooks)
+- [React managing state](https://react.dev/learn/managing-state)

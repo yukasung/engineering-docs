@@ -1,0 +1,64 @@
+---
+title: "PostgreSQL — ออกแบบข้อมูล เปลี่ยนอย่างปลอดภัย และกู้คืนได้"
+description: "คู่มือเริ่มต้น PostgreSQL ด้วยระบบสั่งซื้อ ครอบคลุม Design Transactions Migrations และ Backup Restore"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"PostgreSQL": "17 (SQL และเครื่องมือใน Lab)"}
+---
+
+# PostgreSQL — ออกแบบข้อมูล เปลี่ยนอย่างปลอดภัย และกู้คืนได้
+
+## เรื่องนี้คืออะไร?
+
+PostgreSQL คือระบบจัดเก็บข้อมูลแบบตารางที่เชื่อมกันได้ คู่มือนี้ใช้ **Order Management System** หรือระบบสั่งซื้อเป็นตัวอย่างเดียว เพื่อให้เห็นตั้งแต่ออกแบบตารางจนถึงกู้ข้อมูลกลับมา
+
+เนื้อหาเน้น 4 เรื่อง: Database Design, Transactions, Database Migration และ Backup & Restore ใช้ภาษาไทยและ SQL ที่คัดลอกไปทดลองได้ โดยต้องอ่านเงื่อนไขของแต่ละตัวอย่างก่อน
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อเริ่มเขียน API ที่เก็บข้อมูล ต้องเปลี่ยนโครงสร้างข้อมูล ตรวจปัญหาสต็อก หรือเตรียมแผน Backup ให้ทีม ไม่จำเป็นต้องอ่านทุกบทในครั้งเดียว
+
+## ทำอย่างไร?
+
+1. อ่าน [Getting Started](/technology-guides/postgresql/getting-started) เพื่อเข้าใจคำพื้นฐานและการเชื่อมด้วย DBeaver
+2. ถ้ายังไม่มีฐานทดลอง ดู [PostgreSQL with Docker](/technology-guides/postgresql/postgresql-docker) แยกจากฐานของแอปอื่น
+3. ใช้ [Database Design](/technology-guides/postgresql/database-design) เป็นแหล่งเดียวของ `schema.sql` กับ `seed.sql` แล้วอ่าน [Relationships](/technology-guides/postgresql/relationships), [Constraints](/technology-guides/postgresql/constraints) และ [Indexes](/technology-guides/postgresql/indexes)
+4. ทดลอง [Transactions](/technology-guides/postgresql/transactions) และ [Concurrency](/technology-guides/postgresql/concurrency) เพื่อไม่ให้ขายเกินสต็อก
+5. อ่าน [Migrations](/technology-guides/postgresql/migrations) และ [Data Migrations](/technology-guides/postgresql/data-migrations) ก่อนเปลี่ยนข้อมูลร่วม
+6. ทำความเข้าใจ [Backup & Restore](/technology-guides/postgresql/backup-restore) และวิธีตรวจหลัง Restore ก่อนรับรองว่ากู้ได้
+
+ค้นเร็วได้ที่ [Quick Reference](/technology-guides/postgresql/quick-reference) และ [Troubleshooting](/technology-guides/postgresql/troubleshooting)
+
+## ตัวอย่างการใช้งานจริง
+
+ลูกค้าสั่งสินค้า ระบบต้องสร้าง Order, เก็บรายการและราคาขณะซื้อ, หักสต็อก และบันทึกความเคลื่อนไหวให้สำเร็จพร้อมกัน ถ้าสินค้าไม่พอ งานทั้งชุดต้องยกเลิก ไม่ทิ้ง Order ที่ไม่สมบูรณ์ไว้
+
+| ตาราง | เก็บอะไร |
+| --- | --- |
+| `customers` | ข้อมูลลูกค้า |
+| `products` | สินค้า ราคา และสต็อกปัจจุบัน |
+| `orders` | หัวรายการสั่งซื้อและสถานะ |
+| `order_items` | สินค้า จำนวน และราคาขณะสั่งซื้อ |
+| `inventory_movements` | จำนวนที่เพิ่ม/ลดจากสต็อก พร้อมเหตุผล |
+
+Lab ใช้สกุลเงิน THB, หักสต็อกเมื่อยืนยัน Order และไม่มีกระบวนการชำระเงิน/คืนสินค้าครบระบบ การออกแบบจริงต้องกำหนดกติกาส่วนที่เหลือก่อนใช้
+
+## ข้อควรระวัง
+
+ตัวอย่างอยู่ใน MDX เท่านั้น ไม่ได้เพิ่มฐานข้อมูลหรือ Backend ให้ Engineering Hub ใช้ฐานทดลองที่ว่างและมีสิทธิ์จัดการเอง **ห้ามรันตัวอย่างเปลี่ยนข้อมูลกับฐานของโปรเจกต์เดิม** ชื่อฐาน Lab คือ `order_lab` และชื่อ `order_lab_restore` สงวนไว้สำหรับฐานกู้คืนที่สร้างใหม่
+
+ฐาน PostgreSQL นี้เป็น Order Lab คนละตัวอย่างกับ Task App ในหมวด Docker ไม่คัดลอก Schema ไปทับ `task_demo` ส่วนกฎ Review/Approval ในเอกสารเป็นแนวทาง ต้องกำหนดผู้รับผิดชอบของโปรเจกต์จริง
+
+## สรุป
+
+- ใช้ Schema 5 ตารางชุดเดียวตลอดคู่มือ
+- เก็บการเปลี่ยนข้อมูลที่ต้องสำเร็จร่วมกันใน Transaction
+- เปลี่ยน Schema/ข้อมูลผ่าน Migration ที่ตรวจแล้ว
+- Backup ต้อง Restore และตรวจข้อมูลได้จริง
+
+## อ่านต่อ
+
+- [Overview](/)
+- [PostgreSQL tutorial](https://www.postgresql.org/docs/17/tutorial.html)

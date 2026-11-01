@@ -1,0 +1,89 @@
+---
+title: "Processes & Services — หาโปรแกรมที่รันและตรวจ Service"
+description: "PID Signals systemd status reload restart enable และความต่างจาก Docker/Kubernetes"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Processes & Services — หาโปรแกรมที่รันและตรวจ Service
+
+## เรื่องนี้คืออะไร?
+
+Process คือโปรแกรมที่กำลังทำงาน มีหมายเลข PID ส่วน Service คือหน่วยงานที่ระบบจัดการให้ เช่น เริ่มตอน Boot และเก็บ Logs systemd เป็นตัวจัดการ Service ที่ Ubuntu Server ใช้ ไม่ใช่ทุก Process จะเป็น systemd service
+
+## ทำอย่างไร?
+
+### หา Process โดยไม่พ่น Arguments ลับ
+
+```bash
+ps -p 1 -o pid,comm
+ps -eo pid,ppid,user,comm,%cpu,%mem --sort=-%cpu | head -n 11
+```
+
+PID 1 ช่วยดูตัวเริ่มระบบ บน Container อาจเป็นโปรแกรมแอปเอง ส่วนตารางเรียง CPU เพื่อเริ่มหาความผิดปกติ `comm` แสดงชื่อโปรแกรมแทน Command arguments ที่อาจมี Credential %CPU/%MEM เป็นข้อมูลช่วง/ฐานคำนวณของเครื่องมือ ไม่ใช่ผล Load test
+
+### ลองหยุด Process ของตัวเอง
+
+ใช้ใน Bash ของ Lab เท่านั้น sleep จำลองงานที่รอ 60 วินาที ไม่ส่ง Signal ให้ PID ของแอปจริง:
+
+```bash
+sleep 60 &
+linux_demo_pid=$!
+ps -p "$linux_demo_pid" -o pid,comm
+kill -TERM "$linux_demo_pid"
+```
+
+& เริ่มงาน Background, $! คือ PID ของงานนั้น และ TERM ขอให้หยุดอย่างจัดการ Cleanup ได้ โปรแกรมต้องเขียนให้ตอบสนองเอง `kill` ไม่ได้แปลว่า Force kill ทุกครั้ง ไม่ใช้ SIGKILL (-9) เป็นตัวเลือกแรกเพราะโปรแกรมไม่มีโอกาสปิดงาน/Flush ข้อมูลตามปกติ
+
+### ตรวจ systemd Service
+
+ต้องเป็น Host/VM ที่ systemd รันจริง และมี Unit นั้นอยู่ ตัวอย่างใช้ nginx.service ซึ่ง **คู่มือนี้ไม่ได้ติดตั้งหรือสร้างให้**:
+
+```bash
+systemctl list-units --type=service --state=running --no-pager
+systemctl status nginx.service --no-pager --lines=20
+systemctl is-active nginx.service
+systemctl is-enabled nginx.service
+```
+
+status ดู State และ Log ท้าย ๆ; is-active ดูตอนนี้; is-enabled ดูการตั้งเริ่มอัตโนมัติ ทั้งสองอย่างไม่เท่ากัน และ Exit non-zero อาจหมายถึง Inactive/Not found ไม่ใช่ Shell เสีย `active (exited)` อาจเป็นงานแบบจบแล้ว ไม่ใช่ Web process ที่กำลังรับ Traffic
+
+## ใช้ reload หรือ restart เมื่อไร?
+
+| คำสั่ง | ผล |
+| --- | --- |
+| reload | ขอ Service อ่าน Config ใหม่ ถ้ารองรับ |
+| restart | หยุดแล้วเริ่มใหม่ อาจกระทบคำขอที่กำลังทำงาน |
+| enable | ตั้งให้เริ่มตาม Boot/Dependencies ไม่ได้ Start ทันทีเสมอ |
+| daemon-reload | ให้ systemd อ่าน Unit files ใหม่ ไม่ใช่ Reload Config ของ Nginx |
+
+ตัวอย่างเมื่อมี Nginx จริง แก้ Config ผ่านกระบวนการที่ Review แล้ว และได้รับอนุญาตให้เปลี่ยน Service:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx.service
+systemctl status nginx.service --no-pager --lines=20
+```
+
+**รันทีละบรรทัด และหยุดหาก nginx -t ไม่ผ่าน** การตรวจ Syntax ผ่านยังไม่ยืนยัน Proxy upstream/เส้นทางผู้ใช้ ถ้าจะ Restart ต้องดูผลกระทบและขั้นตอนของ Runbook ก่อน ไม่ Restart backend/db ทุกตัวเพื่อเดาสาเหตุ
+
+## Docker กับ Kubernetes ต่างจากนี้อย่างไร?
+
+ถ้าแอปรันใน Container ให้ตรวจด้วย Compose หรือ kubectl ตาม Runtime การที่ Docker daemon active ไม่ยืนยัน Backend container พร้อม และ systemctl ภายใน Pod มักใช้ไม่ได้เพราะไม่ได้รัน systemd เป็น PID 1 อย่าติดตั้ง systemd ใน Container เพียงเพื่อให้คำสั่งเดียวกันใช้ได้
+
+## สรุปสิ่งที่ต้องจำ
+
+- PID ระบุ Process ส่วน Service manager ดูแล Lifecycle
+- ตรวจ Log/State ก่อนส่ง Signal หรือ Restart
+- enable ต่างจาก active และ daemon-reload ต่างจาก reload
+- ใช้เครื่องมือให้ตรง Host/Compose/Pod
+
+## อ่านต่อ
+
+- [Logs & Resources](/technology-guides/linux/logs-and-resources)
+- [Docker Troubleshooting](/technology-guides/docker/troubleshooting)
+- [Kubernetes Troubleshooting](/technology-guides/kubernetes/troubleshooting)
+- [systemctl 255 reference](https://manpages.ubuntu.com/manpages/noble/man1/systemctl.1.html)

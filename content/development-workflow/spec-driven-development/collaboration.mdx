@@ -1,0 +1,83 @@
+---
+title: "ใช้ Claude Code และ Codex ร่วมกัน"
+description: "แบ่ง Ownership, Branch และ Review เมื่อต้องใช้ Coding agent มากกว่าหนึ่งตัว"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Claude Code": "current; ตรวจเอกสารทางการ", "OpenAI Codex": "current; ตรวจเอกสารทางการ", "Git": "2.39+"}
+---
+
+# ใช้ Claude Code และ Codex ร่วมกัน
+
+## เรื่องนี้คืออะไร?
+
+การใช้ Agent สองตัวมีประโยชน์เมื่อให้ตัวหนึ่ง Implement และอีกตัว Review จาก Spec เดียวกัน ความเห็นที่ต่างกันเป็นข้อมูลให้ Human ตรวจ ไม่ใช่เหตุผลให้รับทุกข้อเสนอหรือให้ Agent แก้แข่งกัน
+
+## รูปแบบการทำงาน
+
+### Option A — Single Agent
+
+Agent ตัวเดียว Plan และ Implement จากนั้น Human ตรวจ Diff และผล Tests เหมาะกับ Small change ที่ขอบเขตชัด
+
+### Option B — Claude Code Implements, Codex Reviews
+
+1. Claude Code วิเคราะห์ Requirements
+2. Human อนุมัติ Spec และ Plan
+3. Claude Code Implement และรัน Tests
+4. Codex Review Diff เทียบ Spec
+5. Human ตัดสิน Findings
+6. Claude Code แก้เฉพาะ Finding ที่ยืนยันแล้ว
+7. รัน Tests และ Review ซ้ำ
+
+### Option C — Codex Implements, Claude Code Reviews
+
+ใช้ลำดับเดียวกันแต่สลับผู้ Implement และ Reviewer Agent ที่ Review ควรได้รับ Spec, Diff และผล Tests ไม่ควรได้รับเพียงสรุปจาก Implementer
+
+## แบ่งงานอย่างปลอดภัย
+
+| เรื่อง | กติกาแนะนำ |
+| --- | --- |
+| Task ownership | ระบุ Agent/คนที่แก้แต่ละ Scope |
+| Working tree | Agent เดียวแก้ Working tree หนึ่งชุดในเวลาเดียวกัน |
+| Parallel work | ใช้คนละ Branch หรือ Git worktree |
+| Source of truth | ใช้ Requirements และ Plan ชุดเดียว |
+| Review | Human ตรวจ Finding ก่อนสั่งแก้ |
+| Merge | ใช้ PR และ Repository rules จริง |
+
+ตัวอย่างสร้าง Worktree ต้องปรับ Base branch และ Path ให้ตรง Repository:
+
+```bash
+git worktree add ../task-review -b review/task-creation main
+```
+
+คำสั่งนี้สร้าง Working tree ใหม่และ Branch ใหม่ ไม่ควรรันจนกว่าจะตรวจว่า Path และ Branch ยังไม่มีอยู่ ดู [Git / GitHub](/development-workflow/git-pull-request) ก่อนใช้กับงานจริง
+
+## เมื่อ Agent ให้คำแนะนำขัดกัน
+
+1. กลับไปอ่าน Requirement และ Acceptance criteria
+2. ขอหลักฐานจาก Code, Test หรือเอกสารทางการ
+3. แยกข้อเท็จจริงออกจาก Recommendation
+4. ให้ Human เลือก Decision และบันทึกเหตุผลเมื่อมีผลระยะยาว
+5. อัปเดต Spec/Plan ก่อน Implement ต่อ
+
+Independent review ช่วยหาจุดพลาดได้ แต่ไม่แทน Human review, Automated tests หรือ Acceptance testing
+
+## ข้อควรระวัง
+
+- ห้าม Agent สองตัวแก้ไฟล์เดียวกันพร้อมกันใน Working tree เดียว
+- อย่า Copy Finding ไปแก้โดยไม่ตรวจผลกระทบ
+- อย่าปล่อยให้ Spec คนละสำเนาเปลี่ยนแยกกัน
+- อย่าใช้ Parallel work เมื่อ Scope ยังแบ่งไม่ได้ชัด
+
+## สรุป
+
+- ใช้ Agent ตัวที่สองเป็น Reviewer ได้ แต่ Human ยังตัดสินใจ
+- แยก Branch/Worktree และ Owner ให้ชัด
+- ทุก Agent ต้องเทียบกับ Spec เดียวกัน
+- รัน Tests ใหม่หลังแก้ Review findings
+
+## อ่านต่อ
+
+- [Prompt Templates](/development-workflow/spec-driven-development/prompts)
+- [Conflicts & Merge](/development-workflow/git-pull-request/conflicts-and-merge)

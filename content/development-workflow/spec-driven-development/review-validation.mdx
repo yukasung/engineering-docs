@@ -1,0 +1,79 @@
+---
+title: "Specification Review และ Validation"
+description: "แยกการตรวจ Spec, Code, Automated tests และ Acceptance testing พร้อม Checklist ก่อน Merge"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"SDD": "แนวทางแบบ Lightweight; ไม่ผูกกับเครื่องมือ"}
+---
+
+# Specification Review และ Validation
+
+## เรื่องนี้คืออะไร?
+
+การตรวจแต่ละแบบตอบคนละคำถาม จึงแทนกันไม่ได้ Tests ผ่านอาจหมายถึง Code ทำตาม Test แต่ Test อาจไม่ได้ครอบคลุม Requirement ที่สำคัญ
+
+| การตรวจ | คำถามหลัก | หลักฐาน |
+| --- | --- | --- |
+| Specification Review | Requirement ชัด ครบ และไม่ขัดกันหรือไม่ | Spec ที่ Review พร้อมคำถาม/Decision |
+| Code Review | Implementation ถูก ปลอดภัย และดูแลต่อได้หรือไม่ | Diff และ Findings |
+| Automated Testing | พฤติกรรมที่ Test ระบุยังทำงานหรือไม่ | Command, Exit status, Test report |
+| Acceptance Testing | ผลลัพธ์ตรงกับสิ่งที่ผู้ใช้/ธุรกิจยอมรับหรือไม่ | Acceptance criteria และผลตรวจจริง |
+
+## Review ก่อน Implement
+
+- Objective และ User ชัดหรือไม่
+- Business rules ขัดกันหรือไม่
+- Acceptance criteria ตรวจได้หรือไม่
+- Edge cases สำคัญถูกระบุหรือไม่
+- API, Database, Security และ Migration impact ถูกพิจารณาหรือไม่
+- Out of scope ป้องกัน Scope creep ได้หรือไม่
+
+## Review ก่อน Merge
+
+- [ ] Implementation ตรง Requirements
+- [ ] Acceptance criteria มีผลตรวจครบ
+- [ ] Edge cases สำคัญถูกจัดการ
+- [ ] Tests ที่เกี่ยวข้องผ่าน และระบุสิ่งที่ไม่ได้รัน
+- [ ] Database changes ปลอดภัยและมี Migration ที่ Review แล้ว
+- [ ] Authentication และ Authorization บังคับที่ Backend
+- [ ] ไม่มี Unrelated changes
+- [ ] Documentation และ Spec ตรงกับพฤติกรรมล่าสุด
+- [ ] Secret และข้อมูลจริงไม่อยู่ใน Diff/Logs
+
+## ตรวจ Diff และ PR
+
+เริ่มจาก [Inspect Changes](/development-workflow/git-pull-request/inspect-changes) เพื่อแยก Working tree กับ Staged changes ใช้ [GitHub CLI](/development-workflow/git-pull-request/github-cli) เพื่อดู PR diff และ Checks เมื่อ Repository ใช้ GitHub
+
+Approval count, Required checks และผู้มีสิทธิ์ Merge เป็นกติกาของ Repository จริง เอกสารนี้ไม่สมมติว่าถูกเปิดใช้แล้ว
+
+## AI review ใช้อย่างไร?
+
+ให้ Reviewer Agent อ่าน Spec, Diff และผล Tests ขอ Finding ที่เจาะจงและทำซ้ำได้ Human ต้องตรวจ Finding ก่อนสั่งแก้ เพราะ Agent อาจไม่เห็น Context ทางธุรกิจหรืออาจเสนอ Change ที่อยู่นอก Scope
+
+หลังแก้ Finding ต้องรัน Tests ที่เกี่ยวข้องใหม่ และตรวจว่า Fix ไม่ทำให้ Acceptance criterion อื่นเสีย
+
+## บันทึก Validation อย่างตรงไปตรงมา
+
+Validation record ควรบอก:
+
+- Command ที่รัน
+- Environment/Version ที่เกี่ยวข้องโดยไม่เผย Secret
+- ผลจริงและเวลาเมื่อจำเป็น
+- Acceptance criterion ที่ผลนั้นรองรับ
+- สิ่งที่ไม่ได้รันหรือยัง Blocked
+
+Build ผ่านพิสูจน์ว่า Build สำเร็จใน Environment ที่รัน ไม่พิสูจน์ Production, Performance หรือ Security ทั้งหมด
+
+## สรุป
+
+- Spec, Code, Automated tests และ Acceptance ต้อง Review คนละมุม
+- PR ควรตามกลับไปยัง Spec และผลตรวจได้
+- AI review เป็นผู้ช่วย ไม่ใช่ Approval อัตโนมัติ
+- บันทึกข้อจำกัดและสิ่งที่ไม่ได้ทดสอบเสมอ
+
+## อ่านต่อ
+
+- [GitHub Actions & CI](/technology-guides/devops/github-actions)
+- [Prompt Templates](/development-workflow/spec-driven-development/prompts)

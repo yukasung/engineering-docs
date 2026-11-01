@@ -1,0 +1,52 @@
+---
+title: "Django / Python — พัฒนา Task API"
+description: "เริ่ม Backend จากโครงสร้าง Models REST API ไปถึง Session authentication สิทธิ์ และ Error handling"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Django / Python — พัฒนา Task API
+
+## เรื่องนี้คืออะไร?
+
+Django คือ Framework ที่ช่วยทำเว็บฝั่ง Server มีระบบผู้ใช้ ORM และ Migration ให้ใช้ ส่วน Django REST Framework (DRF) ช่วยรับ/ส่งข้อมูล API แบบ JSON คู่มือนี้ใช้ Task Management ที่ผู้ใช้จัดการได้เฉพาะ Task ของตัวเอง
+
+## ใช้เมื่อไร?
+
+ใช้เริ่ม Backend หรือกลับมาดูหน้าที่แต่ละส่วนก่อนแก้งาน เริ่มจาก [Contract กลาง](/technology-guides/fullstack) ซึ่งกำหนด Fields, URLs, Session และ Error format ที่ทุกบทใช้ร่วมกัน
+
+## ทำงานอย่างไร?
+
+1. [Getting Started](/technology-guides/django-python/getting-started): เตรียมโปรเจกต์ทดลองและ Settings
+2. [Project Structure](/technology-guides/django-python/project-structure): รู้ว่าไฟล์ไหนรับผิดชอบอะไร
+3. [Models & ORM](/technology-guides/django-python/models-and-orm) → [Serializers](/technology-guides/django-python/serializers) → [REST API](/technology-guides/django-python/rest-api)
+4. [Authentication](/technology-guides/django-python/authentication) ตรวจว่าเป็นใคร ส่วน [Authorization](/technology-guides/django-python/authorization) ตรวจว่าเข้าถึง Task ใดได้
+5. [Error Handling](/technology-guides/django-python/error-handling) กำหนดข้อตกลงกับ React แล้วใช้ [Testing](/technology-guides/django-python/testing) ตรวจทั้งกรณีผ่านและต้องถูกปฏิเสธ
+
+## ตัวอย่าง Code
+
+ตัวอย่างไฟล์อยู่ใน MDX เท่านั้น หากจะทดลองต้องคัดลอกไปโฟลเดอร์แยกและทำ Prerequisites ให้ครบ แต่ละไฟล์มีแหล่งเดียวและเชื่อมไปบทที่ใช้ ไม่ติดตั้ง Python packages ลง Engineering Hub และไม่ใช้ฐาน Order Lab ของ PostgreSQL แทนฐาน Task
+
+## วิธีทดสอบ
+
+ใช้ Django tests และ DRF APIClient ตามบท Testing โดยเปิดการตรวจ CSRF จริงในชุด Auth tests อย่าอ้างว่าทดสอบ Session แล้ว หากใช้เพียง `force_authenticate()` ซึ่งข้ามขั้น Login
+
+## ข้อควรระวัง
+
+ตัวอย่างยังไม่ใช่ Production application ไม่มี Rate limiting/การกู้บัญชี/ระบบ Operations ครบ ก่อนปล่อยต้องทำ Security review และ Deployment runbook ไม่ใช้ `runserver` รับผู้ใช้จริง
+
+## สรุปสิ่งที่ต้องจำ
+
+- Model เก็บข้อมูล Serializer ตรวจ Input View รับคำขอ
+- API ทุกจุดต้องตรวจผู้ใช้และสิทธิ์ของข้อมูล
+- Session cookie กับ CSRF ทำงานคนละหน้าที่
+- ใช้ Tests ยืนยันพฤติกรรม ไม่ดูแค่หน้าเว็บเปิดได้
+
+## อ่านต่อ
+
+- [React / TypeScript](/technology-guides/react-typescript)
+- [Fullstack Integration](/technology-guides/fullstack)
+- [Django 5.2 documentation](https://docs.djangoproject.com/en/5.2/)

@@ -1,0 +1,51 @@
+---
+title: "React / TypeScript — ทำหน้า Task ที่คุยกับ Django"
+description: "เริ่ม Vite React ตั้งโครงสร้าง เชื่อม API จัดการ Session และแสดง Error อย่างเข้าใจง่าย"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# React / TypeScript — ทำหน้า Task ที่คุยกับ Django
+
+## เรื่องนี้คืออะไร?
+
+React ช่วยสร้างหน้าจอจาก Components หรือส่วนย่อยที่นำมาประกอบกัน TypeScript ช่วยตรวจชนิดข้อมูลระหว่างพัฒนา แต่ไม่ได้ตรวจ JSON ที่รับจาก Network ให้อัตโนมัติ คู่มือนี้ทำหน้า Login และ Task ของผู้ใช้ปัจจุบันตาม [Contract กลาง](/technology-guides/fullstack)
+
+## ใช้เมื่อไร?
+
+ใช้เริ่ม Frontend หรือแก้การเรียก API/Session โดยต้องแยกความรับผิดชอบ: React แสดงผลและช่วยผู้ใช้ ส่วน Django เป็นผู้ตัดสินสิทธิ์และข้อมูลที่ยอมบันทึก
+
+## ทำงานอย่างไร?
+
+1. [Getting Started](/technology-guides/react-typescript/getting-started) → [Project Structure](/technology-guides/react-typescript/project-structure)
+2. [Components](/technology-guides/react-typescript/components) รับ Props และเก็บ Form state
+3. [Hooks](/technology-guides/react-typescript/hooks) ดูแลข้อมูล/Loading/การยกเลิกผลที่เก่า
+4. [API Integration](/technology-guides/react-typescript/api-integration) เรียก Task CRUD ผ่าน [Request helper](/technology-guides/react-typescript/error-handling)
+5. [Authentication](/technology-guides/react-typescript/authentication) ใช้ Session cookie/CSRF แล้วตรวจด้วย [Testing](/technology-guides/react-typescript/testing)
+
+## ตัวอย่าง Code
+
+ตัวอย่างเป็นไฟล์ใน MDX สำหรับโฟลเดอร์ Vite ทดลองแยก ไม่เพิ่ม React application อีกตัวใน Engineering Hub และไม่เพิ่ม State library ทั้งระบบก่อนจำเป็น Local state กับ Auth context เพียงพอสำหรับขอบเขตนี้
+
+## วิธีทดสอบ
+
+ตรวจ Build แบบ strict, Component/API helper tests และ Flow จริงกับ Django ไม่ถือว่าทดสอบ Cookies/CORS แล้วจาก Mock fetch อย่างเดียว
+
+## ข้อควรระวัง
+
+ไม่เก็บ Password/Session ID/Long-lived tokens ใน localStorage และไม่ใช้การซ่อนหน้าแทน Backend permissions AbortController ช่วยยกเลิกการรอ/ไม่ใช้ผลเก่า แต่ไม่ยกเลิกข้อมูลที่ Server บันทึกไปแล้ว
+
+## สรุปสิ่งที่ต้องจำ
+
+- Components แสดงผล Hooks ดูแลจังหวะข้อมูล Services คุยกับ API
+- TypeScript ไม่แทน Runtime checks ของ JSON
+- แยก Loading/Empty/Error และ Session-expired states
+- สิทธิ์และความถูกต้องขั้นสุดท้ายอยู่ที่ Django
+
+## อ่านต่อ
+
+- [Django / Python](/technology-guides/django-python)
+- [React TypeScript](https://react.dev/learn/typescript)

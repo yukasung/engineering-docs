@@ -1,0 +1,97 @@
+---
+title: "Inspect Changes — ดูสิ่งที่แก้และตามประวัติ"
+description: "อ่าน status สองคอลัมน์ แยก Diff และใช้ Log Show Blame เพื่อหาบริบทก่อน Commit/Review"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Inspect Changes — ดูสิ่งที่แก้และตามประวัติ
+
+## เรื่องนี้คืออะไร?
+
+ก่อน Commit หรือรับงานเพื่อน ควรรู้ว่าไฟล์ไหนเปลี่ยนและเปลี่ยนตรงไหน คำสั่งหน้านี้ช่วยแยกงานใน Working tree หรือไฟล์ที่กำลังแก้ ออกจาก Staging ที่เลือกไว้แล้วและประวัติที่ Commit แล้ว
+
+## ทำอย่างไร?
+
+### อ่าน status ให้เป็น
+
+```bash
+git status -sb
+```
+
+ตัวอย่าง Output สมมติ:
+
+```text
+## feature/login
+ M src/Login.tsx
+M  src/Login.test.tsx
+?? notes/login-cases.md
+```
+
+สองคอลัมน์หน้า Path มีความหมาย: ตัวแรกคือการเปลี่ยนใน Index/Staging ตัวที่สองคือ Working tree ดังนั้น ` M` ยังไม่ Stage, `M ` Stage แล้ว และ `??` ยังไม่ถูก Track ถ้าเห็น `MM` คือ Stage ไปแล้วและมีการแก้รอบใหม่ที่ยังไม่ Stage
+
+### เลือก Diff ตามสิ่งที่อยากรู้
+
+```bash
+git diff -- src/Login.tsx
+git diff --staged -- src/Login.tsx
+git diff HEAD -- src/Login.tsx
+git diff --staged --name-only
+```
+
+| คำสั่ง | เปรียบเทียบอะไร |
+| --- | --- |
+| diff | Working tree กับ Index: งานที่ยังไม่ Stage ในไฟล์ที่ Track แล้ว |
+| diff `--staged` | Index กับ HEAD: ชุดที่จะ Commit |
+| diff HEAD | Working tree กับ Commit ปัจจุบัน: รวมความต่างของไฟล์ที่ Track แล้ว |
+
+HEAD คือจุดประวัติปัจจุบัน ปกติชี้ Commit ล่าสุดของ Branch ต้องมี Commit แล้วจึงใช้รูปแบบอ้าง HEAD ได้ ไฟล์ใหม่ Untracked ยังไม่ปรากฏใน Diff เหล่านี้ ให้อ่านไฟล์และตรวจ status เพิ่ม
+
+### เลือกเฉพาะบางส่วนของไฟล์
+
+ถ้าไฟล์ที่ Track แล้วมีหลายงาน ให้เลือกทีละ Hunk หรือกลุ่มบรรทัดที่เปลี่ยน:
+
+```bash
+git add -p -- src/Login.tsx
+git diff --staged
+git diff --staged --check
+```
+
+add -p เป็น Interactive: y เลือก, n ข้าม, s แบ่งเมื่อทำได้, q จบ คำสั่งนี้เปลี่ยน Staging แต่ไม่ Commit ถ้าแยก Hunk ไม่ได้ให้จัดไฟล์หรืองานก่อน ไม่เลือกโค้ดครึ่งหนึ่งจน Tests ของ Commit นั้นใช้ไม่ได้ ไฟล์ใหม่ให้ใช้ git add ระบุ Path
+
+`--check` ช่วยหา Whitespace errors/บาง Conflict markers ใน Diff ไม่ได้แทน Tests, Typecheck หรือ Review ลอง Build/Test กับชุดงานที่กำลังเตรียมให้สอดคล้องด้วย
+
+### ตามว่าเปลี่ยนเมื่อไรและเพราะอะไร
+
+```bash
+git log --oneline --graph --decorate -n 12
+git show --stat HEAD
+git log -p -n 1 -- src/Login.tsx
+git blame -- src/Login.tsx
+```
+
+log ดูประวัติที่เข้าถึงจากจุดปัจจุบัน, show ดูหนึ่ง Commit ส่วน log -p ดู Patch ของไฟล์ blame ช่วยหาบริบทของแต่ละบรรทัด แล้วอ่าน Commit/PR เพิ่ม ไม่สรุปเหตุผลจากชื่อผู้เขียนอย่างเดียว หาก Pager เปิดอยู่ใช้ q ออก
+
+## ตัวอย่างการใช้งานจริง
+
+แก้ Login พร้อมจัด Format ทั้งไฟล์: ใช้ diff ดูว่าอะไรเป็นพฤติกรรม อะไรเป็นรูปแบบ แยก Commit หรือ PR ตามขอบเขตที่ตรวจได้ หรืออธิบายเหตุที่จำเป็นต้องรวม
+
+## ข้อควรระวัง
+
+Diff/Log/Blame อาจมีข้อมูลลับในประวัติเก่า อย่าแชร์ Output ทั้งก้อนโดยไม่ตรวจ และการเห็น Author ไม่เท่ากับหลักฐานว่า Commit ถูก Sign/Account นั้นเป็นผู้ส่งจริง
+
+## สรุปสิ่งที่ต้องจำ
+
+- status ดูสองคอลัมน์ก่อนตัดสินใจ
+- diff กับ `--staged` ดูคนละชุด
+- ไฟล์ใหม่ต้องตรวจเพิ่ม
+- ใช้ History หาบริบทและอ่าน PR ประกอบ
+
+## อ่านต่อ
+
+- [Overview](/)
+- [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery)
+- [git status](https://git-scm.com/docs/git-status) และ [git diff](https://git-scm.com/docs/git-diff)

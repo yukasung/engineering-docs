@@ -1,0 +1,134 @@
+---
+title: "React Error Handling — Request helper ที่แยก HTTP กับ Network"
+description: "fetch response.ok, JSON fallback, CSRF headers และข้อความปลอดภัยโดยไม่ Logout ทุก 403"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"React": "19.3.1", "TypeScript": "6.0.3", "Vite": "8.3.5", "React Router": "7.18.5", "Node.js": "22.22.2+ (รวมเครื่องมือทดสอบ)"}
+---
+
+# React Error Handling — Request helper ที่แยก HTTP กับ Network
+
+## เรื่องนี้คืออะไร?
+
+`fetch()` ไม่ Throw เพียงเพราะ Server ตอบ 400/500 ต้องตรวจ `response.ok` เอง Network error คือส่ง/อ่านคำตอบไม่ได้ ส่วน HTTP error คือได้รับ Status กลับมาแล้ว จัดการต่างกันเพื่อไม่บอกผู้ใช้ผิดสาเหตุ
+
+## ใช้เมื่อไร?
+
+ใช้กับทุก API โดยรวมกติกาไว้จุดเดียว แล้วให้ Feature ตรวจ Fields/Session ตาม Error code ไม่แสดง Traceback หรือข้อความ HTML ของ Proxy ต่อผู้ใช้
+
+## ตัวอย่าง Code
+
+ไฟล์นี้เป็น Helper กลางที่บท API/Auth ใช้ รับ JSON เป็น `unknown` ก่อนแปลงด้วย Parser ไม่ใช้ TypeScript assertion เป็นหลักฐานว่า Response ถูกจริง:
+
+```typescript filename="frontend/src/services/api.ts"
+export type FieldErrors = Record<string, string[]>
+const messages: Record<string, string> = {
+  VALIDATION_ERROR: 'กรุณาตรวจข้อมูลที่กรอก',
+  AUTHENTICATION_REQUIRED: 'กรุณาเข้าสู่ระบบอีกครั้ง',
+  INVALID_CREDENTIALS: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+  CSRF_FAILED: 'กรุณาลองส่งใหม่ หากยังไม่ผ่านให้โหลดหน้าใหม่',
+  PERMISSION_DENIED: 'ไม่มีสิทธิ์ทำรายการนี้',
+  NOT_FOUND: 'ไม่พบข้อมูลที่เข้าถึงได้',
+  CONFLICT: 'ข้อมูลเปลี่ยนไป กรุณาโหลดใหม่',
+  INTERNAL_ERROR: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง',
+  NETWORK_ERROR: 'เชื่อมต่อไม่ได้ กรุณาตรวจเครือข่าย',
+  BAD_RESPONSE: 'ได้รับคำตอบที่ไม่ตรงรูปแบบ กรุณาลองใหม่',
+}
+export class ApiError extends Error {
+  constructor(public status: number, public code: string, public details: FieldErrors = {}) {
+    super(messages[code] ?? 'ไม่สามารถทำรายการได้ กรุณาลองใหม่')
+  }
+}
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+export function isAbort(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+export function userMessage(error: unknown) {
+  return error instanceof ApiError ? error.message : 'ไม่สามารถทำรายการได้ กรุณาลองใหม่'
+}
+export function isAuthRequired(error: unknown) {
+  return error instanceof ApiError && (error.code === 'AUTHENTICATION_REQUIRED' || error.status === 401)
+}
+const base = (import.meta.env.VITE_API_BASE_URL ?? '/api/v1').replace(/\/$/, '')
+let csrfToken: string | null = null
+let csrfPending: Promise<string> | null = null
+export function setCsrfToken(token: string | null) { csrfToken = token }
+async function ensureCsrf(): Promise<string> {
+  if (csrfToken) return csrfToken
+  if (!csrfPending) {
+    csrfPending = requestJson('/auth/csrf/').then(data => {
+      if (!isRecord(data) || typeof data.csrfToken !== 'string') throw new ApiError(502, 'BAD_RESPONSE')
+      csrfToken = data.csrfToken
+      return data.csrfToken
+    }).finally(() => { csrfPending = null })
+  }
+  return csrfPending
+}
+type Options = { method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal }
+export async function requestJson(path: string, options: Options = {}): Promise<unknown> {
+  const method = options.method ?? 'GET'
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  if (method !== 'GET') headers['X-CSRFToken'] = await ensureCsrf()
+  let response: Response
+  try {
+    response = await fetch(base + path, {
+      method, headers, credentials: 'include', signal: options.signal,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    })
+  } catch (error) {
+    if (isAbort(error)) throw error
+    throw new ApiError(0, 'NETWORK_ERROR')
+  }
+  if (response.status === 204) return undefined
+  let data: unknown
+  try { data = await response.json() }
+  catch (error) {
+    if (isAbort(error)) throw error
+    data = undefined
+  }
+  if (!response.ok) {
+    const error = isRecord(data) && isRecord(data.error) ? data.error : null
+    const code = error && typeof error.code === 'string' ? error.code : 'HTTP_ERROR'
+    const details: FieldErrors = {}
+    if (error && isRecord(error.details)) {
+      for (const [key, value] of Object.entries(error.details)) {
+        if (Array.isArray(value) && value.every(item => typeof item === 'string')) details[key] = value
+      }
+    }
+    if (code === 'CSRF_FAILED') csrfToken = null
+    throw new ApiError(response.status, code, details)
+  }
+  if (data === undefined) throw new ApiError(502, 'BAD_RESPONSE')
+  return data
+}
+```
+
+CSRF bootstrap รวมคำขอที่กำลังรอไว้เพื่อลดการเริ่ม Token พร้อมกัน ใช้ Cookie ผ่าน `credentials: include` ทุกครั้ง และ Token อยู่ใน Memory เท่านั้น เมื่อได้ CSRF_FAILED จะล้าง Token เพื่อขอใหม่ในการส่งครั้งถัดไป **ไม่ Retry POST/PATCH/DELETE อัตโนมัติ** โดยเฉพาะ Network timeout ที่ Server อาจบันทึกไปแล้ว
+
+HTTP 204 ไม่อ่าน JSON ส่วน HTTP 500 ที่เป็น HTML จะใช้ข้อความทั่วไป ไม่โชว์ Response ดิบ หาก Fetch ถูก Abort ให้ปล่อยให้ Hook ไม่อัปเดต UI ไม่แสดงเป็น Error ของผู้ใช้
+
+## วิธีทดสอบ
+
+Mock fetch ให้เป็น Network reject, HTTP 400 พร้อม Fields, HTML 500, 204 และ CSRF bootstrap ตรวจ Credentials/Header ด้วยตาม [Testing](/technology-guides/react-typescript/testing) แล้วตรวจ Browser จริงเพิ่มสำหรับการส่ง Cookie
+
+## ข้อควรระวัง
+
+403 `CSRF_FAILED` ไม่ใช่ Session หมดอายุทุกครั้ง ส่วน 404 อาจเป็น Task ที่ไม่มีสิทธิ์ ไม่แสดง “ไม่มีข้อมูลในระบบแน่นอน” และอย่าแสดง `error.message` ดิบของ Error ทุกชนิด ใช้ข้อความที่ควบคุมได้ตาม Helper
+
+## สรุปสิ่งที่ต้องจำ
+
+- fetch ต้องตรวจ response.ok เอง
+- อ่าน Error code และ Fields ไม่เดาจาก 403 อย่างเดียว
+- เก็บ Credential/CSRF ในช่องทางที่เหมาะ ไม่ใช้ localStorage
+- Retry การเขียนต้องรู้ว่า Server ทำสำเร็จหรือยัง
+
+## อ่านต่อ
+
+- [API Integration](/technology-guides/react-typescript/api-integration)
+- [Django Error Handler](/technology-guides/django-python/error-handling)
+- [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)

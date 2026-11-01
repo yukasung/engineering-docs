@@ -1,0 +1,100 @@
+---
+title: "Troubleshooting — แก้ปัญหา Django + React"
+description: "ตรวจปัญหาที่พบบ่อย 10 กรณีจาก Network Authentication ฐานข้อมูล และข้อมูลค้าง"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Django": "5.2.18", "DRF": "3.18.3", "React": "19.3.1", "API": "Task contract v1; first-party sessions"}
+---
+
+# Troubleshooting — แก้ปัญหา Django + React
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้ช่วยไล่ปัญหาตามหลักฐาน เริ่มจาก Browser Network: URL, Method, Status และ Error code แล้วดู Log ฝั่ง Django อย่าแก้หลายค่าในครั้งเดียวหรือปิด Security เพื่อให้ Error หาย
+
+ตัวอย่างทั้งหมดอ้าง [Task Contract v1](/technology-guides/fullstack) และ Local lab ของคู่มือนี้ ถ้าเป็น Environment จริงให้ทำผ่าน Git/PR และ Runbook ที่ได้รับอนุญาต
+
+## 1. React ติดต่อ Django ไม่ได้
+
+- **อาการ:** Network failed หรือ Proxy ECONNREFUSED
+- **สาเหตุ:** Django ไม่รัน Port ไม่ตรง หรือ API Base URL ผิด
+- **วิธีตรวจสอบ:** ดู URL ใน Network ต้องเริ่ม `/api/v1/` ตรวจ Terminal Django และ Vite proxy target
+- **วิธีแก้ไข:** เปิด Django ที่ 127.0.0.1:8000 และ Vite ที่ localhost:5173 ตาม Getting Started ไม่แก้ localhost กระจายตาม Component
+
+## 2. CORS error
+
+- **อาการ:** Browser แจ้ง Blocked by CORS แต่ curl อาจเรียกได้
+- **สาเหตุ:** เรียกข้าม Origin โดยไม่มี Allowlist/Preflight ที่ถูกต้อง
+- **วิธีตรวจสอบ:** เทียบ Scheme/Host/Port ดู OPTIONS และ Response headers
+- **วิธีแก้ไข:** Local ใช้ Vite proxy หากต้องแยก Origin จริงตั้ง Origin ที่อนุญาตและ Credentials ตาม [Authentication](/technology-guides/django-python/authentication) ไม่ใช้ `*` กับ Credentials หรือ `mode: no-cors`
+
+## 3. CSRF verification failed
+
+- **อาการ:** 403 CSRF_FAILED ตอน Login หรือบันทึกงาน
+- **สาเหตุ:** ไม่มี Cookie/Header, Origin ไม่ได้รับอนุญาต หรือยังใช้ Token ก่อน Login
+- **วิธีตรวจสอบ:** ดู Cookie ถูกเก็บหรือไม่ Header X-CSRFToken มาหรือไม่ และ Origin ตรง Local trusted origin หรือไม่ ห้าม Copy token ลง Log/Issue
+- **วิธีแก้ไข:** GET csrf ก่อน Login ใช้ csrfToken ใหม่จาก Login ส่ง Credentials ทุกครั้ง และตรวจ Proxy/HTTPS ไม่ปิด CSRF
+
+## 4. Login ผ่าน แต่คำขอถัดไปได้ 401/403
+
+- **อาการ:** Login 200 แต่ me/tasks ถูกปฏิเสธ
+- **สาเหตุ:** Cookie ไม่ถูกส่ง Scope ผิด Secure Cookie บน HTTP หรือ 403 นั้นเป็น CSRF/Permission คนละเหตุผล
+- **วิธีตรวจสอบ:** อ่าน error.code ตรวจ Set-Cookie และ Cookie tab เทียบ localhost/127.0.0.1 และ Path/SameSite; ห้ามเปิดเผยค่า Cookie
+- **วิธีแก้ไข:** ใช้ Origin เดิมและ credentials include ใช้ DEBUG=1 เฉพาะ Local HTTP หากเป็น AUTHENTICATION_REQUIRED ให้ Login ใหม่ หากเป็น CSRF_FAILED แก้ Token ไม่วน Logout ทุก 403
+
+## 5. Session หมดอายุ
+
+- **อาการ:** เคยใช้งานได้แล้ว me/tasks ตอบ AUTHENTICATION_REQUIRED
+- **สาเหตุ:** Session หมดอายุ ถูกลบ หรือ Instance อ่าน Shared storage ไม่ตรงกัน
+- **วิธีตรวจสอบ:** ตรวจ Session expiry/backend และ Database connection ของแต่ละ Instance ไม่ Log session id
+- **วิธีแก้ไข:** กลับ Login ล้าง Task/Auth state เก่า และใช้ Shared session backend อย่าแก้ด้วยการยืดอายุไม่จำกัด
+
+## 6. PostgreSQL connection ล้มเหลว
+
+- **อาการ:** Django แจ้ง OperationalError หรือ Connection refused
+- **สาเหตุ:** DB ไม่รัน Host/Port/Secret ผิด หรือ User ไม่มีสิทธิ์
+- **วิธีตรวจสอบ:** ตรวจชื่อ Environment variables จาก [Settings](/technology-guides/django-python/getting-started) และ Log ที่ตัด Secret ออกแล้ว ถ้าอยู่ใน Container localhost หมายถึง Container นั้น
+- **วิธีแก้ไข:** แก้ผ่าน Config/Secret ที่เหมาะสม ให้สิทธิ์เท่าที่จำเป็น ไม่เปิด DB สู่สาธารณะเพื่อแก้การเชื่อมต่อ
+
+## 7. Migration ยังไม่ได้รัน
+
+- **อาการ:** Relation does not exist หรือ Column not found
+- **สาเหตุ:** Code และ Schema คนละเวอร์ชัน หรือชี้ฐานผิด
+- **วิธีตรวจสอบ:** ในฐานทดลองใช้ `python manage.py showmigrations` ดู Tasks/Sessions และตรวจ DB target ก่อน
+- **วิธีแก้ไข:** สร้าง/Review Migration ใน Git แล้วใช้ `python manage.py migrate` ตามแผน ไม่ ALTER UAT/Production เป็นขั้นตอนปกติ และไม่ใช้ --fake เพียงเพื่อซ่อน Error
+
+## 8. React แสดงข้อมูลเก่า
+
+- **อาการ:** สร้างแล้วไม่เห็น Task หรือเปลี่ยนผู้ใช้แล้วยังเห็น List เดิม
+- **สาเหตุ:** ไม่ Refetch หลังเขียนสำเร็จ หรือ Response เก่าทับ State ใหม่
+- **วิธีตรวจสอบ:** ดู GET List หลัง Mutation และ Dependency/Cleanup ของ Effect
+- **วิธีแก้ไข:** Reload หลัง Success, Abort คำขอเก่า และ Reset หน้า Task ตาม User id ดู [Hooks](/technology-guides/react-typescript/hooks)
+
+## 9. API ตอบ 500
+
+- **อาการ:** INTERNAL_ERROR หรือ HTML Error จาก Proxy
+- **สาเหตุ:** Bug, Database ล้มเหลว หรือ Config ไม่ครบ
+- **วิธีตรวจสอบ:** จดเวลา Endpoint Status และ Correlation id ถ้าระบบมี แล้วดู Log ที่ได้รับสิทธิ์ ห้ามแปะ Request body/Cookie/Stack trace ที่มีข้อมูลลับในที่สาธารณะ
+- **วิธีแก้ไข:** แก้ต้นเหตุพร้อม Test ผ่าน PR ไม่เปิด DEBUG ใน Production และไม่แปลงทุก Exception เป็น 400
+
+## 10. ผู้ใช้เห็น Task ของคนอื่น
+
+- **อาการ:** บัญชี B เรียก id ของ A ได้หรือเห็นใน List
+- **สาเหตุ:** QuerySet ไม่กรอง owner, ตรวจเฉพาะ Frontend หรือ Custom action ลืม Permission
+- **วิธีตรวจสอบ:** ใช้สองบัญชีในฐานทดสอบ ตรวจ List/GET/PATCH/DELETE โดยตรง ไม่ใช้เพียงซ่อนปุ่ม
+- **วิธีแก้ไข:** จำกัด QuerySet, กำหนด owner ตอน Create และตรวจ Object permission ตาม [Authorization](/technology-guides/django-python/authorization) เพิ่ม Regression tests ก่อนปล่อยแก้ ถ้าเป็นระบบจริงให้ดำเนินการตาม Incident runbook
+
+## สรุปสิ่งที่ต้องจำ
+
+- อ่าน URL Status และ Error code ก่อนแก้
+- Cookie, CSRF และ CORS แก้คนละจุด
+- ตรวจ DB target ก่อน Migration/คำสั่งเปลี่ยนข้อมูล
+- เพิ่ม Test สำหรับปัญหาที่แก้แล้ว
+
+## อ่านต่อ
+
+- [Django Testing](/technology-guides/django-python/testing)
+- [React Testing](/technology-guides/react-typescript/testing)
+- [PostgreSQL Troubleshooting](/technology-guides/postgresql/troubleshooting)

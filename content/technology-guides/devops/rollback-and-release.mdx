@@ -1,0 +1,98 @@
+---
+title: "Release & Rollback — รู้ว่าปล่อยอะไรและกลับอย่างไร"
+description: "เก็บคู่ Image Digest ผลแต่ละ Environment และเลือก Rollback หรือ Forward fix โดยไม่ย้อน DB แบบอัตโนมัติ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Actions": "GitHub.com; ubuntu-24.04 hosted runner; ตัวอย่างยังไม่เปิดใช้", "Docker Compose": "Host version not selected; ต้องรองรับ --wait / --wait-timeout", "PostgreSQL": "17; Docker Task Lab", "Python": "3; Host version not selected"}
+---
+
+# Release & Rollback — รู้ว่าปล่อยอะไรและกลับอย่างไร
+
+## เรื่องนี้คืออะไร?
+
+Release คือรุ่นที่เลือกส่งมอบ ส่วน Deployment คือเหตุการณ์ที่นำรุ่นนั้นไปเริ่มใน Environment หนึ่ง รุ่นเดียวจึงมีผล DEV ผ่านแต่ UAT ยังไม่ตรวจได้ ไม่ใช้ Git tag หรือ CI สีเขียวแทนผลทดสอบปลายทาง
+
+Rollback คือกลับแอปรุ่นก่อน Forward fix คือแก้ด้วยรุ่นใหม่ ทั้งสองต้องเลือกตามผลกระทบและความเข้ากันได้ของข้อมูล ไม่จำเป็นต้องย้อนทุกอย่างทันทีเมื่อมี Error
+
+## ใช้เมื่อไร?
+
+ใช้ก่อนอนุมัติปล่อยทุกครั้งเพื่อให้มีทางกลับ และใช้เมื่อรุ่นใหม่ผิดปกติหลังปล่อย หน้านี้ยกคำสั่ง Compose ที่เชื่อมกับ Lab เท่านั้น
+
+## บันทึกรุ่นอย่างไร?
+
+ก่อนปล่อยให้บันทึก Source commit, CI run URL, Frontend/Backend digests, Config revision, Migration plan/state, Previous known-good pair และผลตรวจแยกตาม Environment พร้อมเวลา/Timezone/ผู้ดำเนินการจริง
+
+`release-candidate.json` จาก Image CI เป็นตัวช่วยเริ่มต้น ไม่ใช่ผลอนุมัติหรือบันทึก Deployment ทั้งหมด หาก Push สำเร็จเพียง Image เดียวแล้วงานล้ม ยังไม่ใช่ Release pair ที่พร้อม Promote เก็บ Retention ของ Registry/หลักฐานให้ยาวพอตามแผน ไม่ฝากทางกลับไว้กับ Artifact ที่หมดอายุแล้ว
+
+## Rollback หรือ Forward fix?
+
+| สถานการณ์ | ทางเลือกที่ต้องประเมิน |
+| --- | --- |
+| แอปใหม่เสีย แต่ Schema ยังรองรับรุ่นเดิม | Rollback คู่ Images ที่เคยผ่าน แล้วตรวจผู้ใช้ |
+| Migration เพิ่ม Column แบบ Compatible | ตรวจรุ่นเดิมกับ Schema ปัจจุบันก่อน Rollback; ไม่ต้องลบ Column ทิ้งทันที |
+| Migration Drop/Rename หรือเปลี่ยนความหมายข้อมูล | อาจต้อง Forward fix/Maintenance; ห้ามเดาว่ารุ่นเก่าทำงานได้ |
+| ข้อมูลเสีย/สูญหาย | แยก Recovery plan; Restore มีผลต่อข้อมูลใหม่และต้องอนุมัติ |
+
+## ทำอย่างไรเมื่อแอปใหม่มีปัญหา?
+
+### 1. หยุดปล่อยต่อและประเมิน
+
+จดอาการ/เวลา/ผลกระทบ ระงับการ Promote รุ่นนี้ เก็บหลักฐานอย่างไม่เผยข้อมูลลับ ตรวจ Migration ที่ Apply ไปแล้วและคู่รุ่นก่อนว่ารองรับ Schema/Config ปัจจุบัน อย่า Re-run Deploy/Undo DB อัตโนมัติ
+
+### 2. กลับเฉพาะแอปเมื่ออนุมัติแล้ว
+
+ตัวอย่าง Bash บน Host โดยผู้มีสิทธิ์ ใช้ไฟล์ `images.env` ของ **Previous known-good release จริง** แทน `PREVIOUS_RELEASE_ID` ถือ Lock เดียวกับ Deploy ตลอดขั้นตอน Shell ต้องไม่มี Image env เก่าทับไฟล์:
+
+```bash
+sudo -i
+exec 9>/run/lock/task-demo-deploy.lock
+flock -n 9 || exit 1
+unset FRONTEND_IMAGE BACKEND_IMAGE
+rollback_compose=(docker compose --project-name task-demo
+  --env-file /etc/task-demo/app.env
+  --env-file /opt/task-demo/releases/PREVIOUS_RELEASE_ID/images.env
+  -f /opt/task-demo/compose.deploy.yaml)
+"${rollback_compose[@]}" config -q
+"${rollback_compose[@]}" pull frontend backend
+"${rollback_compose[@]}" up -d --no-deps --wait --wait-timeout 180 backend frontend
+"${rollback_compose[@]}" ps
+```
+
+ไม่ใช้ Server helper/Deploy Workflow ปกติในขั้นนี้เพราะมี migrate และไม่เรียก down -v หรือ Migrate backwards โดยอัตโนมัติ คำสั่งนี้ไม่เปลี่ยน DB ให้เหมือนอดีต หากรุ่นเดิมใช้ไม่ได้กับ Schema ปัจจุบันให้หยุดเลือกแผนใหม่ก่อนรัน
+
+### 3. ตรวจและบันทึก
+
+```bash
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/api/health/
+curl --fail --silent --show-error --connect-timeout 3 --max-time 15 \
+  http://127.0.0.1:8080/ -o /dev/null
+```
+
+ตรวจเส้นทางผู้ใช้และข้อมูลด้วย ไม่ใช่แค่ Health ผ่าน จดคู่ Digest/DB state ที่เหลืออยู่/Config/เหตุผล/เวลาจริง แล้ว exit ปิด Root shell เพื่อปล่อย Lock หลังแก้ต้องเปิด PR และ Review ตามกติกาของโปรเจกต์ ไม่ปล่อยการแก้ค้างบน Host หรือมีเฉพาะ Hotfix branch
+
+## ตัวอย่างการใช้งานจริง
+
+DEV ผ่าน แต่ UAT พบว่า Task title ภาษาไทยแสดงไม่ครบ ให้หยุด Promote ตรวจว่าเป็น Frontend regression หรือ API/Data หากกลับคู่เดิมได้โดยไม่กระทบ Schema ให้ Rollback แล้วสร้าง PR แก้ หากข้อมูลถูกเปลี่ยนความหมายไปแล้ว ต้องวาง Data repair/Forward fix ที่ Review และทดสอบต่างหาก ไม่ Restore ทั้ง DB เพียงเพื่อแก้หน้าจอ
+
+## ข้อควรระวัง
+
+- Code rollback ไม่ย้อนข้อมูล/Schema/Secret rotation ตาม
+- อย่าใช้ latest หรือจำเลขรุ่นจากความทรงจำ ต้องรู้คู่ Digests ที่เคยผ่าน
+- Backup ที่มีแต่ไม่เคย Restore ไม่ใช่หลักฐานว่ากู้คืนได้ตามเวลา
+- แผนที่ต้องหยุดบริการ/ยอมเสียข้อมูลใหม่ต้องให้ผู้มีหน้าที่ตัดสินใจตาม Project runbook
+
+## สรุป
+
+- เก็บรุ่นและหลักฐานก่อนปล่อย ไม่ค่อยหาทีหลัง
+- เลือกทางกลับตาม Schema/ข้อมูลปัจจุบัน
+- Rollback แอปต้องใช้คำสั่งที่ไม่ Apply Migration ซ้ำ
+- ตรวจผู้ใช้ บันทึกเหตุการณ์ และแก้กลับเข้าสู่ Git/PR
+
+## อ่านต่อ
+
+- [Operations & Incident](/technology-guides/devops/operations)
+- [Overview](/)
+- [PostgreSQL Migration](/technology-guides/postgresql/migrations)

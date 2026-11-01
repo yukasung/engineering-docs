@@ -1,0 +1,77 @@
+---
+title: "ISO Security & Privacy Standards"
+description: "เปรียบเทียบ ISO/IEC 27001, 27002 และ 27701 พร้อมแนวทางนำไปใช้กับงานพัฒนาระบบ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 27001": "2022 + Amd 1:2024", "ISO/IEC 27002": "2022", "ISO/IEC 27701": "2025"}
+---
+
+# ISO Security & Privacy Standards
+
+## ภาพรวม (Overview)
+
+มาตรฐานกลุ่มนี้ช่วยจัดการ Information Security และ Privacy ในระดับองค์กร ไม่ใช่เพียง Checklist ของ Developer ต้องเริ่มจาก Context, Scope, Risk และผู้รับผิดชอบจริง
+
+## ต่างกันอย่างไร?
+
+| Standard | หน้าที่ | ประเภท |
+| --- | --- | --- |
+| ISO/IEC 27001:2022 | Requirements สำหรับ Information Security Management System (ISMS) | Management system ที่ขอ Certification ได้; Certification ไม่บังคับ |
+| ISO/IEC 27002:2022 | Guidance สำหรับ Information Security controls | แนวทาง ไม่ใช่ Standard สำหรับ Certification โดยลำพัง |
+| ISO/IEC 27701:2025 | Requirements และ Guidance สำหรับ Privacy Information Management System (PIMS) | Management system ด้าน Privacy; ต้องยืนยัน Certification scheme และ Scope กับ Certification body |
+
+ISO/IEC 27001 และ 27002 มีหน้าที่ต่างกัน: 27001 บอกสิ่งที่ ISMS ต้องจัดการ ส่วน 27002 ช่วยเลือกและนำ Controls ไปใช้ตาม Risk ห้ามถือว่าต้องใช้ทุก Control เหมือนกันทุกระบบ
+
+ISO/IEC 27701:2025 เป็น Edition 2 และออกแบบสำหรับองค์กรที่เป็น PII controller หรือ processor ควรใช้ร่วมกับกฎหมาย Privacy ที่เกี่ยวข้อง ไม่ใช้แทน PDPA
+
+## Workflow ที่ใช้ได้จริง
+
+1. กำหนด Business, System, Location, Supplier และ Data ที่อยู่ใน Scope
+2. ระบุ Asset, Threat, Vulnerability, Impact และ Risk owner
+3. เลือก Risk treatment และ Control ด้วยเหตุผลที่ตามรอยได้
+4. เขียน Procedure, ฝึกผู้เกี่ยวข้อง และเก็บ Evidence จากการทำงานจริง
+5. วัดผล ตรวจ Internal audit และแก้ Nonconformity
+6. ให้ Management review ประสิทธิผลและ Risk ที่เหลือ
+
+## ตัวอย่างสำหรับทีมพัฒนา
+
+ระบบ Customer Management มีข้อมูลผู้ติดต่อ ทีมอาจกำหนด Security requirements เช่น Least privilege, MFA สำหรับผู้ดูแล, Encryption in transit, Dependency review, Backup/restore test และ Incident logging ส่วน Privacy requirements เพิ่ม Purpose, Retention และ Data subject request ตามคำยืนยันของ DPO/Legal
+
+## หลักฐานที่มักเกี่ยวข้อง
+
+- Scope statement และ System/Data flow
+- Risk register และ Risk treatment decision
+- Access review, Change history และ Security test results
+- Incident/Backup/Restore exercise records ที่เกิดขึ้นจริง
+- Supplier assessment และ Contract requirements
+- Internal audit, Corrective action และ Management review records
+
+เก็บเฉพาะ Reference ใน Hub หาก Evidence มี Secret หรือ Personal data
+
+## ข้อควรระวัง
+
+- Product scan ผ่าน ไม่ได้แปลว่า ISMS/PIMS มีประสิทธิผล
+- Policy ที่เขียนไว้แต่ไม่มี Owner, Training หรือ Evidence ยังไม่พิสูจน์การทำงาน
+- อย่าคัดลอก Control text จากมาตรฐานลง Repository โดยไม่มีสิทธิ์
+- Amendment และ Transition requirement ต้องตรวจจาก ISO, Accreditation body และ Certification body ปัจจุบัน
+
+## แหล่งอ้างอิงทางการ
+
+- [ISO/IEC 27001:2022](https://www.iso.org/standard/27001)
+- [ISO/IEC 27002:2022](https://www.iso.org/standard/75652.html)
+- [ISO/IEC 27701:2025](https://www.iso.org/standard/27701)
+
+## สรุป
+
+- 27001 คือ ISMS requirements; 27002 คือ Control guidance
+- 27701 จัดการ Privacy แต่ไม่แทนกฎหมาย
+- เริ่มจาก Scope และ Risk ไม่ใช่ Copy checklist
+- อ้าง Certification เฉพาะเมื่อมี Certificate และ Scope จริง
+
+## อ่านต่อ
+
+- [PDPA](/standards-compliance/laws-regulations/pdpa)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [Audit & Compliance](/standards-compliance/audit-compliance)

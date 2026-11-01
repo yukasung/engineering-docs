@@ -1,0 +1,109 @@
+---
+title: "Health Checks — แยก Live Ready และ Startup"
+description: "ออกแบบ HTTP probes ที่ตรงกับ Endpoint จริงและไม่ Restart แอปทุกครั้งที่ DB ล้ม"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Health Checks — แยก Live Ready และ Startup
+
+## เรื่องนี้คืออะไร?
+
+Health check ช่วยบอกว่าโปรแกรมยังทำงานและพร้อมรับคำขอหรือยัง Kubernetes เรียกการตรวจเหล่านี้ว่า Probe แต่ไม่ได้สร้าง HTTP endpoints ใน Django ให้เรา
+
+## ใช้ทำอะไร?
+
+| Probe | คำถาม | เมื่อไม่ผ่านตาม Threshold |
+| --- | --- | --- |
+| Startup | เริ่มทำงานเสร็จหรือยัง? | ให้เวลาเริ่ม เมื่อเกินงบอาจ Restart Container |
+| Liveness | โปรแกรมยังตอบสนองและควรทำงานต่อไหม? | อาจ Restart Container ตาม Restart policy |
+| Readiness | Pod นี้รับ Traffic ตอนนี้ได้ไหม? | ไม่เป็นปลายทางที่ Ready ของ Service ปกติ ไม่ Restart เพราะ Readiness อย่างเดียว |
+
+ถ้ามี Startup probe จะยังไม่ตรวจ Liveness/Readiness จน Startup สำเร็จ การเพิ่ม Startup budget ช่วยแอปที่เริ่มช้า แต่ไม่ควรยืดจนซ่อนปัญหาเริ่มระบบไม่ได้
+
+## ตัวอย่างการใช้งานจริง
+
+[Backend Deployment ฉบับเต็ม](/technology-guides/kubernetes/deployments) เป็น YAML ต้นฉบับเดียวที่มี HTTP probes ครบสามแบบ: Startup/Live เรียก `/health/live/` ส่วน Ready เรียก `/health/ready/` อย่าสร้าง Deployment อีกไฟล์เพื่อ Apply ทับ
+
+ก่อน Build Image ของ Lab ให้เพิ่ม Fragment นี้ใน **Source ทดลองนอก Hub** ไม่แก้ Docker Lab ที่เขียนไว้เดิมโดยอ้างว่า Image เก่ามี Endpoint แล้ว:
+
+```python filename="backend/config/health.py"
+from django.db import DatabaseError, connection, transaction
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
+
+
+@require_GET
+def live(request):
+    return JsonResponse({"status": "ok"})
+
+
+@require_GET
+def ready(request):
+    try:
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SET LOCAL statement_timeout = '1000ms'")
+            cursor.execute("SELECT 1")
+    except DatabaseError:
+        return JsonResponse({"status": "not_ready"}, status=503)
+    return JsonResponse({"status": "ready"})
+```
+
+Live ไม่เรียก DB ส่วน Ready ตรวจ Query เล็ก ๆ โดยจำกัดเวลา Statement สำหรับ PostgreSQL และใช้ connect_timeout จาก Settings ของ Docker Lab แยกกัน งบ timeout ต้องสัมพันธ์กับ Probe และ Connection failure จริง การตรวจทุก 10 วินาทีต่อ Pod ยังมีต้นทุน ต้องวัด/ปรับตามจำนวน Pods
+
+เพิ่ม Imports กับสอง Paths ต่อไปใน `backend/config/urls.py` เดิม โดย **เก็บ API routes เดิมไว้** นี่เป็น Fragment ไม่ใช่ไฟล์ URLs ทั้งหมด:
+
+```python
+from config.health import live, ready
+
+# เพิ่มลงใน urlpatterns เดิม
+path("health/live/", live),
+path("health/ready/", ready),
+```
+
+Endpoint เดิม `/api/health/` ใน Docker Lab ตรวจ DB จึงไม่ใช้เป็น Liveness โดยตรง Ready นี้ยังไม่พิสูจน์ว่า Migrations ครบหรือ Business transaction สำเร็จ ต้องทดสอบ Task API เพิ่ม
+
+### อ่านค่า Probe ใน Deployment
+
+- `initialDelaySeconds` เวลาก่อนเริ่มตรวจรอบแรกของ Probe นั้น; Live ตั้ง 0 เพราะมี Startup คุมแล้ว
+- `periodSeconds` ระยะห่างการตรวจ เช่น 10 วินาที
+- `timeoutSeconds` รอผลแต่ละครั้ง เช่น Ready 7 วินาทีให้สัมพันธ์กับ DB connect timeout 5 วินาที
+- `failureThreshold` จำนวนครั้งที่ล้มเหลวติดกันก่อนทำตามผลของ Probe เช่น Live 3 ครั้ง
+
+Startup ให้ Budget โดยประมาณ 30 × 5 = 150 วินาที ต้องวัดเวลาเริ่มจริง ไม่อ้างว่าเป็น SLA HTTP 2xx–3xx ถือว่าสำเร็จตามกติกา HTTP probe จึงควรตอบ 200/503 ตรง ๆ อย่าให้ Redirect ไปหน้า Login/HTTPS แล้วดูเหมือนผ่าน
+
+## ขั้นตอนทดลอง
+
+หลัง Build/Deploy โดยผู้อ่านใน Local lab ให้ port-forward ตามบท Services แล้ว:
+
+```bash
+curl --fail http://localhost:8000/health/live/
+curl --fail http://localhost:8000/health/ready/
+kubectl --context kind-task-lab -n task-demo get pods -l app=backend
+kubectl --context kind-task-lab -n task-demo describe deployment backend
+```
+
+Live/Ready ต้องตอบตามสถานะ ตรวจ Pod Events เมื่อ Probe ไม่ผ่าน อย่าใช้ Runbook นี้สั่งหยุด Database จริงเพื่อทดลอง Failure การทดสอบ DB outage/Recovery ต้องกำหนด Lab และผลที่ยอมรับก่อนต่างหาก
+
+## ข้อควรระวัง
+
+Django ALLOWED_HOSTS ต้องรับ Host ที่ Probe ใช้ ตัวอย่างตั้ง Host header เป็น kube-health.internal หากนำไปใช้กับ Fullstack settings ที่บังคับ HTTPS redirect ต้องจัด Health path exception แบบเจาะจงหรือ Probe transport ให้ถูก และไม่ปิด HTTPS ทั้งแอปเพื่อให้ผ่าน
+
+อย่าให้ Probe ต้องใช้ Password/Session ของผู้ใช้หรือแสดง Stack trace/SQL ไม่ใส่ DB/Service ภายนอกทุกตัวใน Live เพราะ Dependency ล้มอาจทำให้ทุก Pod Restart พร้อมกันจนแก้ปัญหายากขึ้น
+
+## สรุปสิ่งที่ต้องจำ
+
+- Live ดูความตอบสนอง Ready ดูความพร้อม Startup ให้เวลาเริ่ม
+- Endpoint ต้องอยู่ใน Image จริง
+- Ready ล้มไม่ควรทำให้ Restart จากการตรวจ DB ของ Live
+- Probe ผ่านยังต้องตรวจ User flow เพิ่ม
+
+## อ่านต่อ
+
+- [Deployments YAML](/technology-guides/kubernetes/deployments)
+- [Troubleshooting](/technology-guides/kubernetes/troubleshooting)
+- [Probe concepts](https://kubernetes.io/docs/concepts/workloads/pods/probes/)
+- [Configure probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)

@@ -1,0 +1,112 @@
+---
+title: "Docker Commands — คำสั่งที่ใช้บ่อย"
+description: "ค้นคำสั่ง Images Containers Compose Volumes Networks Logs และ Debugging พร้อมผลกระทบ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Docker Commands — คำสั่งที่ใช้บ่อย
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้เป็น Cheat Sheet หรือรายการค้นคำสั่งเร็ว เริ่มใช้เมื่อเข้าใจขั้นพื้นฐานแล้ว ไม่ใช่ชุดคำสั่งที่ต้องรันตามกันทั้งหมด
+
+## ใช้ทำอะไร?
+
+ใช้ระหว่างทำงานกับ Lab `task-demo` ชื่อที่เป็นตัวพิมพ์ใหญ่ เช่น `CONTAINER_NAME`, `IMAGE_NAME`, `VOLUME_NAME` ต้องแทนด้วยชื่อจริงก่อน ไม่คัดลอกทั้งตารางไปรันรวดเดียว
+
+## ขั้นตอนการทำงาน
+
+ตรวจ Context ด้วย `docker context show` และอยู่ที่โฟลเดอร์ Compose ที่ถูกต้องก่อน คำสั่งไม่มี `sudo` ในตารางสมมติว่าเครื่องพัฒนาคุยกับ Engine ได้แล้ว บน Server ให้ทำตามสิทธิ์ที่ตกลงและใช้ไฟล์/Environment flags ให้ครบ
+
+### Images
+
+| คำสั่ง | ทำอะไร/ตัวอย่าง |
+| --- | --- |
+| `docker images` | ดู Image ในเครื่อง |
+| `docker pull postgres:17-alpine` | ดึง Image ไม่ได้เริ่ม DB |
+| `docker build -t task-backend:local ./backend` | Build จากไฟล์ในบท Dockerfile |
+| `docker image inspect IMAGE_NAME --format '{{json .RepoDigests}}'` | ดู Digest ของแพ็ก |
+| `docker image history IMAGE_NAME` | ดู Layers ช่วยหาสาเหตุ Image ใหญ่; Output อาจมีคำสั่งที่ไม่ควรเผยแพร่ |
+
+### Containers
+
+| คำสั่ง | ทำอะไร/ตัวอย่าง |
+| --- | --- |
+| `docker ps` / `docker ps -a` | ดูตัวที่รัน / รวมตัวที่หยุด |
+| `docker run --rm nginx:stable-alpine nginx -v` | รันงานตรวจรุ่น Nginx ครั้งเดียวแล้วลบ Container |
+| `docker stop CONTAINER_NAME` | ส่งสัญญาณหยุดอย่างปกติ |
+| `docker rm CONTAINER_NAME` | ลบตัวที่หยุดแล้ว พร้อม Writable layer ของตัวนั้น |
+| `docker exec -it CONTAINER_NAME sh` | เข้า Shell ของตัวที่รันอยู่ ไม่ใช้แก้ Source เพื่อปล่อยงาน |
+
+### Compose
+
+| คำสั่ง | ทำอะไร/ตัวอย่าง |
+| --- | --- |
+| `docker compose config -q` | ตรวจ Config ไม่แสดงค่าเต็ม |
+| `docker compose build` | Build บริการที่มี `build` |
+| `docker compose up -d` | สร้าง/เริ่มตาม Config เบื้องหลัง |
+| `docker compose ps -a` | ตรวจสถานะทุกบริการ |
+| `docker compose exec backend sh` | เข้า Backend ที่รันอยู่ |
+| `docker compose run --rm backend python manage.py migrate --plan` | ดูแผน Migration ใน Container ชั่วคราว ต้องตั้ง DB ถูกที่ |
+| `docker compose down` | หยุดและลบ Containers/Network ของ Project โดยคง Named Volume |
+
+### Volumes และ Networks
+
+| คำสั่ง | ทำอะไร/ตัวอย่าง |
+| --- | --- |
+| `docker volume ls` | ดูพื้นที่เก็บที่ Docker ดูแล |
+| `docker volume inspect task-demo_db-data` | ดู Volume ของ Lab |
+| `docker network ls` | ดู Networks |
+| `docker network inspect task-demo_app` | ดู Containers ใน Network |
+
+### Logs และ Debugging
+
+| คำสั่ง | ทำอะไร/ตัวอย่าง |
+| --- | --- |
+| `docker logs --tail=100 CONTAINER_NAME` | อ่าน Log ล่าสุด |
+| `docker compose logs --tail=100 backend` | อ่าน Log ของบริการ Backend |
+| `docker compose logs -f` | ติดตาม Logs; Ctrl+C หยุดติดตาม |
+| `docker inspect CONTAINER_NAME --format '{{.State.Status}} {{.State.ExitCode}} {{.State.OOMKilled}}'` | ดูสถานะ/Exit/OOM โดยไม่พิมพ์ Environment ทั้งชุด |
+| `docker stats --no-stream` | ดูการใช้ทรัพยากรครั้งเดียว |
+| `docker system df` | ดูพื้นที่ที่ Docker ใช้ก่อนตัดสินใจลบ |
+
+## ตัวอย่างการใช้งานจริง
+
+เว็บเพิ่ม Task ไม่ได้ ให้ดู `docker compose ps -a` → `docker compose logs --tail=100 backend` → ตรวจ `/api/health/` ตาม [Troubleshooting](/technology-guides/docker/troubleshooting) อย่าเริ่มจากล้างทุกอย่าง เพราะจะเสียหลักฐานและอาจเสียข้อมูล
+
+## ข้อควรระวัง
+
+### คำสั่งที่ลบข้อมูล — อ่านผลกระทบก่อน
+
+รายการด้านล่าง **ไม่ใช่ขั้นตอนประจำ** ก่อนใช้ต้องยืนยัน Context/Project/ชื่อจริงและมี Backup ที่กู้ได้ ห้ามทดลองกับระบบร่วม:
+
+- `docker system prune` ลบ Containers ที่หยุด, Networks ที่ไม่ใช้, Dangling images และ Build cache ที่ไม่ใช้ อาจกระทบงานอื่นใน Engine เดียวกัน ค่าเริ่มต้นไม่ลบ Volumes แต่ไม่ควรคิดว่าปลอดผลกระทบ
+- `docker volume rm VOLUME_NAME` ลบ Volume ที่เลือกเมื่อไม่มีการใช้งาน ข้อมูลข้างในอาจหายถาวร
+- `docker compose down -v` ลบ Volume ที่ Compose จัดการด้วย รวม DB ใน Lab นี้
+
+ใช้เฉพาะ Lab ที่ยืนยันแล้วว่าไม่ต้องการข้อมูล:
+
+```bash
+docker system prune
+docker volume rm VOLUME_NAME
+docker compose down -v
+```
+
+นี่เป็น **สามทางเลือก** ไม่ใช่คำสั่งที่ต้องรันต่อกัน ไม่เติม `-f` เพื่อข้ามคำถาม หรือ `--volumes`/`-a` โดยไม่อ่านขอบเขต อย่าใช้ผลล้างข้อมูลเป็นวิธีแก้ Migration/Password ผิด
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจชื่อและ Context ก่อนสั่ง
+- Logs/Inspect ช่วยตรวจ ไม่ควรเผยค่าลับ
+- ลบ Container กับลบ Volume มีผลต่างกัน
+- Prune อาจกระทบหลาย Project ใน Engine เดียว
+
+## อ่านต่อ
+
+- [Volume และ Backup](/technology-guides/docker/docker-volume)
+- [Docker CLI reference](https://docs.docker.com/reference/cli/docker/)
+- [System prune](https://docs.docker.com/reference/cli/docker/system/prune/)

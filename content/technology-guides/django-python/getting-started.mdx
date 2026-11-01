@@ -1,0 +1,154 @@
+---
+title: "Django Getting Started — เตรียม Backend ทดลอง"
+description: "สร้าง Django scaffold แยกจาก Hub พร้อม Dependencies PostgreSQL Settings และค่าตั้ง Local/Production"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Django Getting Started — เตรียม Backend ทดลอง
+
+## เรื่องนี้คืออะไร?
+
+บทนี้เตรียมที่ทำงานของ Task API ก่อนเพิ่ม Model และ Endpoints ใช้ Python 3.12 กับ Django 5.2 และ DRF ตามรุ่นใน Metadata คำสั่งใช้กับโฟลเดอร์ทดลองใหม่ ไม่ใช่ Repository ของ Engineering Hub
+
+## ใช้เมื่อไร?
+
+ใช้เมื่อเริ่มเรียน Django หรือส่งวิธีเริ่มงานให้คนใหม่ ถ้ามีโปรเจกต์จริงอยู่แล้วให้ดู Lockfile/โครงสร้างของทีมก่อน ไม่สร้าง Scaffold ทับ
+
+## ตัวอย่าง Code
+
+### 1. เตรียมโฟลเดอร์และ Python environment
+
+Virtual environment คือที่ติดตั้ง Python packages แยกจากโปรเจกต์อื่น ใช้ Bash/Zsh ที่มี Python 3.12 แล้ว:
+
+```bash
+mkdir -p task-reference/backend
+cd task-reference
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install Django==5.2.18 djangorestframework==3.18.3 'psycopg[binary]==3.3.6'
+django-admin startproject config backend
+cd backend
+python manage.py startapp tasks
+```
+
+สร้าง Package `api/` พร้อม `api/__init__.py` ว่างสำหรับ Auth/Errors ที่ใช้ร่วมกัน และใช้โครงสร้าง [Project Structure](/technology-guides/django-python/project-structure) เก็บ Dependencies/Lock ของโปรเจกต์ทดลองตามเครื่องมือที่เลือก ไม่แก้ package-lock ของเว็บเอกสาร
+
+### 2. ค่าตั้งตัวอย่าง
+
+คัดลอกเป็น Settings ของ Scaffold ทดลอง **หลังอ่านไฟล์ที่ต้องใช้ครบ** โดย URL/Auth/Error modules อยู่ในบทที่ลิงก์ ไม่ใช่ Settings ที่นำไปรันเดี่ยวโดยยังไม่มี Modules เหล่านั้นได้:
+
+```python filename="backend/config/settings.py"
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
+ALLOWED_HOSTS = os.environ["DJANGO_ALLOWED_HOSTS"].split(",")
+INSTALLED_APPS = [
+    "django.contrib.auth", "django.contrib.contenttypes",
+    "django.contrib.sessions", "rest_framework", "tasks",
+]
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+]
+ROOT_URLCONF = "config.urls"
+WSGI_APPLICATION = "config.wsgi.application"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+USE_TZ = True
+TIME_ZONE = "UTC"
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ["POSTGRES_DB"],
+        "USER": os.environ["POSTGRES_USER"],
+        "PASSWORD": os.environ["POSTGRES_PASSWORD"],
+        "HOST": os.environ["DB_HOST"],
+        "PORT": os.environ.get("DB_PORT", "5432"),
+        "CONN_MAX_AGE": 60,
+        "OPTIONS": {"connect_timeout": 5},
+    }
+}
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_TRUSTED_ORIGINS = (
+    ["http://localhost:5173"] if DEBUG else []
+)
+CSRF_FAILURE_VIEW = "api.errors.csrf_failure"
+SECURE_SSL_REDIRECT = not DEBUG
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "api.authentication.CsrfSessionAuthentication"
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PAGINATION_CLASS": "api.pagination.TaskPagination",
+    "EXCEPTION_HANDLER": "api.errors.exception_handler",
+}
+```
+
+ใส่ `DJANGO_SECRET_KEY`, `POSTGRES_PASSWORD` ผ่าน Environment/Secret mechanism ของทีม ไม่เขียนจริงในไฟล์ตัวอย่าง `DJANGO_DEBUG=1` ใช้ **Local เท่านั้น** ทำให้ทดลอง HTTP ได้; Production ต้อง `DEBUG=0`, HTTPS, Host จริง และค่าลับแยกกัน
+
+ตัวอย่างไฟล์อ้างอิงค่าตั้ง ไม่มี Secret ให้คัดลอกไปใช้งานจริง:
+
+```dotenv filename="backend/.env.example"
+DJANGO_SECRET_KEY=
+DJANGO_DEBUG=1
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+POSTGRES_DB=task_reference
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+DB_HOST=127.0.0.1
+DB_PORT=5432
+```
+
+Django ไม่อ่าน `.env` ให้อัตโนมัติ Settings นี้อ่าน Environment ที่ถูกส่งเข้ากระบวนการ ต้องเลือกวิธีโหลดที่ทีมควบคุม เช่น IDE/Runtime configuration ไม่อ้างว่าการสร้างไฟล์นี้ทำให้ค่าถูกโหลดแล้ว
+
+### 3. เตรียม DB และไฟล์ที่เหลือ
+
+ใช้ PostgreSQL ฐานใหม่ชื่อ `task_reference` ด้วย Role ที่เหมาะกับงานตามสิทธิ์ ไม่คัดลอก Schema `customers/orders` ของ [PostgreSQL Lab](/technology-guides/postgresql) มารวมกับ Django-managed tables ตั้ง DB_HOST ตามว่ารันบน Host หรือ [Docker Network](/technology-guides/docker/docker-network)
+
+เพิ่ม [Model](/technology-guides/django-python/models-and-orm), [Serializer](/technology-guides/django-python/serializers), [Views/URLs](/technology-guides/django-python/rest-api), [Auth](/technology-guides/django-python/authentication), [Permissions](/technology-guides/django-python/authorization) และ [Errors](/technology-guides/django-python/error-handling) ให้ครบก่อน:
+
+```bash
+python manage.py makemigrations tasks
+python manage.py migrate --plan
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 127.0.0.1:8000
+```
+
+คำสั่งสร้างผู้ใช้ถาม Password ผ่าน Prompt ไม่ฝังใน Code ผู้ใช้ Admin นี้มีไว้เตรียม Lab; การทดลองเจ้าของ Task ควรมีผู้ใช้ธรรมดาสองคนผ่านขั้นตอนที่ควบคุม `runserver` ใช้ Local เท่านั้น Migration จะสร้างทั้ง Tasks และตาราง Sessions ที่ Auth ต้องใช้
+
+## วิธีทดสอบ
+
+ตรวจ `python manage.py check`, รัน [Tests](/technology-guides/django-python/testing) และทดสอบ API ผ่าน Cookie jar ตามบท Authentication ก่อนเปิด React ฝั่ง Backend อย่างเดียวที่เปิดได้ยังไม่ยืนยัน CORS/CSRF ใน Browser
+
+## ข้อควรระวัง
+
+Secure cookie จะไม่ถูกส่งบน HTTP ตามปกติ หาก Lab ส่ง Cookie ไม่ได้ให้ตรวจว่า Local configuration ถูกต้อง ไม่ปิด Secure/CSRF ใน Production ด้าน TLS proxy ต้องกำหนด Trusted headers/HTTPS redirects จริง ไม่ใส่ `SECURE_PROXY_SSL_HEADER` โดยยังไม่ควบคุม Proxy chain
+
+## สรุปสิ่งที่ต้องจำ
+
+- สร้างโปรเจกต์ทดลองแยกและใช้ Python environment ของมัน
+- ต้องมี Modules และ DB configuration ครบก่อนเริ่ม Server
+- Local HTTP ต่างจาก Production HTTPS
+- เก็บค่าลับนอก Git และไม่ใช้ฐานที่มีงานจริงเป็น Lab
+
+## อ่านต่อ
+
+- [Project Structure](/technology-guides/django-python/project-structure)
+- [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/)

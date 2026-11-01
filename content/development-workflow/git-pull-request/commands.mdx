@@ -1,0 +1,98 @@
+---
+title: "Commands — Git/GitHub สำหรับงานประจำ"
+description: "เลือกคำสั่งจากงานที่ต้องทำ พร้อมเงื่อนไขของ Diff Fetch Commit PR Stash และ Recovery"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "2.39+; git switch/restore", "GitHub CLI": "2.x; ตรวจรุ่นและ Repository permissions จริง", "GitHub": "ไม่สมมติ Rulesets, Approvals หรือ CI ที่เปิดใช้งาน"}
+---
+
+# Commands — Git/GitHub สำหรับงานประจำ
+
+## เรื่องนี้คืออะไร?
+
+หน้านี้เป็นรายการค้นเร็ว ไม่ใช่ Script ให้รันตามทุกแถว ตัวอย่างใช้ origin/develop/feature/login ตาม Workflow และไฟล์ src/Login.tsx ที่มีอยู่แล้ว ต้องเปลี่ยนชื่อให้ตรงโปรเจกต์จริง
+
+## ดูงานก่อนเปลี่ยนอะไร
+
+| ต้องการ | คำสั่งตัวอย่าง |
+| --- | --- |
+| รู้ Branch/ไฟล์ค้าง | `git status -sb` |
+| ดู Unstaged edits ของไฟล์ที่ Track | `git diff -- src/Login.tsx` |
+| ดูชุดที่จะ Commit | `git diff --staged` |
+| ดูชื่อไฟล์ที่เลือก | `git diff --staged --name-only` |
+| ตรวจ Whitespace ของชุดที่เลือก | `git diff --staged --check` |
+| ดู Commits ล่าสุด | `git log --oneline --graph --decorate -n 12` |
+| ดู Commit ปัจจุบัน | `git show --stat HEAD` |
+| ตามประวัติไฟล์ | `git log -p -n 1 -- src/Login.tsx` |
+
+ไฟล์ใหม่ Untracked ไม่อยู่ใน Diff ปกติ เปิดอ่านและดู status เพิ่ม รายละเอียดอยู่ที่ [Inspect Changes](/development-workflow/git-pull-request/inspect-changes)
+
+## เลือก Commit และส่งงาน
+
+คำสั่งชุดนี้ **เปลี่ยน Staging/History และ Push ออก Remote** ต้องอยู่ Feature ที่ถูกต้อง แก้และทดสอบไฟล์แล้ว จากนั้นรันทีละขั้น:
+
+| ต้องการ | คำสั่งตัวอย่าง |
+| --- | --- |
+| เลือกเฉพาะไฟล์ | `git add -- src/Login.tsx` |
+| เลือกทีละส่วนของไฟล์ที่ Track แล้ว | `git add -p -- src/Login.tsx` |
+| บันทึกชุดที่ตรวจแล้ว | `git commit -m "feat(auth): เพิ่มหน้า Login"` |
+| ส่ง Feature ครั้งแรกและตั้ง Upstream | `git push -u origin feature/login` |
+| ส่งครั้งถัดไปเมื่อ Upstream ถูกแล้ว | `git push` |
+
+ไม่รัน add ทั้งไฟล์กับ add -p ต่อกันโดยคิดว่าต้องใช้สองวิธี เลือกให้เหมาะ และตรวจ `--staged` ก่อน Commit ไม่เลือก git add . เป็นค่าเริ่มต้นโดยไม่ดูไฟล์
+
+## รับงานและเทียบ Remote
+
+| ต้องการ | คำสั่งตัวอย่าง |
+| --- | --- |
+| ดูชื่อ Remotes | `git remote` |
+| รับข้อมูลโดยยังไม่รวม | `git fetch origin` |
+| ดู Upstream/Ahead/Behind | `git branch -vv` |
+| อัปเดตฐานหลัง switch ไป develop และไม่มีงานค้าง | `git pull --ff-only origin develop` |
+| รับฐานเข้า Feature ที่สะอาดหลัง fetch | `git merge origin/develop` |
+| ดู Commit ฝั่ง Local/Remote ของ Feature ที่ Push แล้ว | `git log --left-right --oneline HEAD...origin/feature/login` |
+
+[Remotes & Sync](/development-workflow/git-pull-request/remotes-and-sync) อธิบายลำดับ อย่าใช้ pull origin develop อัปเดต Branch อื่นโดยไม่ตรวจ Branch ปัจจุบัน
+
+## Conflict และย้อนงาน
+
+| ต้องการ | คำสั่งตัวอย่าง / เงื่อนไข |
+| --- | --- |
+| ดูไฟล์ Unmerged | `git diff --name-only --diff-filter=U` |
+| หยุด Merge ที่ยังค้าง | `git merge --abort` เมื่อเริ่มด้วย Working tree สะอาด |
+| เอาไฟล์ออก Staging โดยเก็บ Edits | `git restore --staged -- src/Login.tsx` ต้องมี HEAD แล้ว |
+| พักงานรวม Untracked แต่ไม่รวม Ignored | `git stash push -u -m "wip: login form"` ตรวจ Secret ก่อน |
+| อ่าน Stash ที่เลือก | `git stash show --include-untracked --stat 'stash@{0}'` |
+| นำ Stash กลับโดยยังเก็บ Entry | `git stash apply 'stash@{0}'` อาจ Conflict |
+| ดูตำแหน่ง Commit เก่าในเครื่อง | `git reflog -n 10 --date=iso` |
+
+Restore ที่ไม่มี `--staged`, Stash drop, Revert, Amend และ Reset มีผลต่างกัน ดู [Undo & Recovery](/development-workflow/git-pull-request/undo-and-recovery) ก่อนใช้ ไม่ใส่คำสั่งทิ้งงานทุกอย่างเป็นขั้นแก้ปัญหาปกติ
+
+## GitHub CLI
+
+ต้องติดตั้ง/Login และอยู่ Repository ที่ถูกต้อง คำสั่งอ่านต่อไปใช้ Network/สิทธิ์จริง แทน PR_NUMBER ด้วยเลขจริงของ Repo ก่อน:
+
+| ต้องการ | คำสั่งตัวอย่าง |
+| --- | --- |
+| ดู PR ที่เกี่ยวข้อง | `gh pr status` |
+| ดู PR ที่เปิด | `gh pr list --state open` |
+| อ่าน PR | `gh pr view PR_NUMBER` |
+| ดู Files diff | `gh pr diff PR_NUMBER` |
+| ดู Checks | `gh pr checks PR_NUMBER` |
+| รอผล Checks | `gh pr checks PR_NUMBER --watch` |
+
+ตัวอย่างสร้าง Draft PR พร้อม Body file และผลกระทบอยู่ที่ [GitHub CLI](/development-workflow/git-pull-request/github-cli) คำสั่งสร้าง/Review/Merge มีผลกับผู้อื่น ไม่ Copy รันโดยยังไม่ตรวจ Repo/Base/Head และข้อมูลที่จะส่ง
+
+## สรุปสิ่งที่ต้องจำ
+
+- เลือกคำสั่งจาก State และสิ่งที่ต้องการทำ
+- ตรวจ Diff ก่อนคำสั่งเปลี่ยนไฟล์/History
+- Fetch ไม่ Merge และ Push ไม่เปิด PR/Deploy ให้เอง
+- คำสั่งอ่านบน GitHub ยังต้องมีสิทธิ์และตรวจข้อมูลก่อนแชร์
+
+## อ่านต่อ
+
+- [Troubleshooting](/development-workflow/git-pull-request/troubleshooting)
+- [Overview](/)

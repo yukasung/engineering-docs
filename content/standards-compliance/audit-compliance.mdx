@@ -1,0 +1,71 @@
+---
+title: "Audit & Compliance"
+description: "เตรียม Scope, Control, Evidence, Testing และ Corrective action โดยไม่สร้างผลรับรองสมมติ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Audit": "organization-specific audit criteria not selected", "ISO 19011": "2026 guidance; verify applicable audit programme"}
+---
+
+# Audit & Compliance
+
+## เรื่องนี้คืออะไร?
+
+Compliance คือการทำให้ตรงกับ Requirement ที่ระบุ Audit คือการตรวจอย่างเป็นระบบว่ามี Evidence เพียงพอและ Control ทำงานตาม Criteria หรือไม่ การมีเอกสารหรือ Tool scan เพียงอย่างเดียวยังไม่พิสูจน์ Effectiveness
+
+## ประเภทการตรวจที่พบบ่อย
+
+- **Self-assessment:** Owner ประเมินตนเองเพื่อหา Gap
+- **Internal audit:** ผู้ตรวจที่มีความเป็นอิสระเหมาะสมตรวจตาม Audit programme
+- **Customer/Supplier audit:** ตรวจตาม Contract หรือ Supply-chain requirement
+- **Certification audit:** Certification body ตรวจ Management system ใน Scope ที่กำหนด
+- **Regulatory review:** หน่วยงานกำกับตรวจตามอำนาจและกฎหมายที่เกี่ยวข้อง
+
+## เตรียม Audit อย่างไร?
+
+1. ยืนยัน Criteria, Edition, Scope, Period และ Sampling
+2. ทำ Requirement-to-control mapping โดยไม่คัดลอกข้อความที่ไม่มีสิทธิ์
+3. ระบุ Control owner และ Evidence source
+4. ตรวจ Design และ Operating effectiveness ตามวิธีที่ตกลง
+5. บันทึก Finding พร้อม Evidence และ Scope
+6. ทำ Root cause, Corrective action และ Verify closure
+
+## Evidence ที่ดี
+
+Evidence ต้องเกี่ยวข้องกับ Requirement, มาจากแหล่งเชื่อถือได้, ระบุช่วงเวลา/Scope และรักษาความครบถ้วน ตัวอย่างคือ Approved change record, Access review result, Restore exercise record หรือ Incident timeline ที่เกิดขึ้นจริง
+
+เก็บ Link ไปยังระบบที่จำกัดสิทธิ์ อย่า Copy Secret, Personal data, Vulnerability detail หรือ Customer evidence ลง Hub
+
+## ตัวอย่าง Finding
+
+**Criteria:** Access review ตาม Policy ที่องค์กรอนุมัติ  
+**Observation:** ตัวอย่างบัญชี 2 รายการไม่มีหลักฐาน Review ใน Period ที่กำหนด  
+**Impact:** สิทธิ์ที่ไม่จำเป็นอาจคงอยู่  
+**Action:** Owner วิเคราะห์สาเหตุ แก้ Process และส่ง Evidence รอบใหม่ให้ Reviewer
+
+ตัวอย่างนี้ไม่ใช่ผล Audit จริง
+
+## ข้อควรระวัง
+
+- Checklist marked complete ไม่เท่ากับ Audit pass
+- Auditor ไม่ควรออกแบบ Control แล้วตรวจงานตนเองโดยไม่มีการจัดการ Independence
+- Screenshot เดี่ยวอาจไม่พิสูจน์ว่า Control ทำงานตลอด Period
+- ปิด Finding เมื่อ Verify แล้ว ไม่ใช่เมื่อทีมแจ้งว่าแก้แล้ว
+
+## แหล่งอ้างอิงทางการ
+
+- [ISO — Management system standards and audits](https://www.iso.org/management-system-standards.html)
+
+## สรุป
+
+- เริ่มจาก Criteria และ Scope ที่ชัด
+- Evidence ต้องจริง ปลอดภัย และตามรอยได้
+- แยก Design, Operation และ Effectiveness
+- Corrective action ต้องแก้ Root cause และ Verify closure
+
+## อ่านต่อ
+
+- [Compliance Checklist](/standards-compliance/compliance-checklist)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [ISO Standards](/standards-compliance/iso-standards)

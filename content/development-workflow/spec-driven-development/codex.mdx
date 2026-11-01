@@ -1,0 +1,108 @@
+---
+title: "ใช้ SDD กับ OpenAI Codex"
+description: "ใช้ AGENTS.md, Feature spec, Plan และ Validation เพื่อให้ Codex ทำงานในขอบเขตที่ทีมตรวจได้"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"OpenAI Codex": "current; UI และความสามารถอาจเปลี่ยน ให้ตรวจเอกสารทางการ"}
+---
+
+# ใช้ SDD กับ OpenAI Codex
+
+## เรื่องนี้คืออะไร?
+
+Codex เป็น Coding agent ที่ช่วย Inspect, แก้ไฟล์ และรันการตรวจใน Repository ได้ตามสิทธิ์และเครื่องมือที่เปิดให้ คู่มือนี้ใช้ `AGENTS.md` เป็นกติกาถาวร และใช้ Feature spec เป็นขอบเขตของงานแต่ละครั้ง
+
+OpenAI ระบุว่า `AGENTS.md` เป็น Convention ที่ Codex รองรับ แต่ไฟล์ Workflow อื่นเป็นทางเลือกของทีม จึงไม่ควรสร้างเอกสารทุกชนิดโดยอัตโนมัติ ดู [Official OpenAI workflow guidance](https://developers.openai.com/cookbook/examples/codex/iterating-development-workflows-with-codex)
+
+## ต้องเตรียมอะไร?
+
+- เปิด Repository หรือ Worktree ที่ต้องการใน Codex
+- ตรวจ `AGENTS.md` ที่มีผลกับ Directory นั้น
+- มี Requirements และ Acceptance criteria
+- รู้ Validation commands ของ Repository
+- ตรวจ Working tree เพื่อไม่ทับงานของผู้อื่น
+
+## ทำอย่างไร?
+
+1. ขอให้ Codex Inspect Repository และอ่าน `AGENTS.md` กับ Spec ก่อนแก้ไฟล์
+2. ให้ Codex สรุป Scope, Assumptions และคำถามสำคัญ
+3. ขอ Plan ที่บอกไฟล์ ลำดับ Tests และ Risks
+4. Review Plan และแก้ Spec ก่อนเมื่อ Requirement ยังไม่ชัด
+5. สั่ง Implement โดยกำหนดขอบเขตตรง ๆ
+6. ให้รัน Checks และเทียบ Acceptance criteria
+7. ตรวจ Diff, Test evidence และ Known limitations ก่อน Merge
+
+## Prompt ที่ใช้บ่อย
+
+### 1. Requirements analysis
+
+```text
+อ่าน AGENTS.md และ docs/specs/task-creation/requirements.md ก่อน
+Inspect Repository แบบ Read-only แล้วสรุป Scope, Acceptance criteria, Assumptions, Conflict และคำถามสำคัญ
+ยังไม่แก้ไฟล์
+```
+
+### 2. Specification creation
+
+```text
+ร่าง requirements.md สำหรับ Task Creation จากข้อมูลที่ให้ โดยทำตาม AGENTS.md
+แยก Business rules, Acceptance criteria, Edge cases, Security และ Out of scope
+ระบุข้อมูลที่ยังไม่ยืนยันและอย่าเริ่ม Implement
+```
+
+### 3. Planning
+
+```text
+อ่าน AGENTS.md, requirements.md และโค้ดจริงที่เกี่ยวข้อง
+สร้าง plan.md ที่ระบุไฟล์ ลำดับ Dependencies, Tests, Migration impact, Risks และ Validation commands
+อย่าแก้ Production code ในขั้นนี้
+```
+
+### 4. Implementation
+
+```text
+Implement เฉพาะ requirements.md และ plan.md ที่ยืนยันแล้ว โดยทำตาม AGENTS.md
+อัปเดต Tests และหลีกเลี่ยง Unrelated changes
+ถ้าพบความคลุมเครือที่มีผลต่อ Business rule, Security หรือ Data ให้หยุดและรายงาน
+```
+
+### 5. Testing
+
+```text
+ตรวจ Diff แล้วรัน Tests, Type checks, Lint, Migration checks และ Build ที่เกี่ยวข้องตาม AGENTS.md
+เทียบผลกับ Acceptance criteria และบันทึกเฉพาะผลที่รันจริงใน validation.md
+สรุปสิ่งที่ไม่ได้ทดสอบ
+```
+
+### 6. Code review
+
+```text
+Review Changes เทียบ AGENTS.md และ requirements.md
+หา Bug, Security/Authorization issue, Data risk, Regression และ Tests ที่ขาด
+รายงาน Finding แบบเจาะจงพร้อมไฟล์และผลกระทบ โดยยังไม่แก้โค้ด
+```
+
+## ตัวอย่างการใช้งานจริง
+
+เมื่อเพิ่ม Task Creation ให้ Codex ตรวจ Model, Serializer, View และ React form ที่มีอยู่ก่อนวาง Plan ถ้า Repository ไม่มี App เหล่านั้น Agent ต้องรายงานว่าเป็น Missing prerequisite ไม่สร้างโครงระบบใหม่เกิน Scope เอกสาร
+
+## ข้อควรระวัง
+
+- Codex แต่ละ Surface หรือ Configuration อาจมีสิทธิ์และเครื่องมือต่างกัน
+- อย่าอ้าง Model name, Command หรือความสามารถที่ไม่ได้ตรวจจาก OpenAI Docs
+- อย่าให้ Agent Commit, Push, Merge หรือ Deploy ถ้างานไม่ได้อนุญาต
+- `AGENTS.md` ไม่แทน Feature requirements
+
+## สรุป
+
+- ใช้ `AGENTS.md` สำหรับกติกาถาวรและ Spec สำหรับ Scope ปัจจุบัน
+- ขอ Read-only discovery ก่อน Plan
+- ให้ Codex รันเฉพาะ Checks ที่ Repository รองรับ
+- Human ต้อง Review Findings และ Diff ก่อน Merge
+
+## อ่านต่อ
+
+- [Official OpenAI Codex resources](https://developers.openai.com/learn/codex)
+- [Review & Validation](/development-workflow/spec-driven-development/review-validation)

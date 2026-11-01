@@ -1,0 +1,76 @@
+---
+title: "Engineering Frameworks"
+description: "เลือกใช้ COBIT, NIST CSF/SSDF, ITIL และ OWASP ให้ตรงกับปัญหาโดยไม่ทำ Checklist ซ้ำ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"COBIT": "2019", "NIST CSF": "2.0", "NIST SSDF": "1.1", "ITIL": "Version 5 phased release; ITIL 4 remains available", "OWASP Top 10": "2025", "OWASP ASVS": "5.0.0", "OWASP SAMM": "2.2.0"}
+---
+
+# Engineering Frameworks
+
+## ภาพรวม (Overview)
+
+Framework ช่วยจัดระบบความคิดและสร้างภาษากลาง แต่ไม่ใช่กฎหมายหรือ Certificate โดยอัตโนมัติ เลือกเฉพาะส่วนที่แก้ปัญหาและเชื่อมไปยัง Source เดียวของ Requirement
+
+## เลือกอะไรเมื่อไร?
+
+| Framework | ใช้เมื่อ | Output ที่เหมาะกับทีม |
+| --- | --- | --- |
+| COBIT 2019 | ต้องเชื่อม Business goals กับ Governance/Management of I&T | Decision rights, Objectives, Metrics, Accountability |
+| NIST CSF 2.0 | ต้องจัดการ Cybersecurity risk ในภาพรวม | Current/Target profile และ Prioritized outcomes ใน Govern, Identify, Protect, Detect, Respond, Recover |
+| NIST SSDF 1.1 | ต้องฝัง Secure development ใน SDLC | Practices/Tasks สำหรับ Prepare, Protect, Produce และ Respond |
+| ITIL | ต้องจัดการ Digital product/service และ Operation | Incident, Problem, Change, Release, Service level และ Continual improvement practices |
+| OWASP Top 10:2025 | ต้องสร้าง Security awareness และ Threat discussion เบื้องต้น | Risk themes สำหรับ Training/Review ไม่ใช่ Test checklist ครบถ้วน |
+| OWASP ASVS 5.0.0 | ต้องกำหนดและ Verify Web application security requirements | Versioned requirement IDs, Scope และ Verification results |
+| OWASP SAMM 2.2.0 | ต้องประเมินและปรับปรุง Software security programme | Maturity baseline และ Improvement roadmap |
+
+## วิธีใช้ร่วมกันโดยไม่ซ้ำ
+
+1. ใช้ COBIT/Business governance ระบุเป้าหมายและ Decision owner
+2. ใช้ NIST CSF สื่อ Cybersecurity outcomes และ Gap ระดับองค์กร/ระบบ
+3. ใช้ NIST SSDF หรือ OWASP SAMM ปรับ Secure SDLC
+4. ใช้ OWASP ASVS ตั้ง Application requirements และ Verification
+5. ใช้ ITIL เชื่อม Change, Incident, Problem และ Continual improvement หลังให้บริการ
+6. เก็บ Requirement และ Evidence ในแหล่ง Canonical เดียว พร้อม Mapping ID
+
+## ตัวอย่าง: Login ของ Customer Management
+
+- NIST CSF: ระบุ Outcome ด้าน Identity, Monitoring และ Response
+- SSDF: ใส่ Security requirement, Design review และ Verification ใน SDLC
+- ASVS: เลือก Requirement IDs พร้อม Version ตาม Risk ของ Application
+- ITIL: จัดการ Change/Release และ Incident หลังเปิดใช้
+- COBIT: กำหนด Owner, Risk decision และการติดตามผล
+
+นี่เป็นตัวอย่าง Mapping ไม่ใช่ผล Implement หรือ Verify
+
+## ข้อควรระวัง
+
+- OWASP Top 10 เป็น Awareness document ไม่ครอบคลุม Security requirements ทั้งหมด
+- Framework coverage ไม่เท่ากับ Control effectiveness
+- อย่าใช้ชื่อ Practice/Control โดยไม่ตรึง Version
+- ITIL (Version 5) เปิดตัวแบบทยอยเป็นระยะ และ ITIL 4 ยังมีให้ใช้ ต้องยืนยัน Baseline ขององค์กรก่อนอ้าง
+
+## แหล่งอ้างอิงทางการ
+
+- [ISACA — COBIT 2019](https://www.isaca.org/resources/cobit)
+- [NIST Cybersecurity Framework 2.0](https://www.nist.gov/cyberframework)
+- [NIST SP 800-218 — SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)
+- [PeopleCert — ITIL evolution](https://www.peoplecert.org/itil-version-5-explained)
+- [OWASP Top 10:2025](https://top10.owasp.org/)
+- [OWASP ASVS 5.0.0](https://asvs.owasp.org/)
+- [OWASP SAMM](https://owasp.org/projects/samm)
+
+## สรุป
+
+- เลือก Framework ตามปัญหา ไม่ใช้ทั้งหมดเพราะชื่อดัง
+- ตรึง Version และ Scope
+- ใช้ Mapping ลด Checklist ซ้ำ
+- Evidence ต้องพิสูจน์ผลจริง ไม่ใช่แค่ Framework coverage
+
+## อ่านต่อ
+
+- [Compliance Checklist](/standards-compliance/compliance-checklist)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [Audit & Compliance](/standards-compliance/audit-compliance)

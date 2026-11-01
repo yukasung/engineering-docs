@@ -1,0 +1,99 @@
+---
+title: "CI/CD Troubleshooting — หาจุดผิดก่อนกดรันซ้ำ"
+description: "ตรวจปัญหา GitHub Actions Build Registry SSH Compose Migration และ Rollback อย่างเป็นลำดับ"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Actions": "GitHub.com; ubuntu-24.04 hosted runner; ตัวอย่างยังไม่เปิดใช้"}
+---
+
+# CI/CD Troubleshooting — หาจุดผิดก่อนกดรันซ้ำ
+
+## เรื่องนี้คืออะไร?
+
+เวลางาน CI/CD ล้ม ให้หาว่าล้มช่วงตรวจโค้ด สร้าง Image ส่ง Registry หรือ Deploy ก่อน การกด Re-run ทั้งชุดทันทีอาจทำซ้ำสิ่งที่สำเร็จไปแล้ว โดยเฉพาะ Migration/การเขียนข้อมูล
+
+หน้านี้อ้างตัวอย่างใน [GitHub Actions CI](/technology-guides/devops/github-actions), [Image CI](/technology-guides/devops/image-release) และ [Deployment Workflow](/technology-guides/devops/deployment-workflow) ยังไม่ใช่ผลทดสอบ Pipeline จริง
+
+## เริ่มตรวจอย่างไร?
+
+1. จด Run URL, Branch/Commit, Environment และ Step แรกที่ล้ม
+2. แยกว่า Failed, Skipped, Cancelled หรือ Pending ไม่เหมารวมว่ารันแล้วผิดหมด
+3. อ่าน Error แรกพร้อมบริบท ตรวจปลายทางว่ามีผลไปแล้วหรือไม่
+4. แก้ผ่าน Git/PR หรือกระบวนการ Config/Secret ที่รับผิดชอบ แล้วตรวจซ้ำเฉพาะขอบเขตที่ปลอดภัย
+
+ใช้ GitHub UI ได้เลย หากติดตั้ง GitHub CLI และ Login ด้วยสิทธิ์อ่าน Repo แล้ว ตัวอย่างใช้ Run ID จริงแทน RUN_ID:
+
+```bash
+gh run view RUN_ID
+gh run view RUN_ID --log-failed
+```
+
+คำสั่งแรกดูสถานะ คำสั่งหลังดู Log ส่วนที่ล้ม อย่าแนบ Logs เต็มที่อาจมีข้อมูลลับลงแชต และการอ่านสถานะไม่ได้สั่ง Deploy ใหม่
+
+## ปัญหาที่พบบ่อย
+
+### Workflow ไม่ขึ้นหรือ Job รอไม่ไปต่อ
+
+ตรวจ Trigger/Base branch, Workflow อยู่ Default branch หรือไม่, if, needs, Environment approval และ Concurrency ถ้าเป็น Fork PR อาจต้องรออนุญาตจาก Maintainer อย่าข้าม Gate หรือเพิ่ม Secrets ให้ PR เพื่อแก้ Pending
+
+### npm ci ล้ม หรือหา npm test ไม่พบ
+
+ตรวจ Node version และว่า package.json ตรงกับ Lock หรือไม่ Engineering Hub ใช้ Scripts lint/typecheck/check:docs/build ไม่มี test script ตัวอย่าง Build Task App ใช้ frontend/backend paths ของแอป Repo ไม่ใช่ Hub อย่าลบ Lock เพื่อให้ CI ผ่านอย่างเดียว
+
+### YAML ผ่านแต่รันบน GitHub ไม่ผ่าน
+
+actionlint ตรวจโครงสร้าง/Expressions ไม่ได้ทดสอบ Registry, Cache, Network หรือ Runner image ตรวจ pinned Action revision/inputs และ Runner ที่รองรับ Runtime ของ Action ด้วย Static checks ไม่ใช่ Hosted run evidence
+
+### Image ใช้ Platform ผิดหรือ Build ไม่พบ Dockerfile
+
+ตัวอย่างใช้ linux/amd64 และ context ./frontend กับ ./backend ตรวจ CPU ของ Host และ Source tree จริง ห้ามเปลี่ยนเป็น Multi-arch โดยไม่ทดสอบแต่ละ Platform; ดู [Docker Troubleshooting](/technology-guides/docker/troubleshooting)
+
+### Push/Pull GHCR ได้ 403 หรือ Image not found
+
+ตรวจตัวพิมพ์เล็กของ Repository names, Package visibility/สิทธิ์เชื่อม Repo, packages:write เฉพาะ Trusted publish job และ Read credential ของ Server ตรวจคู่ Digests จาก Run ที่สำเร็จ อย่าแก้ด้วย PAT สิทธิ์กว้างหรือใช้ latest แทน Digest ที่หาไม่เจอ
+
+### Secret ว่าง, SSH เข้าไม่ได้ หรือ Host key mismatch
+
+ตรวจ Environment ชื่อตรงและ Secret อยู่ Scope ถูกหรือไม่ ตรวจ DNS/Port/Firewall/Network path ของ Runner และ Known hosts สำหรับ Port นั้น Host key เปลี่ยนต้องยืนยัน Fingerprint ผ่านผู้ดูแลก่อนแก้ ไม่ใช้ StrictHostKeyChecking=no และไม่พิมพ์ Private key เพื่อ Debug
+
+### Deploy ถูกปฏิเสธว่า Candidate/Revision ไม่ตรง
+
+ตรวจ Commit เต็ม 40 ตัว, คู่ repo@sha256 refs และ Allowlist ทั้ง GitHub Environment/Host policy Image ต้องมี revision label ตามที่ Build ตั้งไว้ อย่าลบ Validator เพื่อให้ผ่าน ตรวจว่าคัดลอก Release record จาก Run/Branch ที่เชื่อถือและผ่านจริง
+
+### Lock ถูกถือ หรือ SSH timeout กลาง Deploy
+
+ตรวจว่ามี Manual/Pipeline อื่นกำลังทำหรือไม่ ถ้า SSH ขาด Remote process อาจยังทำต่อ ต้องตรวจ Process/Compose/Migration state โดยผู้ดูแลก่อนกดซ้ำ ห้ามฆ่างานหรือลบ Lock file แบบเดาสุ่ม การลบชื่อไฟล์ Lock ไม่ได้ทำให้ Process เดิมหยุดถือ Lock ที่เปิดอยู่
+
+### Migration ล้ม
+
+หยุด Promote ตรวจ Error และ django_migrations/Schema state ตาม [PostgreSQL Migration](/technology-guides/postgresql/migrations) บาง Migration/Data operation อาจมีผลบางส่วน อย่ารัน fake, Drop DB หรือย้อน Migration โดยไม่เข้าใจผล ต้อง Review แผนแก้และ Backup ก่อน
+
+### Container unhealthy หรือเว็บขึ้นแต่ API เสีย
+
+ใช้ Compose project/config/release เดียวกับ Deploy ดู ps, Logs แบบจำกัด และตรวจ DB readiness/API health/Proxy path แยกกัน Code baseline ต่างกันอาจใช้ `/api/tasks/` กับ `/api/v1/tasks/` คนละเส้น ไม่แก้ด้วยการสลับ Source สอง Lab โดยไม่มีแผน
+
+### Job ผ่านแต่ UAT ยังใช้งานไม่ได้
+
+Helper ตรวจหน้าเว็บ/Health เท่านั้น ไม่ตรวจความต้องการครบ ยืนยัน Digests/Config จริง ทดสอบ User flow และกรณีสิทธิ์ที่ตรงแอป ถ้าเป็น Docker Task Lab ยังไม่มี Login ให้ตรวจเฉพาะ Task flow และห้ามอ้างว่าทดสอบ Auth แล้ว
+
+### Rollback แล้วแอปรุ่นเก่ายังพัง
+
+ตรวจว่า Schema/Config/Secret rotation เปลี่ยนไปจนรุ่นเก่าใช้ไม่ได้หรือไม่ Code rollback ไม่ย้อน DB ให้ เลือก [Forward fix/Recovery ตามแผน](/technology-guides/devops/rollback-and-release) แทนสั่ง Deploy Workflow เดิมซ้ำ เพราะ Helper นั้นเรียก migrate
+
+## ตัวอย่างการใช้งานจริง
+
+Build ผ่าน แต่ Push ไม่ได้ ให้ตรวจ Packages permission ของ Job/Package ก่อน ยังไม่มีการ Deploy จึงไม่ต้องแตะ Server ถ้า Deploy ผ่าน Migration แล้ว Smoke ล้ม ถือว่าเป็นอีกกรณีหนึ่ง ต้องตรวจ Schema และ Container ปัจจุบันก่อนคิด Re-run/Rollback
+
+## สรุป
+
+- หา Step แรกและผลที่เกิดขึ้นแล้วก่อน Retry
+- ตรวจสิทธิ์/Config ตามขอบเขต ไม่ข้าม Gate เพื่อให้ผ่าน
+- แก้ Source ผ่าน PR และอย่าเผยค่าลับใน Log
+- จดสาเหตุ/วิธีตรวจที่ยืนยันแล้วไว้ใน Project known issues
+
+## อ่านต่อ
+
+- [Operations & Incident](/technology-guides/devops/operations)
+- [GitHub CLI run view](https://cli.github.com/manual/gh_run_view)

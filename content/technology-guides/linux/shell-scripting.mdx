@@ -1,0 +1,90 @@
+---
+title: "Shell Scripting — รวมคำสั่งที่ตรวจและอ่านได้"
+description: "Bash variables quoting exit status pipe และ Script อ่านข้อมูลระบบโดยไม่เปลี่ยน Service"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Shell Scripting — รวมคำสั่งที่ตรวจและอ่านได้
+
+## เรื่องนี้คืออะไร?
+
+Shell script คือไฟล์รวมคำสั่งที่ต้องทำซ้ำ เหมาะกับงานเล็ก เช่น เก็บข้อมูลเริ่มต้นก่อนวิเคราะห์ปัญหา ถ้างานมีเงื่อนไขซับซ้อน/ข้อมูลหลายรูปแบบ ควรเลือกภาษาและ Test ที่ดูแลง่าย แทนการต่อ Shell ยาว ๆ
+
+## ทำงานอย่างไร?
+
+- ตัวแปรเก็บค่า เช่น `linux_check_path="/tmp"` เวลาส่งเป็น Argument ใช้ `"$linux_check_path"` เพื่อคงช่องว่าง/อักขระพิเศษ
+- `>` เขียนทับ, `>>` ต่อท้าย ส่วน `|` ส่ง stdout ให้คำสั่งถัดไป stderr เป็นอีกช่องทางหนึ่ง ไม่ถือว่า Pipe รวมทุกข้อความให้แล้ว
+- Exit status 0 หมายถึงสำเร็จตามคำสั่งนั้น Non-zero ต้องแปลความ เช่น grep ไม่มี Match คืน 1 ซึ่งอาจไม่ใช่ปัญหา ใช้ if จัดการกรณีที่คาดไว้
+- ไม่ใช้ eval กับข้อความจากผู้ใช้หรือยัดค่าจาก Input เข้า Command string ให้ส่งเป็น Argument ที่ Quote แทน
+
+## ตัวอย่างการใช้งานจริง
+
+สร้าง `collect-system-info.sh` ในพื้นที่ทดลอง Script นี้ **อ่านข้อมูลเท่านั้น** รับ Path หนึ่งค่า ไม่อ่าน Environment ทั้งหมด/Secret files และไม่ Restart Service:
+
+```bash filename="collect-system-info.sh"
+#!/usr/bin/env bash
+set -euo pipefail
+
+if (( $# > 1 )); then
+  printf 'Usage: %s [existing-path]\n' "$0" >&2
+  exit 64
+fi
+linux_check_path="${1:-/}"
+if [[ ! -e "$linux_check_path" ]]; then
+  printf 'Path does not exist\n' >&2
+  exit 2
+fi
+
+printf 'Collected at: '
+date -u '+%Y-%m-%dT%H:%M:%SZ'
+printf 'Kernel: '
+uname -sr
+uptime
+printf '\nFilesystem\n'
+df -h -- "$linux_check_path"
+printf '\nMemory (MiB)\n'
+free -m
+```
+
+`#!/usr/bin/env bash` เลือก Bash จาก PATH; -u จับตัวแปรที่ยังไม่ตั้ง; pipefail ทำให้ Pipe สะท้อนความล้มเหลวของคำสั่งก่อนหน้าได้ ส่วน -e ช่วยหยุดในหลายกรณี แต่มีข้อยกเว้น เช่น เงื่อนไข if จึงไม่แทน Error handling และไม่ใช้ bash -x กับงานที่อาจมี Secret
+
+Output เป็น Snapshot ตามขอบเขตที่โปรแกรมมองเห็น ไม่ใช่ Health certification โดยเฉพาะ Memory ใน Container ต้องอ่านข้อจำกัดตามบท Logs & Resources
+
+## ทำอย่างไร?
+
+หลังคัด Script ไปโฟลเดอร์ Lab ที่มี Bash, df, free และ uptime แล้ว:
+
+```bash
+bash -n collect-system-info.sh
+bash collect-system-info.sh "${LINUX_LAB_DIR:?ให้เริ่ม Linux Lab ก่อน}"
+```
+
+-n ตรวจ Bash syntax โดยไม่รัน แต่ไม่ยืนยัน Logic/Dependencies ต้องรันใน Lab และตรวจ Exit/Output ด้วย หากมี ShellCheck ใช้ `shellcheck collect-system-info.sh` เพิ่มเพื่อหาข้อผิดพลาดทั่วไป
+
+ถ้าต้องการเก็บ Output ต้องตรวจว่าไม่มีข้อมูลที่ไม่ควรเผยแพร่ก่อน และใช้ไฟล์ใหม่/สิทธิ์เหมาะสม ไม่เพิ่มการ Upload Log อัตโนมัติโดยไม่ได้รับอนุญาต
+
+## วิธีตรวจพฤติกรรม
+
+1. Path ปกติและ Path ที่มีช่องว่างต้องรันได้
+2. Path ที่ไม่มีต้อง Exit 2 และไม่รันคำสั่งอ่าน Resources ต่อ
+3. ส่งเกินหนึ่ง Argument ต้อง Exit 64
+4. Command/Dependency ล้มเหลวต้องรายงาน Non-zero ไม่พิมพ์ว่าผ่านเสมอ
+
+อย่าเพิ่ม sudo, rm -rf หรือ Restart เข้า Script เก็บหลักฐานนี้โดยไม่แยกผลกระทบและ Review ก่อน Scheduled jobs ต้องใช้ Environment/Absolute paths/Logging ที่ออกแบบไว้ ไม่อาศัย Interactive shell ของผู้เขียน และยังไม่มีการติดตั้ง cron/timer จากคู่มือนี้
+
+## สรุปสิ่งที่ต้องจำ
+
+- Quote ตัวแปรและไม่ใช้ eval กับ Input
+- แยก stdout, stderr และ Exit status
+- Syntax check ไม่แทนการรันทดสอบ
+- Script อ่านข้อมูลควรคงขอบเขตให้ตรวจได้ง่าย
+
+## อ่านต่อ
+
+- [Logs & Resources](/technology-guides/linux/logs-and-resources)
+- [Files & Permissions](/technology-guides/linux/files-and-permissions)
+- [Bash reference](https://manpages.ubuntu.com/manpages/noble/man1/bash.1.html)

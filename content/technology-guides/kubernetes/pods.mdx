@@ -1,0 +1,87 @@
+---
+title: "Pods — หน่วยเล็กที่ Kubernetes จัดวาง"
+description: "อ่าน Pod status Logs และ Lifecycle พร้อมตัวอย่าง Pod สำหรับเรียนรู้ที่ไม่เปิด API"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Kubernetes": "1.36; apps/v1, autoscaling/v2", "kind": "0.33.0; node 1.36.4 สำหรับ Lab", "PostgreSQL": "17; Local lab เท่านั้น"}
+---
+
+# Pods — หน่วยเล็กที่ Kubernetes จัดวาง
+
+## เรื่องนี้คืออะไร?
+
+Pod ห่อหนึ่งหรือหลาย Containers ที่ต้องอยู่ด้วยกัน มี IP และการตั้งค่าร่วมกัน Pod อาจถูกแทนที่ด้วยตัวใหม่ที่มีชื่อ/IP ใหม่ จึงไม่เก็บข้อมูลสำคัญไว้เฉพาะ Filesystem ภายใน Container
+
+## ทำงานอย่างไร?
+
+Pod เดิมอาจมี Container restart อยู่ข้างใน ส่วนเมื่อ Pod หาย Deployment/ReplicaSet จะสร้าง Pod ใหม่ตามจำนวนที่ต้องการ หากใช้ Pod เดี่ยวไม่มี Controller มาช่วยรักษาจำนวนนั้น
+
+| Phase | อ่านว่าอะไร |
+| --- | --- |
+| Pending | ยังเตรียมไม่เสร็จ เช่น รอ Node, Image หรือ Volume |
+| Running | ถูกวางบน Node และมี Container เริ่มรัน ไม่รับประกัน Ready |
+| Succeeded / Failed | Containers จบงานสำเร็จ / มีความล้มเหลวตามสถานะ |
+| Unknown | อ่าน State ของ Pod ไม่ได้ เช่น ติดต่อ Node ไม่ได้ |
+
+`CrashLoopBackOff` และ `ImagePullBackOff` ที่เห็นในคอลัมน์ STATUS เป็นเหตุการณ์รอ/ปัญหาของ Container ไม่ใช่ชื่อ Phase ใหม่ ดู RESTARTS และ READY ควบคู่กัน
+
+## ตัวอย่างการใช้งานจริง
+
+ไฟล์นี้ใช้เรียน Pod/logs เท่านั้น ต้อง Load Backend image ตาม Getting Started แล้ว Python จะพิมพ์ข้อความและพัก 10 นาที **ไม่ได้เปิด Django API** จึงไม่มี DB/Secret prerequisites:
+
+```yaml filename="k8s/pod-demo.yaml"
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend-demo
+  namespace: task-demo
+  labels:
+    app: backend-demo
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    - name: backend
+      image: task-backend:k8s-lab-v1
+      imagePullPolicy: IfNotPresent
+      command: ["python", "-c", "import time; print('Pod demo', flush=True); time.sleep(600)"]
+      resources:
+        requests: {cpu: "50m", memory: "64Mi"}
+        limits: {cpu: "200m", memory: "128Mi"}
+```
+
+Labels ของ Demo ไม่ตรงกับ Backend Service เพื่อไม่รับ Traffic ของแอป `restartPolicy: Never` ทำให้เมื่อจบไม่วนรันเอง ไม่ใช้ไฟล์นี้แทน Backend Deployment
+
+## ขั้นตอนทดลอง
+
+หลังสร้าง Namespace ของ Lab และคัดไฟล์แล้ว:
+
+```bash
+kubectl --context kind-task-lab -n task-demo apply -f k8s/pod-demo.yaml
+kubectl --context kind-task-lab -n task-demo get pods -o wide
+kubectl --context kind-task-lab -n task-demo describe pod backend-demo
+kubectl --context kind-task-lab -n task-demo logs backend-demo -c backend
+```
+
+apply ส่ง Desired State, get ดู Node/IP/READY, describe ดู Conditions และ Events ส่วน logs อ่าน stdout/stderr ของ Container หากเป็น Deployment จริงให้แทนชื่อ Pod จาก get pods ไม่พิมพ์ `<pod-name>` ตรง ๆ
+
+Pod ถูกลบแล้ว Log เดิมอาจหายตาม Retention จึงควรเก็บ Log ที่จำเป็นผ่านระบบรวม Logs ก่อนทำการเปลี่ยนที่กระทบหลักฐาน
+
+## ข้อควรระวัง
+
+ไม่แก้ Container ด้วย exec แล้วถือว่าแก้ถาวร Pod ใหม่จะกลับมาใช้ Image เดิม แก้ Source/Config ผ่าน Git และ Build/Review ให้ตามรอยได้ตามกติกาของโปรเจกต์
+
+## สรุปสิ่งที่ต้องจำ
+
+- Pod ไม่ใช่ Container และไม่ใช่เครื่องถาวร
+- Running ต่างจาก Ready
+- อ่าน Events และ Logs ก่อน Restart/Delete
+- แอปเว็บปกติควรให้ Deployment ดูแล
+
+## อ่านต่อ
+
+- [Deployments](/technology-guides/kubernetes/deployments)
+- [Troubleshooting](/technology-guides/kubernetes/troubleshooting)
+- [Pod lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)

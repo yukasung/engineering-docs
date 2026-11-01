@@ -1,0 +1,86 @@
+---
+title: "SSH & File Transfer — เข้าเครื่องและส่งไฟล์อย่างระบุปลายทาง"
+description: "ตรวจ Host key ใช้ SSH key ส่งไฟล์ และเปิด Tunnel โดยไม่เปิด Port ของ Lab สู่ Public"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# SSH & File Transfer — เข้าเครื่องและส่งไฟล์อย่างระบุปลายทาง
+
+## เรื่องนี้คืออะไร?
+
+SSH เชื่อม Terminal ไปเครื่องอื่นผ่านช่องทางเข้ารหัส ส่วน scp/rsync ช่วยส่งไฟล์ ต้องมีบัญชี/สิทธิ์และปลายทางที่ได้รับอนุญาตก่อน ตัวอย่างนี้ไม่สร้างบัญชีหรือเชื่อม Server จริงให้
+
+`SERVER_USER` และ `SERVER_HOST` เป็น Placeholder ให้แทนค่าจาก Inventory ไม่คัดไปรันตรง ๆ Private key ต้องเก็บนอก Git และใช้ Key/Agent ตามวิธีที่ทีมกำหนด
+
+## ทำอย่างไร?
+
+### ตรวจปลายทางก่อน Login
+
+```bash
+ssh SERVER_USER@SERVER_HOST
+```
+
+ครั้งแรกต้องตรวจ Host key fingerprint กับผู้ดูแล/ช่องทางที่เชื่อถือได้ก่อนยอมรับ ถ้าเดิมเคยเข้าได้แล้ว Host key เปลี่ยนให้หยุดตรวจสาเหตุ ไม่ปิด StrictHostKeyChecking หรือลบ known_hosts เพื่อให้ Warning หายเฉย ๆ
+
+ถ้าใช้ Identity file ที่มีอยู่และได้รับสิทธิ์แล้ว:
+
+```bash
+ssh -i ~/.ssh/id_ed25519 -p 22 SERVER_USER@SERVER_HOST
+```
+
+-i เลือก Key และ -p เลือก Port ค่า 22 เป็นตัวอย่าง ต้องตรง Server ไม่ส่ง Private key/รหัสผ่านผ่าน Chat/Issue และไม่ Forward SSH agent ไปทุกเครื่องเป็นค่าเริ่มต้น
+
+หลัง Login ตรวจ hostname, whoami และ pwd ให้ตรงเครื่อง/Environment ที่ต้องทำ การมี SSH access ไม่ได้แปลว่าได้รับอนุญาตให้ Deploy/Restart/Delete ทุกอย่าง
+
+### ส่งไฟล์พร้อมตรวจปลายทาง
+
+เตรียมไฟล์ข้อความที่ไม่มีข้อมูลลับและโฟลเดอร์รับที่ได้รับอนุญาตก่อน บรรทัดแรกส่งไป Server บรรทัดสองรับกลับ คำสั่งเขียนทับชื่อเดิมได้ จึงเลือกชื่อใหม่เมื่อไม่แน่ใจ:
+
+```bash
+scp ./review-notes.txt SERVER_USER@SERVER_HOST:~/review-notes.txt
+scp SERVER_USER@SERVER_HOST:~/review-result.txt ./review-result.txt
+```
+
+scp ใช้ `-P` ตัวใหญ่เมื่อเลือก Port ต่างจาก ssh -p ส่วน rsync เหมาะกับเปรียบเทียบ/ส่งเฉพาะไฟล์ที่เปลี่ยน ต้องมีทั้งสองฝั่ง ตัวอย่างนี้ **Dry run ยังไม่ส่งไฟล์**:
+
+```bash
+rsync -rtv --dry-run --exclude='.env*' --exclude='.local-secrets/' \
+  ./review-notes/ SERVER_USER@SERVER_HOST:~/review-notes/
+```
+
+ดูรายชื่อที่จะเปลี่ยนก่อนเอา --dry-run ออก `source/` ส่งเนื้อหาภายใน ต่างจาก source ที่ไม่มี / ท้ายตาม Path ปลายทางที่ใช้ ไม่ใส่ --delete เป็นค่าเริ่มต้นเพราะอาจลบข้อมูลฝั่งรับ Exclude สอง Pattern ไม่รับประกันว่าตัดข้อมูลลับทุกชนิด ต้องตรวจไฟล์ก่อนเสมอ
+
+## ตัวอย่างการใช้งานจริง: เปิด Docker Lab ผ่าน Tunnel
+
+เมื่อ Docker Task Lab บน Server Bind เว็บที่ 127.0.0.1:8080 ตาม [Deployment guide](/technology-guides/docker/docker-deployment) ให้รันบน Laptop ที่ Local port 8080 ว่าง:
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:8080:127.0.0.1:8080 SERVER_USER@SERVER_HOST
+```
+
+-N ไม่เปิด Remote command และ -L ส่ง Local port ไป Loopback ฝั่ง Server เปิด Browser ที่ localhost:8080 ขณะ SSH ยังเชื่อมอยู่ ใช้ Ctrl+C หยุด Tunnel ค่า ExitOnForwardFailure ช่วยตรวจการตั้ง Forward แต่ไม่ยืนยันว่าเว็บปลายทางพร้อม ต้องลอง HTTP เพิ่ม
+
+Tunnel นี้ไม่เปิดเว็บให้ทุกคนและไม่ใช้แทน Production HTTPS/Auth อย่า Publish DB หรือ Bind Tunnel เป็น 0.0.0.0 โดยไม่มี Requirement และการควบคุม Access
+
+## ข้อควรระวัง
+
+ไม่ใช้ scp/rsync แก้ Source บน UAT/Production เป็นขั้นตอน Deploy ปกติ ให้ใช้ Artifact/PR/Runbook ของระบบ การส่ง Log ออกเครื่องต้องตรวจสิทธิ์และกรองข้อมูลลับก่อน หากจะเปลี่ยน SSH Config/Firewall ต้องมีช่องทางกู้ Access และตรวจ Syntax ตามระบบจริง ไม่ทดลองตัดช่องทางเข้าตัวเอง
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจเครื่องและ Host key ก่อนเชื่อมต่อ
+- Private key อยู่เฉพาะที่จัดเก็บที่อนุญาต
+- Dry run และตรวจไฟล์ก่อนส่ง/เขียนทับ
+- Tunnel เป็นทางเข้าชั่วคราว ไม่แทน Security ของแอป
+
+## อ่านต่อ
+
+- [Docker Deployment](/technology-guides/docker/docker-deployment)
+- [Overview](/)
+- [OpenSSH reference](https://man.openbsd.org/ssh)
+- [rsync manual](https://download.samba.org/pub/rsync/rsync.1)

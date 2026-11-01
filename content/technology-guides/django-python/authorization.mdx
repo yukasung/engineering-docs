@@ -1,0 +1,57 @@
+---
+title: "Authorization — ให้เห็นเฉพาะ Task ของตัวเอง"
+description: "Filter QuerySet และ Object permission ที่ Backend พร้อมแยก Role กับ Ownership"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Authorization — ให้เห็นเฉพาะ Task ของตัวเอง
+
+## เรื่องนี้คืออะไร?
+
+Authorization คือการตัดสินว่าผู้ใช้ที่รู้ตัวตนแล้วเข้าถึงอะไรได้ ในตัวอย่างนี้ผู้ใช้ดู/สร้าง/แก้/ลบได้เฉพาะ Task ของตัวเอง ไม่มีสิทธิ์ Admin ข้าม Owner ใน Task API แม้บัญชีเป็น Staff
+
+## ใช้เมื่อไร?
+
+ใช้กับทุก Endpoint รวม List, Detail, PATCH และ DELETE การซ่อนปุ่มหรือ Protected route ของ React ช่วย UX แต่ไม่กันคนส่ง HTTP เอง
+
+## ตัวอย่าง Code
+
+[TaskViewSet](/technology-guides/django-python/rest-api) Filter ด้วย `owner=request.user` ก่อนค้น Object จึงตอบ 404 เมื่อ ID เป็นของคนอื่น และกำหนด Owner ตอน Create จาก Server เพิ่ม Object permission อีกชั้น:
+
+```python filename="backend/tasks/permissions.py"
+from rest_framework.permissions import BasePermission
+
+
+class IsTaskOwner(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        return obj.owner_id == request.user.pk
+```
+
+Object permission ไม่กรอง List ให้เอง และไม่ตรวจ Create object ที่ยังไม่มี จึงต้องใช้ Queryset filtering กับ `perform_create()` ร่วมกัน ไม่เลือกเพียงอย่างเดียว
+
+**Role** เช่น Staff/Reviewer เป็นกลุ่มหน้าที่ ส่วน **Ownership** คือใครเป็นเจ้าของข้อมูล หากเพิ่ม Role ที่ดู Task ทีมอื่นได้ ต้องกำหนด Contract/Queryset/Permissions/Tests ใหม่ ไม่ใส่ `is_staff` แล้วเปิดข้อมูลทั้งหมดเงียบ ๆ
+
+## วิธีทดสอบ
+
+ใช้ผู้ใช้ Alice กับ Bob: Alice มี Task หนึ่งรายการ Bob ต้องไม่เห็นใน List และ GET/PATCH/DELETE ID เดียวกันต้องเป็น 404 ลองส่ง `owner` ของ Alice ตอน Bob สร้าง Task ผลที่เก็บต้องยังเป็น Bob ดู [API permission tests](/technology-guides/django-python/testing)
+
+## ข้อควรระวัง
+
+401 มักใช้กับการขาด/ใช้ Credential ไม่ถูกใน Scheme ที่มี Authentication challenge ส่วน 403 คือคำขอที่ถูกห้าม และใน DRF Session ยังใช้กับผู้ที่ไม่ได้ Login ได้ด้วย ตัวอย่างเลือก 404 สำหรับ Object ที่อยู่นอก Queryset เพื่อไม่เปิดเผยว่ามี Task ของคนอื่น ไม่ใช้ HTTP status อย่างเดียวเดาว่าต้อง Logout
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจสิทธิ์ที่ Backend ทุกเส้นทาง
+- Filter List/Detail และกำหนด Owner จาก Server
+- Object permission ไม่ทำงานแทน Queryset filtering
+- เพิ่ม Role ต้องมีข้อตกลงและ Tests ไม่ใช่แค่ซ่อนปุ่ม
+
+## อ่านต่อ
+
+- [Testing](/technology-guides/django-python/testing)
+- [React protected routes](/technology-guides/react-typescript/authentication)
+- [DRF permissions](https://www.django-rest-framework.org/api-guide/permissions/)

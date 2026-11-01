@@ -1,0 +1,167 @@
+---
+title: "Dockerfile — แพ็ก Backend และ Frontend"
+description: "Dockerfile สองบริการพร้อม Multi-stage build, Non-root และ .dockerignore ที่เชื่อมกับ Task App"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Dockerfile — แพ็ก Backend และ Frontend
+
+## เรื่องนี้คืออะไร?
+
+Dockerfile คือรายการขั้นตอนสร้าง Image เช่น เริ่มจาก Python, ติดตั้ง Dependencies และคัดลอก Source การ Build สร้างแพ็ก ส่วนการ Run จึงเริ่มโปรแกรม อย่ารวมสองเรื่องนี้เป็นขั้นเดียว
+
+## ใช้ทำอะไร?
+
+ใช้ทำให้ทีม Build แอปจากวิธีเดียวกัน ตัวอย่างหน้านี้ต้องมี Source จาก [Task App](/technology-guides/docker/reference-project) และ Frontend lockfile แล้ว ไม่ใช่ Dockerfile ที่ใช้เดี่ยว ๆ ได้โดยไม่มีแอป
+
+## ทำงานอย่างไร?
+
+| คำสั่ง | ทำอะไร |
+| --- | --- |
+| `FROM` | เลือก Image ตั้งต้น หรือเริ่ม Stage ใหม่ |
+| `WORKDIR` | กำหนดโฟลเดอร์ทำงาน |
+| `COPY` | คัดลอกจาก Build context เข้า Image |
+| `RUN` | รันระหว่าง Build เช่น ติดตั้งแพ็ก |
+| `ENV` | ตั้งค่าเริ่มต้นที่อยู่ใน Image ไม่ใช้ใส่ Secret |
+| `EXPOSE` | บอกพอร์ตที่แอปใช้ ไม่ได้เปิด Host port ให้เอง |
+| `CMD` | คำสั่งเริ่มต้นเมื่อรัน Container; ถูกแทนได้ |
+| `ENTRYPOINT` | โปรแกรมหลักที่รับ Arguments เพิ่ม เช่นใช้คู่กับ `CMD` |
+
+ใช้รูปแบบ JSON ของ `CMD`/`ENTRYPOINT` เพื่อให้โปรแกรมรับ Signal หยุดโดยตรง หากมี Script ครอบต้องใช้ `exec` ส่งต่อ ไม่ใช้ Shell ที่กลืน Signal `CMD` ใน Backend ด้านล่างไม่มี Entrypoint บังคับ จึงเปลี่ยนเป็นคำสั่ง Migration ชั่วคราวได้ผ่าน Compose
+
+## ขั้นตอนการทำงาน
+
+### 1. Backend Dockerfile
+
+สร้างไฟล์นี้ใน `task-demo/backend`:
+
+```dockerfile filename="backend/Dockerfile"
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && useradd --create-home --uid 10001 appuser
+COPY --chown=10001:10001 . ./
+USER 10001:10001
+EXPOSE 8000
+CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "30", "--graceful-timeout", "25", "--access-logfile", "-", "--error-logfile", "-"]
+```
+
+ติดตั้ง Requirements ก่อน COPY Source เพื่อให้แก้โค้ดแล้วใช้ Cache ขั้นติดตั้งเดิมได้ ตัวอย่างใช้ `psycopg[binary]` จึงไม่เพิ่ม Compiler ใน Runtime บน Platform ที่มี Wheel รองรับ หากไม่มี Wheel ให้เลือก Platform/วิธี Build ให้ถูก ไม่ติดตั้งทุกเครื่องมือเผื่อไว้
+
+`USER` กำหนดให้แอปรันแบบ Non-root คือไม่ใช้บัญชีสิทธิ์สูงสุดของ Container แต่ยังต้องดูแลความปลอดภัยส่วนอื่น Gunicorn เป็นเว็บเซิร์ฟเวอร์ที่เรียก Django ผ่านมาตรฐาน WSGI แทน `runserver` จำนวน Workers/Timeout ต้องวัดตามงานจริง Logs ออก stdout/stderr ให้ Docker เก็บ
+
+### 2. Frontend Multi-stage build
+
+Multi-stage คือ Build ด้วยเครื่องมือชุดหนึ่ง แล้วเอาเฉพาะผลลัพธ์ไปรันในอีก Stage:
+
+```dockerfile filename="frontend/Dockerfile"
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . ./
+RUN npm run build
+
+FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 8080
+```
+
+Stage แรกมี Node/TypeScript/Vite ส่วน Runtime มี Nginx และไฟล์ Static เท่านั้น Base runtime นี้ตั้ง Non-root และพอร์ต `8080` มาแล้ว จึงไม่เปลี่ยนไปใช้ root เพื่อแก้ Permission อ่านรายละเอียดจาก [ผู้ดูแล Image](https://github.com/nginx/docker-nginx-unprivileged)
+
+### 3. Frontend proxy
+
+```nginx filename="frontend/nginx.conf"
+server {
+    listen 8080;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $backend backend:8000;
+        proxy_pass http://$backend;
+        proxy_set_header Host $host;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Browser เรียก `localhost:8080/api/tasks/` แล้ว Nginx ส่ง Path เดิมไป `backend:8000` ใช้ DNS ของ Docker ที่ `127.0.0.11` เพื่อหา Backend ใหม่ได้เมื่อ Container ถูกสร้างใหม่ ค่า Resolver นี้มีไว้สำหรับ Docker Network ไม่ใช่ค่าทั่วไปของทุกระบบ
+
+ไฟล์นี้ยังไม่ทำ HTTPS หรือจัดการ Header จาก Trusted TLS proxy อย่าตั้ง `SECURE_PROXY_SSL_HEADER` ใน Django จนกว่าจะควบคุม Proxy chain และ Header ได้จริง
+
+### 4. .dockerignore แยกแต่ละ Build context
+
+สร้าง `backend/.dockerignore` และ `frontend/.dockerignore` ด้วยเนื้อหาเดียวกันนี้ `.dockerignore` ลดไฟล์ที่ส่งเข้า Build ไม่ใช่ตัวกรอง Git:
+
+```text filename="backend/.dockerignore"
+.git
+.env
+.env.*
+__pycache__
+*.pyc
+.venv
+node_modules
+dist
+backups
+```
+
+คัดลอกเนื้อหานี้เป็น `frontend/.dockerignore` ด้วย ไม่ต้องคัดลอกไฟล์ Secret เข้า Context แม้จะยังไม่ได้ COPY เข้า Image
+
+### 5. Build
+
+รันจาก `task-demo` ที่มี Source และ Lockfile ครบ:
+
+```bash
+docker build -t task-backend:local ./backend
+docker build -t task-frontend:local ./frontend
+```
+
+หาก Build ผ่านจะได้ Images สองชื่อ แต่ยังไม่มีฐานข้อมูลหรือ Container ที่รันแอป ต้องต่อด้วย [Compose](/technology-guides/docker/docker-compose)
+
+## ตัวอย่างการใช้งานจริง
+
+แก้ `App.tsx` แล้ว Build ใหม่ Cache ของ `npm ci` ควรยังใช้ได้ถ้า Manifest/Lockfile ไม่เปลี่ยน แต่ขั้น Build assets ต้องทำใหม่ ดู Build output จริงเพื่อยืนยัน ไม่สมมติว่าทุกชั้นจะ Cache ได้
+
+### Development กับ Production ต่างกันอย่างไร?
+
+| Local development | แพ็กสำหรับปล่อย |
+| --- | --- |
+| อาจใช้ Bind mount กับ Django `runserver`/Vite dev server เพื่อเห็นโค้ดเร็ว | ใช้ Source ที่แพ็กแล้ว, Gunicorn และ Static assets |
+| มีเครื่องมือ Debug ตามจำเป็น | ตัดเครื่องมือที่ไม่ใช้และไม่เปิด Debug |
+| โค้ดเปลี่ยนได้บ่อย | ระบุรุ่น Image ที่ตามกลับได้ |
+
+Lab นี้ตั้งใจใช้แพ็กแบบ Build แล้วเสิร์ฟ จึงต้อง Build ใหม่เมื่อแก้โค้ด ยังไม่ได้เปิด Hot reload หรือให้ Dev server ฟังอินเทอร์เน็ต ก่อน Production ต้องเพิ่มการตั้งค่าความปลอดภัย การทดสอบ และ Pin Base digest ตามแผนทีม
+
+## ข้อควรระวัง
+
+ไม่ใส่ค่าลับใน `ENV`, `ARG`, `RUN` หรือ Source และอย่ารัน `migrate` ระหว่าง Build เพราะไม่มี Runtime DB ในขั้นนั้น `EXPOSE 8080` ไม่เท่ากับ `ports` ใน Compose
+
+## สรุปสิ่งที่ต้องจำ
+
+- Build context ต้องตรงกับ Paths ใน COPY
+- ติดตั้ง Dependencies ก่อน COPY Source ช่วยใช้ Cache
+- Multi-stage ตัดเครื่องมือ Build ออกจาก Frontend runtime
+- Non-root และ .dockerignore เป็นพื้นฐาน ยังต้องตรวจ Security เพิ่ม
+
+## อ่านต่อ
+
+- [Compose: รวมบริการ](/technology-guides/docker/docker-compose)
+- [Dockerfile reference](https://docs.docker.com/reference/dockerfile/)
+- [Django deployment checklist](https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/)

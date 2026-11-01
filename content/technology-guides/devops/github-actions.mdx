@@ -1,0 +1,107 @@
+---
+title: "GitHub Actions & CI — ตรวจ PR ก่อนส่งงานต่อ"
+description: "เข้าใจ Trigger Job Step Runner Permissions และตัวอย่าง CI ของ Next.js Nextra Engineering Hub"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Actions": "GitHub.com; ubuntu-24.04 hosted runner; ตัวอย่างยังไม่เปิดใช้", "Node.js": "22.23.4 สำหรับ Hub CI"}
+---
+
+# GitHub Actions & CI — ตรวจ PR ก่อนส่งงานต่อ
+
+## เรื่องนี้คืออะไร?
+
+GitHub Actions รันงานตามเหตุการณ์ เช่น เปิด PR หรือ Push ส่วน Workflow คือไฟล์ YAML ที่บอกว่าจะรันอะไร Job เป็นกลุ่มงานบน Runner ซึ่งเป็นเครื่องรันงาน และ Step เป็นคำสั่ง/Action ย่อยที่ทำตามลำดับใน Job
+
+ตัวอย่างทุกชุดยังเป็น Code blocks ในเอกสาร ถ้าสร้างไฟล์จริงใต้ `.github/workflows/` หลังเปิดสิทธิ์แล้วอาจเริ่มรันตาม Trigger จึงต้อง Review ก่อนเปิดใช้ต่างหาก
+
+## อ่าน YAML อย่างไร?
+
+| ส่วน | หน้าที่ |
+| --- | --- |
+| on | เหตุการณ์เริ่มงาน เช่น pull_request/push/workflow_dispatch |
+| jobs / runs-on | งานและชนิด Runner ตัวอย่างใช้ GitHub-hosted Ubuntu 24.04 |
+| steps / uses / run | ใช้ Action ที่เตรียมไว้ หรือรัน Shell command |
+| needs | Job ที่ต้องสำเร็จก่อนเริ่ม Job ถัดไป |
+| permissions | สิทธิ์ GITHUB_TOKEN ที่งานใช้ |
+| concurrency | คุมงานซ้ำตามกลุ่ม ไม่ใช่ Lock ทุกเครื่องมือที่ Deploy ไป Host นั้น |
+
+`${{ ... }}` เป็น Expression ของ GitHub อ่าน Context เช่น github.ref/vars/secrets ไม่ใช่ Shell variable โดยตรง ค่าจาก PR title/Inputs ที่ไม่เชื่อถือควรผ่าน env แล้ว Quote/Validate ไม่แทรกลง run เป็น Code
+
+## ตัวอย่าง CI สำหรับ Engineering Hub
+
+นี่เป็นตัวอย่าง **เฉพาะ Repo Hub นี้** ใช้ package-lock.json และ Scripts ที่มีจริง ไม่มี npm test ให้เรียก จึงไม่อ้างว่ามี Unit test suite ขั้นตอน Build รวมการสร้าง Pagefind search ตาม postbuild ของโปรเจกต์
+
+ชื่อไฟล์ด้านล่างเป็นปลายทางเมื่อมีงานอนุมัติเปิดใช้ในอนาคต ไม่ใช่ไฟล์ที่สร้างใน Repository ตอนนี้:
+
+```yaml filename=".github/workflows/hub-ci.yml"
+name: Engineering Hub CI
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+permissions:
+  contents: read
+concurrency:
+  group: hub-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22.23.4'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+      - name: Documentation structure and links
+        run: npm run check:docs
+      - name: Production build and search index
+        run: npm run build
+```
+
+ใช้ main/develop เป็นตัวอย่างตาม Workflow ถ้า Repo ใช้ชื่ออื่นต้องปรับ Trigger ให้ตรง PR branch filter หมายถึง Base ของ PR และ PR checks ปกติอาจตรวจ Merge ref ต้องตรวจ Commit ที่ใช้สร้าง Release หลัง Merge อีกครั้ง
+
+Node ใช้รุ่นเดียวกับที่เลือกทดสอบ Dependencies ติดตั้งด้วย npm ci ตาม Lock ไม่ใช้ npm install เพื่ออัปเดตโดยเงียบ ๆ การปิด persist-credentials ลดการทิ้ง Git credential ไว้ให้คำสั่งภายหลัง ส่วน contents:read ไม่ให้สิทธิ์ Push/Publish/Deploy
+
+Actions อ้าง Full commit SHA พร้อม Comment รุ่นที่ตรวจไว้ ต้องมีแผนอัปเดต/Review ไม่ถือว่า Pin แล้วปลอดภัยตลอดไป และต้องตรวจ Runner version ที่รองรับเมื่อย้ายไป Self-hosted runner
+
+## ทดสอบก่อนเปิด Pipeline อย่างไร?
+
+1. รันคำสั่งเดียวกันใน Clone/Branch ที่แยกงานไว้
+2. Parse YAML และใช้ actionlint ตรวจ Syntax/Expressions/Job references
+3. ตรวจ Trigger, Permissions, Package scripts และเงื่อนไข Failed/Skipped
+4. เปิดใน Repository ทดลองหลังได้รับอนุญาต แล้วเก็บ Run URL/Commit/ผลจริง
+
+Static check ไม่รัน GitHub Actions และไม่ยืนยันว่า Network, Cache หรือ Hosted runner ทำงานครบ ถ้าต้องตรวจ Routes/Anchors ที่ Render จริงให้เพิ่มขั้นเปิด Server แล้วใช้ Runtime docs check ตามรูปแบบของโปรเจกต์ ไม่อ้างว่า check:docs แบบ Static ตรวจ Browser แล้ว
+
+## ข้อควรระวัง
+
+PR จาก Fork/ผู้ส่งใหม่อาจต้องรอ Maintainer อนุญาต และไม่ได้ Secrets/Write token เหมือนงาน Trusted branch อย่าใช้ pull_request_target แล้ว Checkout/รันโค้ด PR ที่ไม่เชื่อถือพร้อม Credential สำหรับ Deploy และไม่รัน Untrusted PR บน Self-hosted runner ที่เข้าถึง Production
+
+CI ยกเลิก Run เก่าของ Branch ได้ แต่ Job Deploy ไม่ควรถูกยกเลิกกลาง Migration แบบเดียวกัน ดู [Deployment Workflow](/technology-guides/devops/deployment-workflow)
+
+## สรุปสิ่งที่ต้องจำ
+
+- Workflow เริ่ม Job บน Runner แล้วทำ Steps ตามลำดับ
+- CI ใช้สิทธิ์อ่านและคำสั่งที่ Repo มีจริง
+- PR ผ่านยังต้องตรวจ Release commit อีกครั้ง
+- YAML ผ่านไม่เท่ากับ Workflow รันผ่านจริง
+
+## อ่านต่อ
+
+- [Build & Publish Images](/technology-guides/devops/image-release)
+- [Overview](/)
+- [Workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+- [Secure use](https://docs.github.com/en/actions/reference/security/secure-use)

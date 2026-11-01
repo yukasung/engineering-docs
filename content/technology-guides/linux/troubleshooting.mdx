@@ -1,0 +1,90 @@
+---
+title: "Troubleshooting — ตรวจ Linux ก่อนเปลี่ยนระบบ"
+description: "ไล่ Permission Disk Memory Service Network SSH และ Script errors ด้วยหลักฐาน"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Linux": "Ubuntu 24.04 LTS; GNU utilities", "Bash": "5.x", "systemd": "255; เฉพาะ Host/VM ที่ใช้ systemd"}
+---
+
+# Troubleshooting — ตรวจ Linux ก่อนเปลี่ยนระบบ
+
+## เรื่องนี้คืออะไร?
+
+ใช้หน้านี้เมื่อรู้ Symptom แต่ยังไม่รู้สาเหตุ เริ่มจากเครื่อง/Environment, เวลา/Timezone, สิ่งที่เพิ่งเปลี่ยน และผลกระทบ แล้วเก็บหลักฐานก่อนแก้ หากเป็น Incident ให้ใช้ [Runbook และผู้รับผิดชอบจริง](/technology-guides/devops#incident-management) ไม่เดาเจ้าของหรืออนุมัติแทนทีม
+
+## 1. Permission denied
+
+- **อาการ:** แอปอ่าน Config/เขียนไฟล์ไม่ได้
+- **ตรวจ:** id, ls -ld ของโฟลเดอร์แม่, ls -l ของไฟล์ เทียบ UID/GID ที่ Process ใช้
+- **แก้:** ให้สิทธิ์เฉพาะบัญชี/Path ที่จำเป็น ถ้า Mode ตรงให้ดู ACL/AppArmor/Read-only mount ต่อ ไม่ chmod 777 หรือรันทุกอย่างเป็น root
+- **ป้องกัน:** กำหนด Service identity/Volume ownership ชัด ตาม [Files & Permissions](/technology-guides/linux/files-and-permissions)
+
+## 2. No space left on device
+
+- **อาการ:** เขียนไฟล์/Log ไม่ได้ แม้บางโฟลเดอร์ดูไม่ใหญ่
+- **ตรวจ:** df -h และ df -i ของ Path ที่ล้ม แล้ว du เฉพาะโฟลเดอร์ที่เกี่ยวข้อง ตรวจ Deleted-but-open files/Quota ตามสิทธิ์เมื่อจำเป็น
+- **แก้:** วางแผนเพิ่มพื้นที่/Retention และเก็บ Backup/หลักฐานก่อนลบ ห้ามลบไฟล์ DB/WAL หรือ Docker volumes เพื่อเดาสาเหตุ
+- **ป้องกัน:** เฝ้าทั้งพื้นที่ Inodes และอัตราโต ตั้ง Log rotation ตาม Runtime
+
+## 3. Process ถูกหยุดเอง / สงสัย OOM
+
+- **อาการ:** แอปหาย Restart ซ้ำ หรือมี OOMKilled ใน Runtime
+- **ตรวจ:** Kernel/Service logs ช่วงเดียวกัน, Memory available, Container limits และ Load ของงาน ไม่สรุปจาก free ต่ำอย่างเดียว
+- **แก้:** หาที่ใช้ Memory/Leak/Requests เกินงบและปรับอย่างมีหลักฐาน การเพิ่ม Limit ต้องสัมพันธ์กับ Host capacity ไม่ปิดตัวควบคุมทั้งระบบ
+- **ป้องกัน:** วัด Load/Memory และทดสอบ Budget ก่อนปล่อย ดู [Logs & Resources](/technology-guides/linux/logs-and-resources)
+
+## 4. systemctl ใช้ไม่ได้ / Service failed
+
+- **อาการ:** ไม่ได้ Boot ด้วย systemd, Unit not found หรือ State failed
+- **ตรวจ:** ps -p 1 -o comm, ชื่อ Unit และ journalctl ถ้าอยู่ Container ให้ตรวจด้วย Compose/kubectl
+- **แก้:** ใช้ Runtime ให้ถูก หาก Unit มีจริงให้แก้ Config/Command/Dependency ตาม Log ก่อน Restart อย่าสร้าง Unit ชื่อใหม่เพียงเพื่อให้ status ไม่ Error
+- **ป้องกัน:** บันทึกวิธีรันจริงของแต่ละ Environment และไม่คิดว่า Docker daemon active แปลว่าแอปพร้อม
+
+## 5. Port ถูกใช้ / Connection refused
+
+- **อาการ:** แอป Bind ไม่ได้ หรือ curl ต่อไม่ติด
+- **ตรวจ:** ss -ltnp ของ Port ที่คาด ตรวจ Process identity, Bind address และ Host/Container ที่กำลังตรวจ
+- **แก้:** เลือก Port/Config ตามแผนหรือหยุด Process ที่ยืนยันว่าเป็นของงานนั้น ห้ามฆ่าทุก Process ที่ใช้พอร์ตโดยไม่ดูชื่อและผลกระทบ
+- **ป้องกัน:** ทำ Port mapping ชัดเจนและตรวจ Listener ก่อนเริ่ม Lab
+
+## 6. DNS/Timeout/TLS error
+
+- **อาการ:** Resolve ไม่ได้ ต่อช้า หรือ Certificate ไม่ผ่าน
+- **ตรวจ:** getent, ip route, curl ที่มี Timeout และเส้นทาง Proxy/VPN/DNS ของจุดที่ล้ม เทียบ HTTP status กับ Network failure
+- **แก้:** แก้ชื่อ/Route/Trust chain/Firewall rule ที่จำเป็นตามผู้ดูแล ไม่ใช้ curl -k หรือปิด Firewall ทุกอย่าง
+- **ป้องกัน:** ทดสอบจาก Network namespace ที่แอปอยู่และดู Certificate expiry/Trust ที่ถูกต้อง
+
+## 7. SSH เข้าไม่ได้ / Host key เปลี่ยน
+
+- **อาการ:** Timeout, Permission denied (publickey) หรือ Warning ว่า Host key ต่างจากเดิม
+- **ตรวจ:** Host/Port, บัญชี/Key ที่ได้รับอนุญาต, Access path และ Fingerprint จากช่องทางเชื่อถือได้ ถ้าดู Debug output ต้องตัดข้อมูลภายในก่อนแชร์
+- **แก้:** ให้ผู้ดูแลยืนยันการเปลี่ยน Host/Key ก่อน ไม่ปิด Host key checking หรือลบ known_hosts แบบเดาสุ่ม
+- **ป้องกัน:** มี Inventory, Key lifecycle และช่องทางกู้ Access ตามระบบจริง ดู [SSH](/technology-guides/linux/ssh-and-file-transfer)
+
+## 8. Script ทำงานในเครื่องตัวเอง แต่ Linux ล้ม
+
+- **อาการ:** Command not found, Bad interpreter, Path มีช่องว่างแล้วพัง หรือ GNU/BSD Flags ไม่ตรง
+- **ตรวจ:** Shebang, Bash version, Dependencies, PATH, Line endings และ Quote ตัวแปร รัน bash -n/ShellCheck โดยยังไม่ใช้ sudo
+- **แก้:** ล็อก Environment/Dependencies ที่รองรับ ใช้ LF ตาม Repo และส่ง Argument แบบ Quote แก้ผ่าน Git ไม่แก้ Server ตรงจนไม่ตรง Source
+- **ป้องกัน:** ทดสอบบน Linux ที่รองรับ รวม Path ที่มีช่องว่างและ Error cases ตาม [Shell Scripting](/technology-guides/linux/shell-scripting)
+
+## ตัวอย่างบันทึกผล
+
+บันทึก Incident เป็นลำดับ Symptom → Hypothesis → Evidence → สิ่งที่แก้และเหตุผล → วิธีตรวจหลังแก้ ระบุผลที่ทำจริง เช่น “HTTP health ตอบ 200 แต่ยังไม่ได้ตรวจ Login” ไม่สรุปว่าระบบปกติทั้งหมดจากจุดเดียว
+
+## สรุปสิ่งที่ต้องจำ
+
+- ตรวจเครื่อง เวลา และผลกระทบก่อน
+- เก็บหลักฐานแล้วแก้ทีละสมมติฐาน
+- ไม่ลบข้อมูล/ปิด Security เพื่อให้ Error หาย
+- ตรวจเส้นทางผู้ใช้จริงหลังแก้และส่งต่อสิ่งที่ยังไม่รู้
+
+## อ่านต่อ
+
+- [Commands](/technology-guides/linux/commands)
+- [Docker Troubleshooting](/technology-guides/docker/troubleshooting)
+- [Kubernetes Troubleshooting](/technology-guides/kubernetes/troubleshooting)
+- [Fullstack Troubleshooting](/technology-guides/fullstack/troubleshooting)
+- [Operations & Incident](/technology-guides/devops/operations)

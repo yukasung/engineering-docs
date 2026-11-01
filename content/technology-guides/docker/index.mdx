@@ -1,0 +1,71 @@
+---
+title: "Docker — เริ่มจากพื้นฐานไปถึงการปล่อยงาน"
+description: "เรียน Docker ทีละขั้นด้วย React + Django + PostgreSQL ตั้งแต่ Image ถึงการดูแลข้อมูล"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Docker": "Engine + Compose plugin; ใช้ docker compose"}
+---
+
+# Docker — เริ่มจากพื้นฐานไปถึงการปล่อยงาน
+
+## เรื่องนี้คืออะไร?
+
+Docker ช่วยแพ็กโปรแกรมพร้อมสิ่งที่ต้องใช้ แล้วรันแยกเป็น **Container** หรือพื้นที่ทำงานของโปรแกรมแต่ละตัว ทีมจึงกำหนดวิธีเริ่มแอปให้เหมือนกันได้ง่ายขึ้น แต่ยังต้องดูแลค่าตั้ง ข้อมูล และความปลอดภัยให้เหมาะกับแต่ละที่
+
+คู่มือนี้ใช้ Task App ตัวอย่างเดียว: React + TypeScript เป็นหน้าเว็บ, Django + Django REST Framework (DRF) เป็น API และ PostgreSQL เก็บงาน บริการชื่อ `frontend`, `backend`, `db` เหมือนกันทุกบท
+
+## ใช้ทำอะไร?
+
+ใช้เมื่ออยากเปิดแอปหลายส่วนพร้อมกัน ส่งวิธีรันให้เพื่อน หรือเตรียมแพ็กสำหรับ DEV/UAT เริ่มที่เครื่องตัวเองก่อน แล้วค่อยอ่านการปล่อยขึ้น Ubuntu
+
+### Docker ต่างจาก Virtual Machine อย่างไร?
+
+Virtual Machine (VM) จำลองเครื่องที่มีระบบปฏิบัติการของตัวเอง ส่วน Linux containers ใช้ Kernel หรือแกนของระบบปฏิบัติการร่วมกับ Host ซึ่งเป็นเครื่องที่รัน Docker จึงมักเริ่มเร็วและใช้ทรัพยากรน้อยกว่า แต่ไม่ได้แยกทุกอย่างเทียบเท่า VM บน macOS/Windows นั้น Docker Desktop ใช้ Linux VM ช่วยรัน Linux containers อีกชั้น
+
+## ทำงานอย่างไร?
+
+| คำที่พบ | ความหมายง่าย ๆ |
+| --- | --- |
+| Docker Engine | ระบบที่สร้างและดูแล Container; CLI ส่งคำสั่งไปหา Engine |
+| Docker Desktop | แอปสำหรับติดตั้งและจัดการ Docker ในเครื่องพัฒนา มี Engine และ Compose ให้ใช้ |
+| Image | แพ็กต้นแบบของโปรแกรม เปรียบเหมือนแม่พิมพ์ |
+| Container | ตัวโปรแกรมที่สร้างจาก Image เปรียบเหมือนชิ้นงานที่ได้จากแม่พิมพ์ |
+| Registry | ที่เก็บและแจกจ่าย Images |
+| Docker Hub | Registry สาธารณะที่มี Images เช่น PostgreSQL; อาจมีข้อจำกัดการดึงตามบัญชี |
+
+หนึ่ง Image สร้างหลาย Containers ได้ แต่ละตัวมีสถานะการรันและไฟล์ที่เขียนเพิ่มแยกกัน อ่านรายละเอียดใน [Image](/technology-guides/docker/docker-image) และ [Container](/technology-guides/docker/docker-container)
+
+## ขั้นตอนการทำงาน
+
+1. [Getting Started](/technology-guides/docker/getting-started): ตรวจเครื่องและลอง Container แรก
+2. [Image](/technology-guides/docker/docker-image) → [Container](/technology-guides/docker/docker-container): รู้จักต้นแบบกับตัวที่กำลังรัน
+3. [เตรียม Task App](/technology-guides/docker/reference-project): ไฟล์ตัวอย่างแอปที่ Dockerfile จะใช้
+4. [Dockerfile](/technology-guides/docker/dockerfile): แพ็ก Backend/Frontend
+5. [Compose](/technology-guides/docker/docker-compose): รวมสามบริการและเปิดใช้งานในเครื่อง
+6. [Volume](/technology-guides/docker/docker-volume) และ [Network](/technology-guides/docker/docker-network): ดูแลข้อมูลและการสื่อสาร
+7. [Deployment](/technology-guides/docker/docker-deployment): ลองบน Ubuntu และเข้าใจสิ่งที่ยังต้องเตรียมก่อน Production
+
+ระหว่างทำงานใช้ [Commands Cheat Sheet](/technology-guides/docker/docker-commands) และ [Troubleshooting](/technology-guides/docker/troubleshooting) เป็นจุดค้นเร็ว
+
+## ตัวอย่างการใช้งานจริง
+
+คุณรับงานเพิ่มหน้ารายการ Task เพื่อนเปิด `frontend`, `backend`, `db` ด้วย Compose ชุดเดียวกัน Browser เปิดพอร์ต `8080` ส่วน Frontend proxy ส่ง `/api/` ไป Backend และ Backend ต่อฐานข้อมูลที่ `db:5432` ดูภาพใน [Network](/technology-guides/docker/docker-network)
+
+## ข้อควรระวัง
+
+ตัวอย่างทั้งหมดเป็นเอกสาร ให้คัดลอกไปโฟลเดอร์ทดลองแยกจาก Engineering Hub ไม่มีการเพิ่ม Backend หรือ Pipeline ให้เว็บเอกสารนี้ การมี Dockerfile ไม่ได้แปลว่าแอปปลอดภัยหรือพร้อมรับผู้ใช้จริง ตัวอย่าง Task API ไม่มีระบบผู้ใช้ จึงเปิดเฉพาะ Loopback หรือช่องทางที่เข้าถึงจากเครื่องตัวเอง สำหรับการเรียนรู้
+
+## สรุปสิ่งที่ต้องจำ
+
+- Image คือต้นแบบ Container คือตัวที่สร้างขึ้นมารัน
+- Compose จัดหลายบริการให้ทำงานร่วมกัน
+- ข้อมูลถาวรและค่าลับต้องจัดการแยกจาก Image
+- เริ่มทดลอง Local ก่อนนำแนวทางไปปรับใช้กับระบบจริง
+
+## อ่านต่อ
+
+- [Docker คืออะไร](https://docs.docker.com/get-started/docker-overview/)
+- [Fullstack Integration](/technology-guides/fullstack)
+- [Overview](/)
