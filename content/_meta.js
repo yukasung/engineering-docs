@@ -7,9 +7,9 @@ export default {
   "index": {
     "title": "Overview"
   },
-  "projects": "Projects",
+  "engineering-standards": "Engineering Standards",
+  "standards-compliance": "Standards & Compliance",
   "development-workflow": "Development Workflow",
   "technology-guides": "Technology Guides",
-  "engineering-standards": "Engineering Standards",
-  "standards-compliance": "Standards & Compliance"
+  "projects": "Projects"
 }

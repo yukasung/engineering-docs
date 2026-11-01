@@ -12,7 +12,7 @@
 - Avoid `any` unless justified. Use descriptive kebab-case names and do not modify unrelated files.
 
 ## Information Architecture
-- Keep exactly six main navigation links, in order: Overview, Projects, Development Workflow, Technology Guides, Engineering Standards, Standards & Compliance. Overview is the root `content/index.mdx`.
+- Keep exactly six main navigation links, in order: Overview, Engineering Standards, Standards & Compliance, Development Workflow, Technology Guides, Projects. Overview is the root `content/index.mdx`.
 - Keep the Overview focused on what Engineering Hub is, who it helps, what it contains, and how the team should use it.
 - `development-workflow/`: shared Git/Pull Request, SDD, and environment-promotion guidance. Link Code Review to the canonical Engineering Standards section. Keep detailed delivery tooling under Technology Guides/DevOps.
 - `technology-guides/`: reusable tool/framework guidance with explicit applicable versions.
