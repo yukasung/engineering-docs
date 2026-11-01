@@ -1,0 +1,39 @@
+---
+title: "Architecture & Design Standards"
+description: "มาตรฐานกลางสำหรับการตัดสินใจด้าน Architecture ขอบเขตระบบ Interface และ Quality Attributes"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Architecture & Design Standards
+
+## ภาพรวม (Overview)
+
+Architecture Standards ช่วยให้ทีมตัดสินใจเรื่องระดับระบบด้วยหลักเดียวกัน โดยมอง Responsibility, Boundary, Data flow, Failure mode และ Quality Attributes ไม่ได้บังคับให้ทุก Project ใช้ Framework หรือ Deployment model แบบเดียวกัน
+
+## จุดประสงค์ (Purpose)
+
+ทำให้ Design decision สำคัญมองเห็น ตรวจสอบ และตามรอยได้ ก่อนที่การแก้ไขจะมีต้นทุนสูง ความละเอียดของ Design ควรเหมาะกับ Risk และความซับซ้อนของระบบ
+
+## ขอบเขต (Scope)
+
+ใช้กับระบบใหม่และการเปลี่ยนแปลงสำคัญที่กระทบ Component, Data model, Integration, Security boundary หรือ Deployment topology งานเล็กอาจใช้ Design note สั้น ๆ ส่วน Decision ที่มีผลระยะยาวควรบันทึกด้วย Architecture Decision Record (ADR)
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- ระบุ System context, หน้าที่ของ Component, Owner, Trust boundary และ Data flow ให้ชัดเจน
+- บันทึก Decision สำคัญ ทางเลือก Trade-off สมมติฐาน และผลกระทบไว้ใน ADR
+- ออกแบบ Security, Privacy, Availability, Performance, Maintainability และ Operability ตาม Risk ของ Project
+- กำหนด Interface ให้ชัด และลด Coupling ระหว่าง Component ที่เปลี่ยนแปลงแยกจากกัน
+- ตรวจ Failure behavior, Timeout, Retry, Idempotency, Recovery และ Backward compatibility
+- ตรวจ Design เทียบกับ Requirement ที่อนุมัติ และอัปเดตเอกสารเมื่อ Behavior เปลี่ยน
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Spec-Driven Development](/development-workflow/spec-driven-development)
+- [Fullstack Integration](/technology-guides/fullstack)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [Code Review Checklist](/engineering-standards/code-review-coding-standards/code-review-checklist)

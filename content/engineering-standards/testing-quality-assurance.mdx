@@ -1,0 +1,40 @@
+---
+title: "Testing & Quality Assurance"
+description: "มาตรฐานการทดสอบตาม Risk หลักฐานด้านคุณภาพ และความมั่นใจก่อน Release"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Testing & Quality Assurance
+
+## ภาพรวม (Overview)
+
+Testing สร้างหลักฐานว่า Software ทำงานอย่างไร ส่วน Quality Assurance (QA) ตรวจว่า Product และ Delivery process ตรงตาม Requirement ที่ตกลงกันหรือไม่ การที่ Test ผ่านช่วยลด Risk ที่รู้จัก แต่ไม่ได้พิสูจน์ว่าระบบไม่มีข้อผิดพลาดทั้งหมด
+
+## จุดประสงค์ (Purpose)
+
+ค้นหาข้อผิดพลาดให้เร็ว ป้องกัน Behavior สำคัญจาก Regression และให้ Reviewer หรือผู้ตัดสินใจ Release มีหลักฐานที่ชัดเจนและตรวจซ้ำได้
+
+## ขอบเขต (Scope)
+
+ครอบคลุม Test planning, Unit/Integration test, การตรวจ API และ UI, Security/Performance testing, Test data, การจัดการ Defect และ Release evidence ความลึกของการทดสอบขึ้นอยู่กับ Business impact และ Risk ของ Change
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- สร้าง Test จาก Requirement, Acceptance criteria, Architecture risk และ Incident ที่เคยเกิด
+- ครอบคลุม Normal behavior, Boundary condition, Failure, Authorization และ Recovery path ที่เกี่ยวข้อง
+- ทำ Automated test ให้ผลแน่นอน แยกจากกัน และดูแลต่อได้ ต้องหาสาเหตุของ Flaky test แทนการ Retry จนเป็นเรื่องปกติ
+- ใช้ข้อมูลจำลองที่ปลอดภัยหรือ Test data ที่อนุมัติ และไม่ให้ข้อมูลสำคัญจาก Production รั่วไปยัง Environment อื่น
+- บันทึก Version, Environment, ผลทดสอบ, Known gap และ Defect ที่ยังไม่แก้
+- กำหนด Coverage และ Quality threshold ตาม Risk ของ Project ไม่ใช้ตัวเลขเดียวเป็นหลักฐานคุณภาพสำหรับทุกระบบ
+- การยอมรับทาง Business และ Change ที่มี Risk สูงยังต้องใช้ Human judgment
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Code Review Checklist](/engineering-standards/code-review-coding-standards/code-review-checklist)
+- [Quality Gates & CI/CD](/engineering-standards/code-review-coding-standards/quality-gates-cicd)
+- [Django Testing](/technology-guides/django-python/testing)
+- [React Testing](/technology-guides/react-typescript/testing)

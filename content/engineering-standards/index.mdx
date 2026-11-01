@@ -1,0 +1,42 @@
+---
+title: "Engineering Standards"
+description: "มาตรฐาน Engineering กลางที่ใช้ร่วมกันตลอดวงจรการพัฒนา Software"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Engineering Standards
+
+## ภาพรวม (Overview)
+
+Engineering Standards คือมาตรฐานกลางสำหรับการออกแบบ พัฒนา ทดสอบ Release และดูแล Software ช่วยให้แต่ละ Project ตัดสินใจด้วยหลักเดียวกัน โดยไม่นำขั้นตอนเฉพาะ Technology หรือ Configuration ของแต่ละ Project มาทำซ้ำในหมวดนี้
+
+## หัวข้อมาตรฐาน
+
+1. [Software Development Lifecycle](/development-workflow) — ขั้นตอนตั้งแต่ Requirement, Branch, Review จนถึงการส่ง Artifact ไปยัง Environment
+2. [Architecture & Design Standards](/engineering-standards/architecture-design-standards) — ขอบเขตระบบ การตัดสินใจ Interface และ Quality Attributes
+3. [Code Review & Coding Standards](/engineering-standards/code-review-coding-standards) — คุณภาพ Code, Secure Coding, Review และ Quality Gates
+4. [Git & Branching Strategy](/engineering-standards/git-branching-strategy) — การตามรอย Change, Branch, Commit และการควบคุม Merge
+5. [Testing & Quality Assurance](/engineering-standards/testing-quality-assurance) — การทดสอบตาม Risk และหลักฐานก่อน Release
+6. [CI/CD & Release Management](/engineering-standards/cicd-release-management) — Pipeline ที่ทำซ้ำได้ Artifact การ Promote และการกู้คืน
+7. [Database & Data Management](/engineering-standards/database-data-management) — Schema, Migration, Data integrity, Access และวงจรข้อมูล
+8. [API & Integration Standards](/engineering-standards/api-integration-standards) — Contract, Security, Failure handling และ Compatibility
+9. [Observability & Incident Management](/engineering-standards/observability-incident-management) — Telemetry การตอบสนอง Incident การเรียนรู้และติดตามผล
+10. [AI-Assisted Development Standards](/engineering-standards/ai-assisted-development-standards) — ใช้ AI อย่างรับผิดชอบ โดยมีคนตรวจสอบและรับผิดชอบการตัดสินใจ
+
+## วิธีใช้มาตรฐาน
+
+- **MUST** คือสิ่งที่ต้องทำเมื่อมาตรฐานนั้นอยู่ใน Scope ของ Project
+- **SHOULD** คือแนวทางที่ควรทำ หากไม่ทำต้องมีเหตุผลตาม Risk และบริบท
+- **MAY** คือทางเลือกที่ Project ใช้ได้ตามความเหมาะสม
+
+แต่ละ Project ยังต้องระบุ Owner, Architecture decisions, Tool configuration, Threshold และ Exception ที่อนุมัติจริง เอกสารสถานะ Draft ยังไม่ใช่นโยบายที่องค์กรอนุมัติแล้ว
+
+## ขอบเขตของเอกสาร
+
+- [Technology Guides](/technology-guides) อธิบายวิธีนำมาตรฐานไปใช้กับ Technology แต่ละชนิด
+- [Standards & Compliance](/standards-compliance) อธิบาย Governance, กฎหมาย, Security, Privacy, Risk และ Evidence
+- [Projects](/projects) เก็บ Decision, Configuration, Owner และหลักฐานการทำงานของแต่ละ Project

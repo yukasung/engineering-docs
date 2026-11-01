@@ -1,0 +1,224 @@
+---
+title: "Templates & Practical Resources"
+description: "Templates สำหรับ Pull Request, Review, Security, Technical Debt, Quality Gate, AI findings และ Exception"
+documentType: "Template"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub": "adapt templates to repository rules", "Jira": "adapt fields to project workflow"}
+---
+
+# Templates & Practical Resources
+
+## ภาพรวม (Overview)
+
+Templates ลดข้อมูลที่ตกหล่นและทำให้ Evidence รูปแบบสม่ำเสมอ ให้คัดลอกเฉพาะ Template ที่ Project ต้องใช้ ปรับ Owner, Workflow, Fields และสิทธิ์ให้ตรงระบบจริง ห้ามใส่ Secret, Personal data หรือรายละเอียดช่องโหว่ที่จำกัดสิทธิ์ในพื้นที่ที่คนไม่เกี่ยวข้องเข้าถึงได้
+
+## 1. Pull Request Description
+
+```md
+# Summary
+- Requirement / issue:
+- Why this change is needed:
+- What changed:
+- Out of scope:
+
+# Risk and compatibility
+- Risk level and reason:
+- Security / privacy impact:
+- API / event / database impact:
+- Rollout and rollback or forward-fix notes:
+
+# Validation
+- Commands/checks actually run:
+- Results:
+- Acceptance criteria covered:
+- Not run / blocked / remaining risks:
+
+# Review focus
+- Files or decisions needing extra attention:
+- Screenshots/evidence links (safe references only):
+```
+
+## 2. Code Review Checklist
+
+```md
+- [ ] Change matches approved requirements and architecture
+- [ ] Correctness, edge cases, errors, retries, and concurrency reviewed
+- [ ] Authentication, authorization, validation, output, and sensitive data reviewed
+- [ ] API/database compatibility and migration/rollout reviewed
+- [ ] Performance, query count, timeouts, and resource bounds reviewed
+- [ ] Unit/integration/regression/security tests are appropriate
+- [ ] Checks were run on the commit that will merge
+- [ ] Documentation/runbook/ADR updated when behavior changed
+- [ ] Findings are resolved, accepted with approval, or tracked with an owner
+```
+
+ใช้ [Code Review Checklist ฉบับเต็ม](/engineering-standards/code-review-coding-standards/code-review-checklist) เมื่อต้องตรวจ Change ความเสี่ยงสูง
+
+## 3. Code Review Report
+
+```md
+# Code Review Report
+- PR / commit:
+- Reviewer(s):
+- Review scope:
+- Requirements / architecture references:
+- Checks and evidence reviewed:
+
+## Summary
+- Decision: approve / request changes / comment
+- Risk summary:
+- Areas not verified:
+
+## Findings
+| ID | Severity/Priority | Location | Scenario & impact | Required action | Status |
+| --- | --- | --- | --- | --- | --- |
+
+## Re-review
+- Commit reviewed:
+- Resolved findings:
+- Remaining findings / accepted risks:
+```
+
+## 4. Security Review Report
+
+```md
+# Security Review Report
+- System/change and scope:
+- Data classification / trust boundaries:
+- Threat model / security requirements:
+- Tools and versions used:
+- Manual review performed:
+
+## Coverage
+- Authentication and session:
+- Authorization and ownership:
+- Input/output and injection:
+- Secrets and sensitive data:
+- Dependencies / APIs / uploads / rate limits:
+- Logging, configuration, and deployment assumptions:
+
+## Findings and residual risk
+| ID | Security severity | Evidence | Exposure/impact | Remediation | Owner/status |
+| --- | --- | --- | --- | --- | --- |
+
+## Limitations
+- Not tested / inaccessible environments:
+- Assumptions requiring confirmation:
+```
+
+## 5. Technical Debt Register
+
+```md
+| Debt ID | Evidence / affected area | Impact and trigger | Priority | Owner | Remediation / exit criteria | Review date | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+```
+
+แต่ละรายการควร Link ไป Issue/ADR/Incident/PR ไม่ใช้ Spreadsheet/Table เป็นแหล่งรายละเอียดซ้ำอีกชุด
+
+## 6. Quality Gate Policy
+
+```md
+# Quality Gate Policy — <project / repository>
+- Scope and protected branches:
+- Policy owner and approvers:
+- Effective/review date:
+
+| Check | Tool/version | Scope | Blocking condition | Required check name | Triage owner |
+| --- | --- | --- | --- | --- | --- |
+| Format/lint | | | | | |
+| Build/type | | | | | |
+| Tests | | | | | |
+| SAST/SCA/secrets | | | | | |
+| Coverage | | | | | |
+| Human review | | | | | |
+
+## Threshold rationale
+- Baseline and risk:
+- New-code vs whole-code scope:
+- Why each threshold is appropriate:
+
+## Exceptions and bypass
+- Authorized roles:
+- Required evidence/approval:
+- Expiry and post-review:
+```
+
+## 7. Coding Standards Checklist
+
+```md
+- [ ] Naming communicates domain intent
+- [ ] Formatter/linter configuration is followed
+- [ ] Responsibilities and boundaries match project architecture
+- [ ] Errors are handled without hiding causes or exposing sensitive data
+- [ ] Logs/configuration contain no secrets or unnecessary personal data
+- [ ] Dependencies are reviewed and lockfiles are updated
+- [ ] API/database changes have compatibility and migration plans
+- [ ] Tests and documentation changed with behavior
+- [ ] Exceptions are documented with owner, approval, and review date
+```
+
+## 8. AI Code Review Prompt
+
+```text
+Perform a review-only analysis. Do not modify files, approve, merge, or bypass checks.
+Read repository instructions, approved requirements, architecture, and validation
+criteria. Review the actual diff and affected code paths.
+
+Report only evidence-based findings. For each finding include severity/priority,
+file and line, concrete scenario, impact, evidence, remediation direction, and a
+verification method. Separate confirmed findings from questions. Check correctness,
+security, performance, architecture, compatibility, tests, and documentation.
+State the checks you ran and anything you could not verify. Never expose secrets.
+```
+
+ดู Prompt แบบ SDD/Re-review เพิ่มที่ [AI-Assisted Code Review](/engineering-standards/code-review-coding-standards/ai-assisted-code-review)
+
+## 9. Code Review Finding
+
+```md
+### [<severity or priority>] <short actionable title>
+- Location: `<path>:<line>`
+- Preconditions:
+- Scenario / evidence:
+- Expected vs actual:
+- Impact:
+- Required action or remediation direction:
+- Verification:
+- Status: Open / Resolved / Accepted risk / False positive / Deferred
+```
+
+Finding ควรใช้ช่วงบรรทัดเล็กที่สุดที่อธิบาย Root cause ได้ ไม่ Comment ซ้ำทุกบรรทัดที่เป็นอาการเดียวกัน
+
+## 10. Engineering Standards Exception Request
+
+```md
+# Engineering Standards Exception Request
+- Standard / rule:
+- Requested scope and environments:
+- Request owner:
+- Business/technical justification:
+- Risk scenario and residual impact:
+- Alternatives considered:
+- Compensating controls and evidence:
+- Remediation plan / issue:
+- Requested approver under project policy:
+- Start date:
+- Expiry or mandatory review date:
+- Decision and approval reference:
+```
+
+Approval ต้องมาจากผู้มีอำนาจจริงตาม Project/Policy เอกสารนี้ห้ามกรอกชื่อหรือผลอนุมัติสมมติ
+
+## แหล่งอ้างอิง
+
+- [GitHub — Creating a pull request template](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/creating-a-pull-request-template-for-your-repository)
+- [GitHub — About pull request reviews](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/about-pull-request-reviews)
+- [OWASP Secure Code Review Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secure_Code_Review_Cheat_Sheet.html)
+
+## อ่านต่อ
+
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [Findings & Severity](/engineering-standards/code-review-coding-standards/findings-severity)
+- [Technical Debt](/engineering-standards/code-review-coding-standards/technical-debt)

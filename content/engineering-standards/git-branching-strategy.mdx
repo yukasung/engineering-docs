@@ -1,0 +1,40 @@
+---
+title: "Git & Branching Strategy"
+description: "มาตรฐานกลางสำหรับการตามรอย Change การเลือก Branch การ Commit และการควบคุม Merge"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Git": "Project-supported version", "GitHub": "Repository rules vary by project"}
+---
+
+# Git & Branching Strategy
+
+## ภาพรวม (Overview)
+
+Git เก็บประวัติที่ช่วยให้ทีมเข้าใจ Review, Release และกู้คืนการเปลี่ยนแปลงของ Software ส่วน Branching strategy กำหนดวิธีแยกงานและรวมงานกลับเข้าด้วยกัน โดย Branch ไม่ใช่ Environment สำหรับ Deploy
+
+## จุดประสงค์ (Purpose)
+
+ทำให้ Change มีขนาดเหมาะสม รู้ว่าใครเปลี่ยน Review ได้ และเชื่อมโยงกับ Requirement, Validation evidence, Release และ Artifact ที่นำไปใช้งาน
+
+## ขอบเขต (Scope)
+
+ครอบคลุม Branch, Commit, Pull Request, Merge method, Tag และ Emergency fix แต่ละ Project ต้องระบุ Model ที่ใช้จริง เช่น Trunk-based development หรือ Feature branch อายุสั้น ไม่สมมติว่าทุก Repository ใช้ Branch layout เดียวกัน
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- ป้องกัน Integration branch ของ Project และ Merge ผ่าน Pull Request ที่ Review แล้ว
+- ใช้ Branch อายุสั้นเมื่อจำเป็น และ Sync สม่ำเสมอเพื่อลดความเสี่ยงตอนรวมงาน
+- แยก Commit ให้มีเรื่องเดียว และเขียนข้อความที่อธิบายเจตนาของ Change
+- ไม่ Commit Secret, Credential, Generated file ที่ไม่จำเป็น หรืองานที่ไม่เกี่ยวข้อง
+- ใช้ Automated checks และ Human approval ตาม Risk ของ Project
+- ตาม Release กลับไปยัง Commit, Tag และ Build artifact ที่เปลี่ยนไม่ได้
+- Emergency fix ต้องผ่าน Review และนำกลับเข้าสู่ประวัติการพัฒนาหลัก
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Git & Pull Request Workflow](/development-workflow/git-pull-request)
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [DEV / UAT / Production](/development-workflow/environments)
+- [CI/CD & Operations Guide](/technology-guides/devops)

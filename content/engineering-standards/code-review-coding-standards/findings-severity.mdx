@@ -1,0 +1,77 @@
+---
+title: "Findings & Severity Classification"
+description: "เกณฑ์ Critical ถึง Informational พร้อม Merge policy, Escalation และ Accepted risk process"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Findings & Severity Classification
+
+## ภาพรวม (Overview)
+
+Finding ที่ดีบอกว่าอะไรผิด เกิดเมื่อไร กระทบใคร และตรวจซ้ำอย่างไร Severity ใช้สื่อ Impact/Urgency ของความเสี่ยง ส่วน Engineering priority ใช้วางลำดับงานตาม Business context ทั้งสองค่าไม่จำเป็นต้องเท่ากัน
+
+## รูปแบบ Finding
+
+ทุก Actionable finding **MUST** มี:
+
+- Title และประเภท เช่น Correctness, Security, Reliability, Maintainability
+- File/line หรือ Component ที่เฉพาะเจาะจง
+- Preconditions และ Scenario
+- Expected vs Actual behavior
+- Impact และผู้ใช้/ข้อมูล/ระบบที่ได้รับผล
+- Severity หรือ Priority พร้อมเหตุผล
+- Remediation direction และวิธี Verify
+- Status: Open, Resolved, Accepted risk, False positive หรือ Deferred
+
+## Severity definitions
+
+| Severity | Definition และตัวอย่าง | Business impact | Required action / Merge policy | Escalation |
+| --- | --- | --- | --- | --- |
+| Critical | ใช้โจมตี/ทำข้อมูลเสียหายรุนแรงได้ง่าย, Secret Production เปิดเผย, Auth bypass กว้าง | กระทบรุนแรง/วงกว้างหรือ Incident กำลังเกิด | **MUST block**; Contain/Revoke/Fix และ Verify ก่อน Merge/Release | Security/Incident/Accountable owner ทันที |
+| High | Unauthorized access, data corruption, unsafe migration หรือ outage path ที่มีโอกาสจริง | กระทบสำคัญต่อผู้ใช้/ข้อมูล/บริการ | **MUST block** เว้น Accepted risk โดยผู้มีอำนาจ | Tech Lead + Security/Data/Service owner |
+| Medium | Defect/Risk มีเงื่อนไขจำกัด มี Workaround หรือ Defense อื่น แต่ควรแก้ | กระทบจำกัดหรือเพิ่มโอกาส Regression/Operation cost | ปกติแก้ก่อน Merge; Project อาจยอมรับพร้อม Owner/date | Lead/Owner ตาม Domain |
+| Low | Risk ต่ำ, edge case เล็ก หรือ Maintainability issue ที่ชัด | ผลกระทบเล็กและควบคุมได้ | แก้ใน PR หรือ Track debt ตาม Policy | Team owner เมื่อสะสม/ซ้ำ |
+| Informational | Observation, Question หรือ Improvement ที่ยังไม่ใช่ Defect | ไม่มีผลกระทบทันที | ไม่ Block; บันทึกเมื่อมีประโยชน์ | ไม่ต้อง เว้นพบ Pattern ใหญ่ |
+
+Severity ตัวอย่างไม่แทน CVSS, Scanner rating หรือ Incident classification ขององค์กร หาก Project ใช้ Scheme อื่นต้องทำ Mapping และระบุ Version
+
+## Security severity กับ Maintainability priority
+
+ตัวอย่าง: Function ซ้ำ 3 จุดอาจเป็น **Low maintainability severity** แต่ Priority สูงถ้ากำลังทำให้ Financial calculation แก้ไม่พร้อมกัน ในทางกลับกัน Vulnerability **High** อาจต้อง Fix ทันทีแม้ Code เปลี่ยนน้อย ห้ามลด Security severity เพราะ Fix ยากหรือ Timeline สั้น
+
+ใช้สองช่องเมื่อจำเป็น:
+
+- `security_severity`: Technical exploitability/impact
+- `remediation_priority`: Business urgency, exposure, compensating controls และ delivery constraints
+
+## Accepted risk และ Exception
+
+Accepted risk ต้องมี Record ที่ตรวจกลับได้:
+
+| Field | ต้องระบุ |
+| --- | --- |
+| Finding/Rule | Link หรือ ID และ Evidence |
+| Scope | Repository, Component, Environment, Data และระยะเวลา |
+| Risk | Scenario, likelihood/impact ตามวิธีองค์กร และ Residual risk |
+| Justification | เหตุผลที่ยังไม่แก้และ Alternatives ที่พิจารณา |
+| Compensating controls | Control, Owner และ Evidence ที่มีอยู่จริง |
+| Approval | ผู้มีอำนาจตาม Project/Policy และ Reference; ห้ามใส่ชื่อสมมติ |
+| Remediation | Issue/Plan/Target เมื่อมี |
+| Expiry/Review date | วันที่ต้องแก้หรือประเมินใหม่ |
+
+เมื่อหมดอายุ, Scope เปลี่ยน, Control ใช้ไม่ได้ หรือ Threat เปลี่ยน ต้อง Re-open และ Triage ใหม่
+
+## False positive
+
+ปิดเป็น False positive ได้เมื่อมี Evidence ว่า Rule ไม่ตรง Context เช่น Data มาจาก Trusted constant และ Sink ใช้ Safe API จริง บันทึก Tool version, Rule, Code context และเหตุผล ห้ามใช้ `false positive` แทน “ยังไม่มีเวลาแก้”
+
+## อ่านต่อ
+
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [Static Code Analysis](/engineering-standards/code-review-coding-standards/static-code-analysis)
+- [Technical Debt](/engineering-standards/code-review-coding-standards/technical-debt)
+- [Governance & Risk](/standards-compliance/governance-risk)

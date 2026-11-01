@@ -1,0 +1,98 @@
+---
+title: "General Coding Standards"
+description: "กฎกลางที่ไม่ผูกกับภาษา สำหรับ Code ที่อ่านง่าย เปลี่ยนได้ปลอดภัย และตามรอยได้"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# General Coding Standards
+
+## ภาพรวม (Overview)
+
+มาตรฐานหน้านี้ใช้กับ Code, Tests, Configuration, Migrations และ Scripts ทุกภาษา เป้าหมายไม่ใช่ทำให้ Code เหมือนกันทุก Project แต่ทำให้ Intent ชัด แยกความรับผิดชอบ และเปลี่ยนโดยมีหลักฐานว่าพฤติกรรมสำคัญยังทำงาน
+
+## ระดับข้อกำหนด
+
+- **MUST:** ต้องทำเมื่ออยู่ใน Scope หากยกเว้นต้องมี Exception ที่อนุมัติและมีวัน Review
+- **SHOULD:** ควรทำ เว้นแต่ Context ทำให้ทางเลือกอื่นเหมาะกว่าและบันทึกเหตุผลไว้
+- **MAY:** เลือกใช้ได้ ไม่ควรใช้เป็นเหตุผล Block merge โดยลำพัง
+
+## Mandatory Rules
+
+| เรื่อง | กฎที่ต้องทำ (MUST) | วิธีตรวจ |
+| --- | --- | --- |
+| Naming | ชื่อสื่อ Domain/Intent และไม่ทำให้เข้าใจ Security/Data classification ผิด | Diff review, linter ตามภาษา |
+| Formatting | ใช้ Formatter/Linter ที่ Repository กำหนด ไม่จัดรูปแบบแบบส่วนตัว | CI check เดียวกับ Local |
+| Organization | แยก Business logic, I/O, Persistence และ Presentation ตาม Architecture ของ Project | Design/Diff review |
+| Error handling | ไม่กลืน Error โดยไม่มีเหตุผล; แปลง Error ที่ Boundary และเก็บ Cause ที่ปลอดภัย | Tests และ log review |
+| Logging | ไม่บันทึก Password, Token, Secret, Session, Personal data ที่ไม่จำเป็น หรือ Payload ทั้งก้อน | Review + secret/data scan |
+| Configuration | แยกค่าตาม Environment; Secret มาจาก Secret store/reference ไม่ Hardcode | Config/secret scan |
+| Dependencies | Pin/lock ตาม Ecosystem, Review source/license/risk และอัปเดต Lockfile พร้อม Change | SCA + diff review |
+| Compatibility | ระบุผลต่อ API, Event, Database และ Client เก่า; Breaking change ต้องมี Migration/rollout plan | Contract tests + plan |
+| Database/API changes | ใช้ Version-controlled migration และ Contract ที่ Review ได้; ห้ามแก้ Production โดยตรงเป็นขั้นตอนปกติ | Migration/API review |
+| Documentation | Behavior, Contract, Configuration หรือ Operation เปลี่ยน ต้องอัปเดตเอกสารที่เกี่ยวข้อง | PR checklist |
+
+## Recommended Practices
+
+### Code ให้อ่านจาก Intent
+
+- **SHOULD** ใช้ Function/Module ขนาดที่ Reviewer เข้าใจได้โดยไม่ต้องจำ State มากเกินไป
+- **SHOULD** ใช้ Guard clause เพื่อลด Nested branches เมื่อไม่ทำให้ Flow กระจัดกระจาย
+- **SHOULD** Comment ว่า “ทำไม” หรือ Constraint อะไร ไม่เล่า Code ทีละบรรทัด
+- **MAY** เพิ่ม Abstraction เมื่อมี Use case จริงมากกว่าหนึ่งจุดหรือช่วยปิด Boundary ที่ชัด
+
+```ts
+// ไม่ชัด: ชื่อบอกวิธีแต่ไม่บอก Business intent
+function processData(items: Order[]) { /* ... */ }
+
+// ชัดขึ้น: บอกผลลัพธ์และเงื่อนไขที่ Domain สนใจ
+function calculatePayableOrders(orders: Order[]) { /* ... */ }
+```
+
+ตัวอย่างเป็นแนวทางเรื่อง Naming ไม่ใช่ API ที่ทดสอบแล้ว
+
+### DRY, KISS และ SOLID ใช้เมื่อไร?
+
+| หลัก | ใช้เพื่อ | ข้อควรระวัง |
+| --- | --- | --- |
+| DRY | ลด Knowledge/Business rule ที่ซ้ำและอาจแก้ไม่พร้อมกัน | Code ที่หน้าตาคล้ายแต่เปลี่ยนคนละเหตุผลไม่จำเป็นต้องรวม |
+| KISS | เลือก Solution ที่ตรง Requirement และอธิบายได้ | “ง่าย” ไม่ใช่การข้าม Validation, Security หรือ Error handling |
+| SOLID | แยกเหตุผลที่เปลี่ยน, Dependency และ Interface | ไม่ต้องสร้าง Class/Interface ทุกจุดจนตาม Flow ยาก |
+
+### Maintainability และ Performance
+
+- **SHOULD** วัดหรือมี Evidence ก่อนเพิ่ม Cache, Parallelism หรือ Optimization ที่เพิ่ม Complexity
+- **MUST** พิจารณา Query count, Pagination, Resource bounds และ Timeout เมื่อ Change ทำงานกับข้อมูล/Network
+- **MUST** กำหนด Ownership และ Lifecycle ของ Background work; Request จบไม่ควรทำให้งานสำคัญหายโดยไม่ตั้งใจ
+- **SHOULD** เก็บ Metrics/Logs/Traces ที่ตอบคำถาม Operation ได้ โดยไม่เก็บข้อมูลเกินจำเป็น
+
+## การจัดการ Change ที่กระทบ Contract
+
+1. ระบุ Consumer และ Compatibility window
+2. เพิ่ม Contract/Migration และ Tests ที่รองรับทั้งเก่า/ใหม่เมื่อจำเป็น
+3. Deploy แบบ Expand → Migrate → Contract สำหรับ Database change ที่ต้องรองรับหลาย Version
+4. บันทึก Rollout, Rollback/Forward fix และสิ่งที่ย้อนกลับไม่ได้
+5. ลบ Compatibility code เมื่อครบเงื่อนไขและมี Evidence ว่า Consumer ย้ายแล้ว
+
+รายละเอียดเฉพาะดู [API Integration](/technology-guides/react-typescript/api-integration), [Django REST API](/technology-guides/django-python/rest-api) และ [Database Migration](/technology-guides/postgresql/migrations)
+
+## Exceptions
+
+Exception ต้องบันทึก Rule, Scope, Owner, เหตุผล, Risk, Compensating control, ผู้อนุมัติตาม Project และวันหมดอายุ/Review ห้ามใช้ Comment เช่น `ignore` หรือปิด Rule โดยไม่มีเหตุผลที่ตรวจกลับได้
+
+## Checklist สั้นก่อนส่ง Review
+
+- [ ] ชื่อและโครงสร้างอธิบาย Intent ได้
+- [ ] Error/Logs/Configuration ไม่เปิดเผยข้อมูลสำคัญ
+- [ ] Dependencies, API และ Database changes ตามรอยได้
+- [ ] Tests ครอบคลุม Behavior และ Edge cases ที่เปลี่ยน
+- [ ] Documentation/Runbook อัปเดตเมื่อ Behavior เปลี่ยน
+
+## อ่านต่อ
+
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)
+- [Code Review Checklist](/engineering-standards/code-review-coding-standards/code-review-checklist)
+- [Technology Guides](/technology-guides)

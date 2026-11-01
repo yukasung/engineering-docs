@@ -1,0 +1,40 @@
+---
+title: "API & Integration Standards"
+description: "มาตรฐานกลางสำหรับ Contract, Security, Compatibility และ Integration ที่รองรับ Failure"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# API & Integration Standards
+
+## ภาพรวม (Overview)
+
+API และ Integration คือ Contract ระหว่างระบบที่เปลี่ยนแปลงแยกจากกัน Design ต้องอธิบายความหมายของข้อมูล Authentication, Error, Compatibility และพฤติกรรมเมื่อเกิด Failure ให้ชัดเจน
+
+## จุดประสงค์ (Purpose)
+
+สร้าง Interface ที่ผู้ใช้คาดเดาและเชื่อมต่อได้อย่างปลอดภัย พร้อมให้ Provider พัฒนาต่อได้โดยลดผลกระทบที่หลีกเลี่ยงได้
+
+## ขอบเขต (Scope)
+
+ใช้กับ Synchronous API, Webhook, Event, File exchange และ Third-party integration ส่วน Serialization และการตั้งค่า Framework เฉพาะ Technology ให้อยู่ใน Technology Guides หรือเอกสารของ Project
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- ระบุ Owner, Consumer, Schema, Validation, Error format และ Compatibility expectation
+- Authenticate ผู้เรียกและตรวจ Authorization ฝั่ง Server สำหรับทุก Operation ที่ต้องป้องกัน
+- ใช้การรับส่งข้อมูลที่ปลอดภัย และไม่ใส่ Secret หรือ Sensitive payload ใน URL, Log หรือตัวอย่าง
+- ใช้ Status และ Error semantics ให้สม่ำเสมอ โดยไม่เปิดเผยรายละเอียดภายในระบบ
+- กำหนด Timeout, Retry limit, Idempotency, Rate handling และพฤติกรรมเมื่อ Event ซ้ำหรือมาผิดลำดับ
+- พัฒนา Contract ให้ Compatible เมื่อทำได้ พร้อมบันทึก Version, Deprecation และผลกระทบต่อ Consumer
+- มี Contract test และ Correlation identifier ที่ตามรอยได้ โดยไม่ Log ข้อมูลสำคัญ
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Fullstack Contract and Integration](/technology-guides/fullstack)
+- [Django REST API](/technology-guides/django-python/rest-api)
+- [React API Integration](/technology-guides/react-typescript/api-integration)
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)

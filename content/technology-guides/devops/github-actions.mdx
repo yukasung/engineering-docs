@@ -31,7 +31,7 @@ GitHub Actions รันงานตามเหตุการณ์ เช่�
 
 ## ตัวอย่าง CI สำหรับ Engineering Hub
 
-นี่เป็นตัวอย่าง **เฉพาะ Repo Hub นี้** ใช้ package-lock.json และ Scripts ที่มีจริง ไม่มี npm test ให้เรียก จึงไม่อ้างว่ามี Unit test suite ขั้นตอน Build รวมการสร้าง Pagefind search ตาม postbuild ของโปรเจกต์
+นี่เป็นตัวอย่าง **เฉพาะ Repo Hub นี้** ใช้ package-lock.json และ Scripts ที่มีจริง ไม่มี npm test ให้เรียก จึงไม่อ้างว่ามี Unit test suite ขั้นตอน Build รวมการสร้าง Pagefind search ตาม prebuild ของโปรเจกต์
 
 ชื่อไฟล์ด้านล่างเป็นปลายทางเมื่อมีงานอนุมัติเปิดใช้ในอนาคต ไม่ใช่ไฟล์ที่สร้างใน Repository ตอนนี้:
 
@@ -101,6 +101,7 @@ CI ยกเลิก Run เก่าของ Branch ได้ แต่ Job D
 
 ## อ่านต่อ
 
+- [Quality Gates & CI/CD](/engineering-standards/code-review-coding-standards/quality-gates-cicd)
 - [Build & Publish Images](/technology-guides/devops/image-release)
 - [Overview](/)
 - [Workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)

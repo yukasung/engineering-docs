@@ -1,0 +1,87 @@
+---
+title: "Secure Coding Standards"
+description: "กฎ Secure Coding ที่ต้องตรวจตั้งแต่ Input และ Authorization ถึง Secrets, Logging และ Dependencies"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"OWASP Secure Code Review": "current online guidance", "OWASP ASVS": "5.0.0", "NIST SSDF": "1.1"}
+---
+
+# Secure Coding Standards
+
+## ภาพรวม (Overview)
+
+Secure Coding คือการลดช่องโหว่ตั้งแต่ Design และ Implementation ไม่ใช่รอ Scan ตอนท้าย กฎหน้านี้เป็น Baseline สำหรับ Web/API; Project ต้องเพิ่ม Threat model, Data classification และข้อกำหนดเฉพาะตาม Risk
+
+การทำ Checklist นี้ไม่ได้พิสูจน์ว่า Product ปลอดภัย ผ่าน ISO/IEC 27001 หรือสอดคล้อง PDPA โดยอัตโนมัติ ดูข้อกำหนดองค์กรที่ [Standards & Compliance](/standards-compliance)
+
+## Mandatory Security Rules
+
+| พื้นที่ | กฎที่ต้องทำ (MUST) | Review evidence |
+| --- | --- | --- |
+| Input validation | Validate ฝั่ง Trusted boundary ตาม Type, Range, Length, Format และ Business rule; Client validation ไม่แทน Server | Validation tests, rejected cases |
+| Output encoding / XSS | Encode ตาม Output context และหลีกเลี่ยง Unsafe HTML/DOM sinks; Sanitizer ต้องเป็น Library ที่ดูแลอยู่ | Rendering tests, sink review |
+| Injection | ใช้ Parameterized query/ORM ที่ปลอดภัย; ห้ามต่อ SQL/OS/LDAP command จาก Untrusted input | Query construction review, SAST |
+| CSRF / CORS | Request ที่เปลี่ยน State ผ่าน Cookie auth ต้องมี CSRF protection; CORS ใช้ Allowlist ตาม Environment | Browser/API config + tests |
+| Authentication | ใช้ Mechanism/Library ที่ Project อนุมัติ; Session/token มี Lifecycle, Rotation/Revocation และ Transport ที่เหมาะสม | Auth tests, cookie/token config |
+| Authorization | ตรวจสิทธิ์ฝั่ง Server ทุก Resource/Action และ Default deny; UI hiding ไม่ใช่ Access control | Positive/negative ownership tests |
+| RBAC / least privilege | Role/Permission มาจาก Trusted source และ Service/DB/CI identity ได้สิทธิ์เท่าที่จำเป็น | Permission matrix, access review |
+| Passwords | Hash ด้วย Password hashing function ที่เหมาะสมและ Parameters ที่ Review แล้ว; ไม่ Encrypt แบบย้อนกลับได้เพื่อเก็บ Password | Auth configuration; no password logs |
+| Secrets | ไม่ Hardcode, Commit, Log หรือส่ง Secret ให้ AI/Issue; ใช้ Secret manager/reference และมี Rotation/revocation process | Secret scan, config review |
+| Sensitive data | เก็บ ใช้ ส่ง และ Log เท่าที่จำเป็นตาม Classification/Retention; TLS และ Encryption ตาม Risk/Policy | Data flow, logging tests |
+| Error handling | Client ได้ข้อความปลอดภัยและ Stable; Detail/stack trace อยู่ในช่องทางควบคุมสิทธิ์ | Error contract + log review |
+| Security logging | บันทึก Security-relevant event พร้อม Correlation โดยไม่เก็บ Credential/Personal data เกินจำเป็น | Audit event tests |
+| Dependencies | ใช้ Source ที่อนุมัติ, Lock version, SCA, Patch/EOL plan และตรวจ Transitive risk | Lockfile, SCA report |
+| API security | Validate schema, object authorization, size/rate/resource limits, idempotency/transaction ตาม Use case | Contract + abuse-case tests |
+| File upload | Allowlist type/size, ตรวจ Content ไม่เชื่อชื่อไฟล์, สร้างชื่อจัดเก็บเอง, แยก Storage และ Scan ตาม Risk | Malicious/oversize tests |
+| Rate limiting | จำกัดตาม Resource/Identity/Risk โดยไม่ทำให้ Shared users ถูกโจมตีง่าย; กำหนด Behavior เมื่อเกิน | Load/abuse tests |
+| Secure configuration | Secure defaults, Debug off ใน Production, แยก Environment และ Fail closed เมื่อ Security config สำคัญหาย | Config validation, deployment check |
+
+## ตัวอย่าง: Authorization ต้องอยู่ที่ Backend
+
+```python
+# ไม่พอ: รับ task_id แล้วหา Task โดยไม่ผูกกับผู้ใช้
+task = Task.objects.get(pk=task_id)
+
+# ดีกว่า: จำกัด Query ด้วยเจ้าของที่ยืนยันตัวตนแล้ว
+task = get_object_or_404(Task, pk=task_id, owner=request.user)
+```
+
+Frontend อาจซ่อนปุ่มเพื่อ UX แต่ **MUST** ไม่ใช้แทน Backend authorization ตัวอย่างต้องปรับตาม Domain, Role model และ DRF permission ของ Project
+
+## Security Review ตาม Data flow
+
+1. ระบุ **Source** เช่น Request, File, Queue, Database หรือ External API
+2. ตาม Transformation และ Business decision
+3. ระบุ **Sink** เช่น SQL, HTML, Log, File, Command หรือ External API
+4. ตรวจ Validation, Encoding และ Authorization ทุก Trust boundary
+5. ตรวจ Failure path, Retry, Concurrency และการเปิดเผยข้อมูล
+6. สร้าง Tests สำหรับ Abuse case และ Permission ที่ปฏิเสธ
+
+## Password, Token และ Cookie
+
+- **MUST** ใช้ Framework/Identity provider ที่ได้รับการดูแล แทนสร้าง Crypto/Auth protocol เอง
+- **MUST** ตั้ง `Secure`, `HttpOnly` และ `SameSite` ให้ Cookie ตาม Flow/Environment ที่ออกแบบ และใช้ HTTPS ใน Production
+- **MUST NOT** เก็บ Sensitive authentication token ใน `localStorage` เป็นค่าเริ่มต้น
+- **SHOULD** Re-authenticate สำหรับ Action ที่มีผลกระทบสูงและ Monitor เหตุการณ์ผิดปกติ
+
+อ่านรายละเอียดที่ [Django Authentication](/technology-guides/django-python/authentication), [Django Authorization](/technology-guides/django-python/authorization) และ [React Authentication](/technology-guides/react-typescript/authentication)
+
+## Security exceptions
+
+Finding ที่ยังแก้ไม่ได้ต้องเข้าสู่ [Accepted risk process](/engineering-standards/code-review-coding-standards/findings-severity#accepted-risk-และ-exception) ห้ามลด Severity หรือปิด Scanner เพียงเพื่อให้ Pipeline ผ่าน Compensating control ต้องมี Evidence และวัน Review
+
+## แหล่งอ้างอิงทางการ
+
+- [OWASP Secure Code Review Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secure_Code_Review_Cheat_Sheet.html)
+- [OWASP Cheat Sheet Series](https://cheatsheetseries.owasp.org/)
+- [OWASP ASVS 5.0](https://asvs.owasp.org/)
+- [NIST SP 800-218 — SSDF 1.1](https://csrc.nist.gov/pubs/sp/800/218/final)
+
+## อ่านต่อ
+
+- [Findings & Severity](/engineering-standards/code-review-coding-standards/findings-severity)
+- [Engineering Frameworks](/standards-compliance/frameworks)
+- [ISO Security & Privacy](/standards-compliance/iso-standards/security-privacy)
+- [PDPA](/standards-compliance/laws-regulations/pdpa)

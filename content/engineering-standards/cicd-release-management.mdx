@@ -1,0 +1,40 @@
+---
+title: "CI/CD & Release Management"
+description: "มาตรฐานกลางสำหรับ Pipeline, Artifact promotion, การตัดสินใจ Release และการกู้คืน"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# CI/CD & Release Management
+
+## ภาพรวม (Overview)
+
+Continuous Integration (CI) ตรวจ Change ที่รวมกันอย่างสม่ำเสมอ ส่วน Continuous Delivery หรือ Deployment (CD) เตรียมหรือดำเนินการ Release อย่างควบคุม Release Management เชื่อม Version, Approval, Evidence, Communication และ Recovery plan เข้าด้วยกัน
+
+## จุดประสงค์ (Purpose)
+
+ทำให้ Build และ Release ทำซ้ำ ตรวจสอบย้อนหลัง และกู้คืนได้ พร้อมลดความแตกต่างจากการทำงานด้วยมือระหว่าง Environment
+
+## ขอบเขต (Scope)
+
+ครอบคลุม Pipeline control, Build artifact, Environment promotion, Approval, Configuration, Secret, ลำดับการเปลี่ยน Database, Release record, Rollback และ Forward fix โดยไม่ได้บังคับให้ใช้ CI/CD Platform เดียวกัน
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- Build ครั้งเดียวและ Promote Immutable artifact ชุดเดิมผ่าน Environment ที่เกี่ยวข้อง
+- แยก Configuration และ Secret ออกจาก Artifact พร้อมให้สิทธิ์ Deploy identity เท่าที่จำเป็น
+- รัน Test, Security check และ Policy gate ที่กำหนดก่อน Promote และเก็บผลจริงไว้
+- แยกสิทธิ์อนุมัติ Deploy ออกจากผู้เขียน Code เมื่อ Risk ของ Project ต้องการ
+- บันทึก Source commit, Artifact identity, Configuration version, Approval และ Target environment
+- กำหนด Health check, Rollout monitoring, เกณฑ์ Rollback/Forward fix และ Graceful shutdown
+- แยก Database rollback ออกจาก Application rollback และตรวจ Migration compatibility ก่อน Release
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [GitHub Actions & CI](/technology-guides/devops/github-actions)
+- [Deployment Workflow](/technology-guides/devops/deployment-workflow)
+- [Release & Rollback](/technology-guides/devops/rollback-and-release)
+- [DEV / UAT / Production](/development-workflow/environments)

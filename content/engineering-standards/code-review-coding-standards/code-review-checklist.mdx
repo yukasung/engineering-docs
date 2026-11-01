@@ -1,0 +1,116 @@
+---
+title: "Code Review Checklist"
+description: "Checklist ตรวจ Correctness, Security, Performance, Maintainability, Testing และ Architecture"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Pull Request Template": "copy and tailor per repository"}
+---
+
+# Code Review Checklist
+
+## ภาพรวม (Overview)
+
+Checklist ช่วยไม่ให้ลืม Risk สำคัญ แต่ไม่แทนการเข้าใจ Spec และ Architecture เลือกเฉพาะข้อที่เกี่ยวข้องกับ Change แล้วบันทึก `N/A` พร้อมเหตุผลเมื่อจำเป็น Project ควรปรับรายการตาม Domain และ Risk ไม่เพิ่มทุกข้อเป็น Gate โดยอัตโนมัติ
+
+## Correctness
+
+- [ ] Behavior ตรง Requirement และ Acceptance criteria
+- [ ] Business rules อยู่ใน Boundary ที่ถูกต้องและไม่มี Path ข้ามกฎ
+- [ ] ตรวจ Happy path, Empty state, Boundary value และ Failure path
+- [ ] Input ถูก Validate ทั้ง Type, Range, Length, Format และ Business constraint
+- [ ] Error ถูก Handle/Map โดยไม่กลืน Cause หรือเปิดเผยข้อมูลสำคัญ
+- [ ] Retry, Idempotency, Timezone, Rounding และ Concurrency ถูกพิจารณาเมื่อเกี่ยวข้อง
+
+## Security
+
+- [ ] Authentication และ Session/Token lifecycle ถูกต้องตาม Project
+- [ ] Authorization ตรวจฝั่ง Server ทุก Resource/Action รวม Object ownership
+- [ ] ไม่มี SQL/Command/Template injection หรือ Unsafe output sink
+- [ ] CSRF, CORS, File upload และ Rate limit ถูกพิจารณาตาม Flow
+- [ ] ไม่มี Secret, Credential, Token หรือ Sensitive data ใน Code/Log/Test fixture
+- [ ] Dependency/Container/Action changes ผ่าน SCA และ Source review ที่กำหนด
+- [ ] Security error/log มีข้อมูลพอ Investigate โดยไม่เปิดเผยข้อมูลเกินจำเป็น
+
+## Performance และ Scalability
+
+- [ ] Query count และ N+1 ถูกตรวจเมื่อเข้าถึง Collection/Relation
+- [ ] Pagination, Bounds, Timeout และ Resource limit เหมาะกับข้อมูลจริง
+- [ ] Cache มี Invalidation, Consistency, Data sensitivity และ Failure behavior ที่ชัด
+- [ ] Memory/CPU/Network/I/O เพิ่มขึ้นมี Evidence หรือ Risk assessment
+- [ ] Algorithm/Batch/Async work ไม่สร้าง Load ที่โตแบบไม่คาดคิด
+
+## Maintainability
+
+- [ ] Naming และ Flow สื่อ Intent ได้
+- [ ] ไม่มี Knowledge/Business rule ซ้ำที่อาจแก้ไม่พร้อมกัน
+- [ ] Module/Function แยก Responsibility และ Dependency ตาม Architecture
+- [ ] Complexity ที่เพิ่มมีเหตุผลและ Test รองรับ
+- [ ] Comment อธิบาย Why/Constraint ไม่ทวน Code
+- [ ] Configuration/Feature flag มี Default, Owner และ Cleanup plan
+
+## Testing
+
+- [ ] Unit tests ครอบคลุม Logic และ Edge cases ที่เปลี่ยน
+- [ ] Integration/Contract tests ครอบคลุม Boundary ที่เกี่ยวข้อง
+- [ ] Regression test ถูกเพิ่มเมื่อ Fix defect ที่ทำซ้ำได้
+- [ ] Security/Permission negative tests ครอบคลุม Forbidden path
+- [ ] Test ไม่พึ่งเวลา, Network หรือ Shared state โดยไม่ควบคุม
+- [ ] Coverage report ใช้หาช่องว่าง ไม่ใช้ตัวเลขแทน Test quality
+- [ ] PR ระบุ Command/Environment/ผลจริงและสิ่งที่ไม่ได้รัน
+
+## Architecture และ Data
+
+- [ ] Change เคารพ Service/Module/Layer boundaries และ ADR
+- [ ] Application instance ไม่พึ่ง Local memory สำหรับ State ที่ต้องแชร์/ทน Restart
+- [ ] API/Event contract รองรับ Compatibility และ Consumer ที่เกี่ยวข้อง
+- [ ] Database transaction ครอบคลุม Invariant และไม่กว้างเกินจำเป็น
+- [ ] Migration รองรับ Rollout order, Lock/Data volume และ Forward/rollback strategy
+- [ ] Race condition, Duplicate delivery และ Partial failure ถูกพิจารณา
+- [ ] Health, Timeout, Retry, Graceful shutdown และ Observability อัปเดตเมื่อเกี่ยวข้อง
+
+## SDD และ Traceability
+
+- [ ] Change ตามกลับไปยัง Requirement/Issue/Spec ที่อนุมัติ
+- [ ] Architecture/Security decisions ที่เกี่ยวข้องถูกปฏิบัติตาม
+- [ ] Tests เชื่อมกับ Acceptance criteria สำคัญ
+- [ ] Documentation เปลี่ยนพร้อม Behavior/Contract/Operation
+- [ ] Architectural deviation มี ADR/Exception ไม่ได้ซ่อนอยู่ใน Code
+
+## ตัวอย่างสำหรับ GitHub Pull Request Template
+
+คัดลอกแล้วปรับตาม Project; ตัวอย่างนี้ไม่เปิดใช้ Pipeline หรือ Policy:
+
+```md filename=".github/pull_request_template.md"
+## Summary
+- Requirement / Issue:
+- What changed:
+- Out of scope:
+
+## Risk and compatibility
+- Risk level and reason:
+- API / database / security impact:
+- Rollout / rollback or forward-fix notes:
+
+## Validation performed
+- [ ] Lint / format
+- [ ] Unit tests
+- [ ] Integration / contract tests
+- [ ] Static and security checks
+- Commands and results:
+- Not run / blocked:
+
+## Reviewer checklist
+- [ ] Correctness and edge cases
+- [ ] Authentication / authorization / data protection
+- [ ] Performance and resource bounds
+- [ ] Tests and regression risk
+- [ ] Architecture, contracts, migrations, and documentation
+```
+
+## อ่านต่อ
+
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)
+- [Templates & Resources](/engineering-standards/code-review-coding-standards/templates-resources)

@@ -1,0 +1,96 @@
+---
+title: "Technical Debt Management"
+description: "วิธีระบุ จัดลำดับ ติดตาม และลด Technical Debt ตาม Risk และ Business impact"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Issues / Jira": "use the tracker selected by each project"}
+---
+
+# Technical Debt Management
+
+## ภาพรวม (Overview)
+
+Technical Debt คือภาระใน Code, Architecture, Tests, Data, Infrastructure หรือ Process ที่ทำให้การเปลี่ยนครั้งต่อไปช้าลง เสี่ยงขึ้น หรือแพงขึ้น Debt อาจเกิดจาก Trade-off ที่ตั้งใจหรือการตัดสินใจที่ไม่มีข้อมูลครบ แต่ต้องมองเห็น Owner และ Trigger ที่ต้องแก้
+
+## Debt ต่างจาก Defect อย่างไร?
+
+| Technical Debt | Defect |
+| --- | --- |
+| โครงสร้าง/ข้อจำกัดเพิ่มต้นทุนหรือ Risk ในอนาคต | Behavior ปัจจุบันไม่ตรง Requirement |
+| อาจยังทำงานถูกต้องวันนี้ | มี Expected vs Actual ที่ผิด |
+| Prioritize จาก Drag, Risk และ Roadmap | Prioritize จาก Severity, Exposure และผู้ใช้ที่กระทบ |
+
+รายการหนึ่งอาจเป็นทั้งสองอย่าง เช่น Duplicate authorization logic ที่จุดหนึ่งขาด Permission check ต้องเปิด Defect สำหรับช่องโหว่และ Debt สำหรับการรวม Policy logic
+
+## แหล่งที่พบบ่อย
+
+- Deadline trade-off โดยไม่มี Cleanup plan
+- Missing/fragile tests และ Flaky CI
+- Dependency/Runtime ใกล้ EOL
+- Duplicate business rule หรือ Tight coupling
+- Manual deployment/migration ที่ตามรอยไม่ได้
+- Missing observability/runbook
+- Architecture deviation ที่ไม่มี ADR
+- Data model/API compatibility workaround ที่ไม่เคยลบ
+- Scanner finding ที่ Deferred โดยไม่มี Owner/date
+
+## วิธีบันทึก Debt
+
+GitHub Issue/Jira item **SHOULD** มี:
+
+- Problem และ Evidence ไม่ใช้คำกว้างว่า “code ไม่ดี”
+- Affected component/consumer และ Root cause
+- Impact: Change lead time, Defect/Security/Operation/Cost
+- Trigger ที่ทำให้ต้องแก้ เช่น ก่อน Scale, Migration หรือ Feature X
+- Remediation options และ Estimated effort range
+- Owner/Team, Priority, Dependencies และ Review date
+- Link PR/ADR/Incident/Finding ที่เกี่ยวข้อง
+
+## Prioritization matrix
+
+| Impact / Urgency | ต่ำ | กลาง | สูง |
+| --- | --- | --- | --- |
+| ต่ำ | Track และทบทวนเมื่อแตะ Module | รวมกับงานใกล้เคียง | วางแผน Quick remediation |
+| กลาง | แก้เมื่อมี Capacity/Trigger | ใส่ Roadmap พร้อม Owner | เร่งก่อน Change ใหญ่/Release |
+| สูง | ห้ามปล่อยไร้ Owner | Prioritize เร็วและเพิ่ม Control | Block/Incident path ตาม Risk |
+
+ประเมินจาก User/data exposure, Change frequency, Blast radius, EOL date, Failure history และ Cost of delay ไม่ใช้ Story points เพียงอย่างเดียว
+
+## Refactoring strategy
+
+1. Characterize Behavior ด้วย Tests/Observability ก่อนแก้
+2. แยก Defect/Security fix ที่เร่งด่วนจาก Structural refactor เมื่อช่วยลด Risk
+3. ทำ Increment เล็กหลัง Stable interface หรือ Feature flag ที่มี Cleanup plan
+4. วัดผล เช่น Lead time, failure rate, complexity/query count หรือจำนวน duplicate rules
+5. ลบ Compatibility/Flag/Dead code เมื่อ Exit criteria ครบ
+6. อัปเดต ADR, Docs และ Debt record
+
+Boy Scout improvement เล็กทำใน PR ได้เมื่อ Scope/Risk ชัด แต่ Refactor ใหญ่ที่ทำ Review ยาก **SHOULD** แยก PR และ Plan
+
+## Review และ Governance
+
+- Review Debt ในจังหวะ Planning/Architecture/Incident review ที่ทีมกำหนด
+- Critical/High security finding ไม่ควรถูกซ่อนเป็น Debt ระดับต่ำ
+- Scanner “debt minutes” เป็น Input ไม่ใช่ Business priority
+- ปิด Issue เมื่อมี Evidence ตาม Exit criteria ไม่ใช่เพราะ Code ถูก Merge เท่านั้น
+- Debt ที่ยอมรับต้องใช้ Exception/Accepted risk process หากกระทบ Mandatory rule
+
+## ตัวอย่าง
+
+```text
+Title: Consolidate duplicate order-total calculation
+Evidence: Three implementations round discounts differently.
+Impact: Regression risk for billing changes; one prior defect linked.
+Trigger: Before adding multi-currency support.
+Plan: Introduce one domain service with characterization tests, migrate callers,
+      then remove old functions.
+Owner / priority / target: Set by the project; do not invent in this template.
+```
+
+## อ่านต่อ
+
+- [Findings & Severity](/engineering-standards/code-review-coding-standards/findings-severity)
+- [General Coding Standards](/engineering-standards/code-review-coding-standards/general-coding-standards)
+- [Templates & Resources](/engineering-standards/code-review-coding-standards/templates-resources)

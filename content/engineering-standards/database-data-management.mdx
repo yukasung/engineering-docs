@@ -1,0 +1,40 @@
+---
+title: "Database & Data Management"
+description: "มาตรฐานกลางสำหรับ Data model, Integrity, Migration, Access, Retention และ Recovery"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Database & Data Management
+
+## ภาพรวม (Overview)
+
+Database Standards ช่วยรักษาความถูกต้อง ความปลอดภัย และความดูแลรักษาได้ของข้อมูลถาวร ส่วน Data Management กำหนดวิธีจัดประเภท เข้าถึง เก็บรักษา แชร์ Backup และลบข้อมูลตลอดวงจรชีวิต
+
+## จุดประสงค์ (Purpose)
+
+ป้องกัน Schema ที่ไม่สอดคล้อง Change ที่ไม่ปลอดภัย การเข้าถึงที่ควบคุมไม่ได้ และข้อมูลสูญหาย พร้อมกำหนดหน้าที่ของ Application และ Operation ให้ชัดเจน
+
+## ขอบเขต (Scope)
+
+ครอบคลุม Schema design, Key/Constraint, Transaction, Index, Migration, Connection management, Access control, Data classification, Retention, Backup, Restore และการลบข้อมูล ส่วนข้อกำหนดด้านกฎหมายและ Governance อยู่ใน Standards & Compliance
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- ระบุ Ownership, Relationship, Constraint และ Integrity rule ของข้อมูลให้ชัดเจน
+- ใช้ Migration ที่เก็บใน Version control และผ่าน Review สำหรับการเปลี่ยน Schema, Data และ Reference data
+- ออกแบบ Migration ให้รองรับ Compatibility, Controlled rollout, Verification และ Recovery ไม่แก้ Database ใน Shared environment โดยตรงเป็นขั้นตอนปกติ
+- กำหนด Transaction boundary และ Concurrency behavior สำหรับการอัปเดตข้อมูลสำคัญ
+- ให้สิทธิ์เท่าที่จำเป็น ป้องกัน Sensitive field และไม่เปิดเผย Credential หรือ Personal data ใน Log
+- Review Index และ Connection budget ด้วยหลักฐานจาก Workload จริง ไม่ใช้การคาดเดา
+- กำหนดผู้รับผิดชอบ Backup, Restore verification, Retention, Archival และการลบข้อมูล
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [PostgreSQL Guide](/technology-guides/postgresql)
+- [Database Migration](/technology-guides/postgresql/migrations)
+- [Backup & Restore](/technology-guides/postgresql/backup-restore)
+- [Data Governance](/standards-compliance/data-governance)

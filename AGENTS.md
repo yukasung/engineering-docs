@@ -12,10 +12,11 @@
 - Avoid `any` unless justified. Use descriptive kebab-case names and do not modify unrelated files.
 
 ## Information Architecture
-- Keep exactly five main navigation links, in order: Overview, Projects, Development Workflow, Technology Guides, Standards & Compliance. Overview is the root `content/index.mdx`.
+- Keep exactly six main navigation links, in order: Overview, Projects, Development Workflow, Technology Guides, Engineering Standards, Standards & Compliance. Overview is the root `content/index.mdx`.
 - Keep the Overview focused on what Engineering Hub is, who it helps, what it contains, and how the team should use it.
-- `development-workflow/`: shared Git/Pull Request, Code Review, SDD, and environment-promotion guidance. Keep detailed delivery tooling under Technology Guides/DevOps.
+- `development-workflow/`: shared Git/Pull Request, SDD, and environment-promotion guidance. Link Code Review to the canonical Engineering Standards section. Keep detailed delivery tooling under Technology Guides/DevOps.
 - `technology-guides/`: reusable tool/framework guidance with explicit applicable versions.
+- `engineering-standards/`: canonical cross-technology agreements for architecture, delivery, coding, testing, data, APIs, operations, and AI-assisted development. Reuse detailed workflows and Technology Guides through links; keep project-specific policies and tool configuration in Projects.
 - `standards-compliance/`: canonical cross-technology guidance for ISO standards, Thai laws, governance, risk, data, audit, frameworks, and compliance checklists. Keep project implementations and evidence references in the relevant Project.
 - Keep guidance in the relevant canonical workflow or technology guide, and project-specific decisions in Projects.
 - `technology-guides/devops/`: shared CI/CD tooling, infrastructure, deployment, and operations guidance; link to project runbooks for actual configurations and keep detailed release/rollback guidance here.
@@ -78,6 +79,16 @@ All documentation must:
 - Document schema/data/reference-data changes through version-controlled migrations. Application rollback does not imply database rollback.
 - Do not recreate workflow templates or activate GitHub workflows, PR policies, or infrastructure without explicit requirements.
 - Keep navigation and cross-links synchronized when the Overview changes.
+
+## Code Review and Coding Standards
+- Keep canonical Code Review and Coding Standards guidance under `content/engineering-standards/code-review-coding-standards/`; workflow, SDD, Technology Guides, and Standards & Compliance should link to it instead of copying its rules.
+- Distinguish `MUST`, `SHOULD`, and `MAY`. Do not present example thresholds, reviewer counts, SLAs, or tool configurations as approved organization policy.
+- Review against approved requirements, architecture, security requirements, acceptance criteria, tests, migrations, and documentation. Preserve evidence from actual checks and report unexecuted checks.
+- AI review may provide evidence-based findings but never replaces required human approval, bypasses quality gates, approves or merges a Pull Request, or modifies code during a review-only task.
+- Never expose secrets or sensitive data in review findings, prompts, logs, templates, or examples. Use safe placeholders and restricted evidence references.
+- Findings must include evidence, impact, severity or priority, required action, and re-review state. Security severity and maintainability priority are separate dimensions.
+- Exceptions require scope, owner, justification, compensating controls, approval reference, and an expiration or review date. Do not invent approvals or accepted risks.
+- Keep CI/CD examples documentation-only unless pipeline activation is explicitly requested. Configure coverage and quality thresholds per project risk and baseline; do not invent universal values.
 
 ## Standards & Compliance Documentation
 - Verify current editions, amendments, legal sources, and framework versions from authoritative owner sources before writing. Record explicit versions in frontmatter and link official references near the guidance.

@@ -1,0 +1,131 @@
+---
+title: "Quality Gates & CI/CD Integration"
+description: "Baseline Quality Gate สำหรับ Pull Request พร้อมตัวอย่าง GitHub Actions และแนวทาง SonarQube"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"GitHub Actions": "workflow is documentation-only", "GitHub Rulesets": "repository plan and configuration vary", "SonarQube Cloud": "current hosted service"}
+---
+
+# Quality Gates & CI/CD Integration
+
+## ภาพรวม (Overview)
+
+Quality Gate คือเงื่อนไขขั้นต่ำที่ Change ต้องผ่านก่อน Merge/Release Gate ที่ดีบอกชื่อ Check, Scope, Failure policy, Owner และวิธี Exception ชัดเจน ไม่ใช้ตัวเลขเดียวกับทุก Project และไม่ทำให้ Human approval หายไป
+
+## Baseline policy
+
+Project **SHOULD** เริ่มจาก Baseline นี้แล้วปรับตาม Stack/Risk:
+
+| Gate | Baseline | Merge blocking เมื่อ |
+| --- | --- | --- |
+| PR metadata | Requirement, Scope, Risk, Validation และ Compatibility ครบ | Context สำคัญหายหรือ Change ตามรอยไม่ได้ |
+| Format/Lint | Config เดียวกันใน Local/CI | Tool exit non-zero โดยไม่มี Exception |
+| Build/Type check | Build path ที่ใช้ส่งมอบและ Type checks ที่เกี่ยวข้อง | Build/Type check ล้มเหลว |
+| Automated tests | Unit/Integration/Contract ตาม Change | Required test fail, timeout หรือไม่รันโดยไม่อธิบาย |
+| Static/SAST | Rule/Profile ที่ Project อนุมัติ | Blocking finding ตาม Policy |
+| SCA | Manifest/Lockfile/Image ที่ส่งมอบ | Vulnerability/license/EOL risk เกิน Policy |
+| Secret detection | Scan Diff/History ตาม Tool | พบ Secret ที่ยังไม่ Revoke/Remediate |
+| Coverage | Report New/Changed code และ Risk area | ต่ำกว่า Project-specific baseline โดยไม่มีเหตุผล/Exception |
+| Human review | Reviewer/Code Owner ตาม Risk | Approval หรือ Re-review ที่ Required ยังไม่ครบ |
+
+**MUST NOT** กำหนด Universal coverage threshold โดยไม่มี Baseline และ Risk rationale Coverage 100% ยังพลาด Assertion, Integration, Security และ Production behavior ได้
+
+## ตัวอย่าง GitHub Actions
+
+ตัวอย่างนี้เป็นเอกสารสำหรับ Node.js Project สมมติที่มี Scripts จริงตามชื่อ ห้ามคัดลอกไปเปิดใช้ก่อนตรวจ Package scripts, Runner, Permissions, Action SHA, Secrets และ Plan ของ GitHub:
+
+```yaml filename=".github/workflows/quality.yml"
+name: Pull Request Quality
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4 # Production policy should pin a reviewed full commit SHA
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --coverage
+      - run: npm run build
+```
+
+คำสั่งที่ไม่มีใน Repository ต้องลบหรือเปลี่ยน ห้ามสร้าง Check ที่ `continue-on-error` แล้วประกาศว่าเป็น Blocking gate
+
+## Security checks แยกอย่างไร?
+
+- ใช้ CodeQL default setup เมื่อเหมาะกับภาษา/Plan หรือ Advanced setup เมื่อ Build/Query/Matrix ต้องควบคุม
+- ใช้ Dependency review/SCA กับ Pull Request ที่เปลี่ยน Manifest/Lockfile และ Scan Scheduled/default branch เพิ่มสำหรับฐานเดิม
+- เปิด Secret scanning/Push protection ตามความสามารถ Platform และมี Incident procedure สำหรับ Revoke/Rotate
+- Scan Container/IaC เมื่อ Artifact/Infrastructure อยู่ใน Scope
+- จำกัด `GITHUB_TOKEN` และ Secrets ต่อ Job; ไม่รัน Untrusted PR ด้วย Production credential หรือ Self-hosted runner ที่เข้าถึงระบบสำคัญ
+
+ดูตัวอย่าง CI พื้นฐานที่ [GitHub Actions & CI](/technology-guides/devops/github-actions)
+
+## SonarQube Cloud กับ GitHub
+
+1. Import/เชื่อม GitHub Organization และ Repository ตามสิทธิ์ที่อนุมัติ
+2. เลือก **Automatic analysis** หรือ **CI-based analysis** ให้ชัด ไม่เปิดสองแบบพร้อมกันใน Project เดียว
+3. กำหนด New Code definition, Quality Profiles และ Quality Gate ตามภาษา/Risk
+4. ถ้าใช้ CI-based analysis ให้เก็บ Token ใน GitHub Secret และให้ Workflow สิทธิ์ขั้นต่ำ
+5. ตรวจ PR decoration/Check บน Commit ที่จะ Merge และผูกชื่อ Check เป็น Required status เมื่อ Policy อนุมัติ
+6. Triage Security Hotspot/Vulnerability โดย Human และบันทึก Resolution
+
+ตัวอย่างนี้ไม่สร้าง Sonar Project, Secret หรือ Workflow จริง
+
+## Rulesets / Branch Protection
+
+Project Owner **SHOULD** พิจารณา:
+
+- Require Pull Request และ Human approvals ตาม Risk
+- Require Code Owner เมื่อไฟล์ Critical เปลี่ยน
+- Dismiss stale approvals หรือ Require approval หลัง Push ล่าสุด
+- Require named status checks จาก Source/App ที่คาดหวัง
+- Require conversation resolution และป้องกัน Force push/delete บน Branch สำคัญ
+- Merge queue หรือ Strict up-to-date checks เมื่อ Integration risk สูง
+- จำกัด Bypass และบันทึกเหตุผล/Actor
+
+Ruleset ที่ตั้งผิดอาจทำให้ Check ถูก Skip แล้วดูเหมือนผ่าน ต้องทดสอบ PR จาก Branch, Fork และ Path ที่เกี่ยวข้องก่อนบังคับใช้
+
+## Project-specific thresholds
+
+บันทึกอย่างน้อย:
+
+- Metric และ Scope เช่น New code ไม่ใช่ Entire legacy codebase
+- Baseline ปัจจุบันและเหตุผลที่เลือก Target
+- Risk/criticality ของ Module
+- Blocking vs Warning และ Owner ที่ Triage
+- Rollout date, Exception path และ Review cadence
+- วิธีป้องกันการ Gaming metric
+
+## แหล่งอ้างอิงทางการ
+
+- [GitHub — About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
+- [GitHub — Protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+- [GitHub — CodeQL setup](https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning)
+- [SonarQube Cloud — GitHub setup](https://docs.sonarsource.com/sonarqube-cloud/getting-started/github)
+
+## อ่านต่อ
+
+- [Static Code Analysis](/engineering-standards/code-review-coding-standards/static-code-analysis)
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [CI/CD & Operations](/technology-guides/devops)

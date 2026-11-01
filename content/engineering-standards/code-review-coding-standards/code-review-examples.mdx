@@ -1,0 +1,243 @@
+---
+title: "Code Review Examples"
+description: "ตัวอย่าง Before/After สำหรับ Security, Performance, Maintainability, Transactions, Tests และ Stateless design"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "illustrative syntax", "FastAPI": "illustrative API patterns", "SQLAlchemy": "illustrative ORM patterns", "TypeScript": "illustrative syntax", "SQL": "parameterization depends on driver"}
+---
+
+# Code Review Examples
+
+## ภาพรวม (Overview)
+
+ตัวอย่างต่อไปนี้ย่อให้เห็น Review signal, Risk และทิศทางแก้ ไม่ใช่ Application ที่รันหรือทดสอบแล้ว ต้องปรับ API ของ Framework/Driver, Error model, Authentication และ Transaction ให้ตรง Project จริง
+
+## 1. SQL Injection
+
+**Before — ต่อ Input เข้า SQL**
+
+```python
+query = f"SELECT id, email FROM users WHERE email = '{email}'"
+cursor.execute(query)
+```
+
+**After — ส่ง Value เป็น Parameter**
+
+```python
+cursor.execute(
+    "SELECT id, email FROM users WHERE email = %s",
+    (email,),
+)
+```
+
+**Finding:** ผู้โจมตีเปลี่ยนโครงสร้าง Query ได้ **Risk:** อ่าน/แก้ข้อมูลเกินสิทธิ์ **Verify:** ทดสอบ Input พิเศษและยืนยัน Driver ใช้ Parameterization จริง ชื่อ Placeholder ต่างกันตาม Driver
+
+## 2. Hardcoded Credentials
+
+```python
+# Before
+API_TOKEN = "replace-with-a-real-token"
+
+# After
+import os
+
+API_TOKEN = os.environ["SERVICE_API_TOKEN"]
+```
+
+**Finding:** Secret อยู่ใน Source/History **Improvement:** ใช้ Secret reference และ Fail เมื่อ Config สำคัญหาย หาก Secret จริงเคย Commit ต้อง Revoke/Rotate; ลบจากไฟล์อย่างเดียวไม่พอ
+
+## 3. Missing Authorization
+
+```python
+# Before: user ใดก็อ่าน task_id ได้
+@app.get("/tasks/{task_id}")
+def get_task(task_id: int, db: Session = Depends(get_db)):
+    return db.get(Task, task_id)
+
+# After: จำกัด query ด้วย identity ที่ยืนยันแล้ว
+@app.get("/tasks/{task_id}")
+def get_task(
+    task_id: int,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    task = db.scalar(
+        select(Task).where(Task.id == task_id, Task.owner_id == user.id)
+    )
+    if task is None:
+        raise HTTPException(status_code=404)
+    return task
+```
+
+**Finding:** Authentication มีแต่ Object authorization หาย **Verify:** Owner ได้ `200`; ผู้ใช้อื่นและ ID ที่ไม่มีได้ Response ตาม Contract โดยไม่เปิดเผยข้อมูล
+
+## 4. Improper Exception Handling
+
+```python
+# Before: กลืนทุก error และทำให้ Incident หา Cause ไม่ได้
+try:
+    charge(order)
+except Exception:
+    return {"ok": False}
+
+# After: จัดการ expected error และปล่อย unexpected error ให้ boundary กลาง
+try:
+    charge(order)
+except PaymentDeclined as exc:
+    logger.info("payment declined", extra={"order_id": order.id})
+    raise HTTPException(status_code=422, detail="payment_declined") from exc
+```
+
+**Finding:** Failure ทุกชนิดถูกซ่อน **Risk:** Data/Retry ผิดและ Debug ไม่ได้ อย่าส่ง Stack trace หรือ Provider response ที่มีข้อมูลสำคัญให้ Client
+
+## 5. Sensitive Data Logging
+
+```ts
+// Before
+console.info('login request', { email, password, accessToken })
+
+// After
+logger.info('login attempt', {
+  userId,
+  outcome,
+  correlationId
+})
+```
+
+**Finding:** Credential/Token เข้า Log **Improvement:** Log Event และ Identifier ที่จำเป็น ใช้ Redaction ที่ Boundary และเพิ่ม Test ว่า Field ต้องห้ามไม่ถูกบันทึก
+
+## 6. N+1 Database Queries
+
+```python
+# Before: access order.items อาจ query เพิ่มต่อ order
+orders = db.scalars(select(Order)).all()
+return [serialize(order, order.items) for order in orders]
+
+# After: load relation เป็นชุดตาม ORM strategy ที่เลือก
+orders = db.scalars(
+    select(Order).options(selectinload(Order.items))
+).all()
+return [serialize(order, order.items) for order in orders]
+```
+
+**Finding:** Query โตตามจำนวน Order **Verify:** นับ Query กับ Dataset ที่เป็นตัวแทน, ตรวจ Pagination และ Result size ไม่ถือว่า Eager loading เร็วเสมอ
+
+## 7. Duplicate Business Logic
+
+```ts
+// Before: rounding rule ซ้ำและอาจแก้ไม่พร้อมกัน
+const invoiceTotal = subtotal - subtotal * discountRate
+const previewTotal = subtotal * (1 - discountRate)
+
+// After: business rule มีแหล่งเดียว
+function calculateDiscountedTotal(
+  subtotal: Money,
+  discountRate: Decimal
+): Money {
+  return roundMoney(subtotal.multiply(Decimal.one.minus(discountRate)))
+}
+```
+
+**Finding:** ความรู้ทาง Domain ซ้ำ **Verify:** Characterization tests ของทั้ง Callers และ Boundary เรื่อง Rounding/Currency
+
+## 8. Poor Function Naming
+
+```python
+# Before
+def process(data):
+    ...
+
+# After
+def reserve_inventory_for_order(order: Order) -> Reservation:
+    ...
+```
+
+**Finding:** ชื่อไม่บอก Input/ผล/Side effect **Improvement:** ใช้ Domain verb/noun และ Type ที่ช่วยอ่าน แต่ไม่ตั้งชื่อยาวเพื่อซ่อน Function ที่รับผิดชอบหลายเรื่อง
+
+## 9. Excessive Function Complexity
+
+```python
+# Before: validate, authorize, calculate, persist และ notify ใน function เดียว
+def submit_order(request, user, db):
+    # many nested branches and side effects
+    ...
+
+# After: orchestration อ่านลำดับได้และแต่ละส่วนทดสอบแยกได้
+def submit_order(command: SubmitOrder, actor: User, db: Session) -> Order:
+    validated = validate_order(command)
+    authorize_submission(actor, validated)
+    priced = price_order(validated)
+    order = persist_order(db, priced)
+    enqueue_order_submitted(order.id)
+    return order
+```
+
+**Finding:** หลายเหตุผลที่เปลี่ยนและ Failure boundary ไม่ชัด **Verify:** Transaction/Outbox semantics, Error mapping และ Tests ของ orchestration—not แค่แยก Function
+
+## 10. Missing Unit Tests
+
+```python
+def calculate_fee(amount: Decimal) -> Decimal:
+    return (amount * Decimal("0.025")).quantize(Decimal("0.01"))
+```
+
+เพิ่ม Tests ที่สื่อ Contract ไม่ใช่แค่บรรทัดถูกเรียก:
+
+```python
+@pytest.mark.parametrize(
+    ("amount", "expected"),
+    [(Decimal("0.00"), Decimal("0.00")),
+     (Decimal("100.00"), Decimal("2.50")),
+     (Decimal("0.20"), Decimal("0.01"))],
+)
+def test_calculate_fee_rounds_to_currency(amount, expected):
+    assert calculate_fee(amount) == expected
+```
+
+**Finding:** Rounding boundary ไม่มี Regression evidence ตรวจ Negative/maximum/invalid cases ตาม Requirement จริงด้วย
+
+## 11. Unsafe Database Transactions
+
+```python
+# Before: order อาจถูกสร้างแต่ inventory ไม่ถูกลด
+order = create_order(db, command)
+db.commit()
+decrease_inventory(db, order)
+db.commit()
+
+# After: invariant เปลี่ยนใน transaction เดียว
+with db.begin():
+    order = create_order(db, command)
+    decrease_inventory(db, order)
+```
+
+**Finding:** Partial commit ทำให้ข้อมูลไม่สอดคล้อง **Verify:** Failure injection, Lock/concurrency behavior และ Retry policy สำหรับ External side effect ควรใช้ Outbox/Saga ตาม Architecture ไม่ถือว่า DB transaction ครอบ Network call ได้
+
+## 12. Stateful Application Design
+
+```python
+# Before: session หายเมื่อ restart และไม่แชร์ระหว่าง replicas
+sessions: dict[str, dict] = {}
+
+def get_session(session_id: str) -> dict | None:
+    return sessions.get(session_id)
+
+# After: instance พึ่ง shared external session store
+def get_session(session_id: str, store: SessionStore) -> Session | None:
+    return store.get(session_id)
+```
+
+**Finding:** Local memory ทำให้ Load balancer ส่งไป Instance อื่นแล้ว Session หาย **Improvement:** ใช้ Database/Redis-backed session ที่มี TTL, consistency, encryption/access controls และ failure policy Application instance ยังถือว่า Stateless ได้เมื่อ Session state อยู่ใน Shared external system
+
+## วิธีใช้ตัวอย่างระหว่าง Review
+
+อย่า Comment เพียง “ทำตาม Best practice” ให้เขียน Scenario, Impact และ Verification เช่น “ผู้ใช้ B เรียก `/tasks/123` ของผู้ใช้ A ได้ เพราะ Query ไม่กรอง `owner_id`; เพิ่ม negative authorization test และจำกัด Query ด้วย identity”
+
+## อ่านต่อ
+
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)
+- [Code Review Checklist](/engineering-standards/code-review-coding-standards/code-review-checklist)
+- [Database Transactions](/technology-guides/postgresql/transactions)
+- [Fullstack Integration](/technology-guides/fullstack)

@@ -1,0 +1,103 @@
+---
+title: "Static Code Analysis"
+description: "เลือก Linter, SAST, SCA, Secret scanning และ SonarQube ให้ตรง Stack พร้อมเข้าใจข้อจำกัด"
+documentType: "Guide"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"SonarQube Cloud/Server": "use project-supported release", "Ruff": "pin per project", "ESLint": "pin per project", "Pylint": "pin per project", "Bandit": "pin per project", "Semgrep": "pin per project", "CodeQL": "GitHub-supported setup"}
+---
+
+# Static Code Analysis
+
+## ภาพรวม (Overview)
+
+Static analysis ตรวจ Source/Bytecode/Configuration โดยไม่ต้องรัน Application ช่วยหา Pattern ที่รู้จักได้เร็ว แต่ไม่เข้าใจ Business intent, Runtime configuration, Production data หรือ Threat ทั้งหมด ผล Scan จึงเป็น Input ให้ Triage ไม่ใช่คำตัดสินสุดท้าย
+
+## คำที่ต้องแยกให้ออก
+
+| คำ | ความหมาย | ตัวอย่างสิ่งที่หาได้ |
+| --- | --- | --- |
+| Lint | กฎ Style, correctness pattern และภาษา | Unused import, unsafe pattern, type/style issue |
+| SAST | Static Application Security Testing | Injection source-to-sink, unsafe API, weak config pattern |
+| SCA | Software Composition Analysis | Known vulnerability, license/EOL risk ใน Dependency |
+| Secret scanning | หา Credential/token pattern หรือ Valid secret ตามความสามารถ Tool | Key ที่ Commit ผิด, token pattern |
+| DAST | ทดสอบ Application ที่กำลังรันผ่าน Interface | Runtime headers, auth flow, injectable endpoint |
+
+SAST ไม่แทน DAST และทั้งสองไม่แทน Manual business-logic/authorization review
+
+## เลือก Tool ตาม Stack
+
+| Tool | ใช้หลัก ๆ | เหมาะเมื่อ | ข้อจำกัดที่ต้องรู้ |
+| --- | --- | --- | --- |
+| SonarQube Cloud / Server | Multi-language quality/security metrics, profiles และ gates | ต้องการ Dashboard, PR decoration และ Baseline กลาง | ต้องตั้ง Scope/New Code/Profile/Gate; Finding ยังต้อง Triage |
+| SonarQube for IDE | Feedback ใน Editor ก่อน Push | Developer ต้องการแก้เร็วและเชื่อม Rule กับ Server/Cloud | ไม่แทน CI เพราะ Local config/context อาจต่าง |
+| Ruff | Python lint และ format | ต้องการ Feedback เร็วและ Rule set ที่กำหนดใน `pyproject.toml` | ไม่ใช่ Security scanner ครบชุด |
+| Pylint | Python lint/design checks | Project ใช้ Rule/Plugin ของ Pylint หรือ Codebase เดิม | อาจซ้ำ Ruff; ต้องเลือก Owner ของ Rule ไม่รันซ้ำโดยไร้เหตุผล |
+| Bandit | Common Python security patterns | Python project ต้องการ Security lint เพิ่มเติม | Pattern-based; Business logic และ Data flow ซับซ้อนอาจไม่พบ |
+| ESLint | JavaScript/TypeScript lint ผ่าน Rules/Plugins | React/Node/TypeScript project | Type-aware rules ต้อง Config/Parser ที่ถูกต้อง; ไม่แทน Runtime tests |
+| Semgrep | Custom/registry rules สำหรับ Code/SAST และผลิตภัณฑ์อื่นตาม Edition | ต้องการ Pattern/Policy ข้ามภาษาและ Custom rules | Rule quality/context มีผลต่อ False positive/negative |
+| CodeQL | Semantic code scanning สำหรับภาษาที่รองรับ | Repository ใช้ GitHub Code Security และต้องการ Data-flow analysis | Availability/languages/config ตาม GitHub plan และ setup |
+| Dependency scanner | SCA จาก Manifest/Lockfile/Image | ทุก Project ที่ใช้ Third-party components | Database/Reachability/Transitive scope ต่างกันตาม Tool |
+| Secret scanner | Prevent/Detect secret ใน Git history และ Push | ทุก Repository | Pattern ไม่พบ Secret ทุกชนิด; พบแล้วต้อง Revoke ไม่ใช่ลบ Commit อย่างเดียว |
+
+อย่าเพิ่ม Tool หลายตัวเพียงเพราะชื่อดัง ให้ทำ Coverage map ว่า Tool ใดเป็น Owner ของ Formatting, Lint, SAST, SCA, Secrets และ Runtime test เพื่อลด Noise/ผลซ้ำ
+
+## SonarQube concepts
+
+- **Quality Profile:** ชุด Rules ที่ใช้วิเคราะห์แต่ละภาษา
+- **Quality Gate:** เงื่อนไขจาก Metrics/Findings ที่ตัดสิน Pass/Fail หลัง Analysis
+- **Code Smell:** สัญญาณ Maintainability ที่ควร Triage ไม่เท่ากับ Bug เสมอ
+- **Bug:** Pattern ที่ Tool ประเมินว่าอาจทำให้ Behavior ผิด
+- **Vulnerability:** จุดอ่อน Security ที่ Tool ระบุและต้องตรวจ Context/Exploitability
+- **Security Hotspot:** Code ที่เกี่ยวกับ Security ซึ่ง Human ต้อง Review ว่าปลอดภัยใน Context หรือไม่
+- **Technical Debt estimate:** แบบจำลอง Effort ของ Tool ไม่ใช่ Business priority โดยอัตโนมัติ
+- **Coverage:** สัดส่วน Code ที่ Test วิ่งผ่าน ไม่ยืนยัน Assertion quality หรือ Risk coverage
+
+## อะไรตรวจอัตโนมัติได้ และอะไรต้องใช้ Human?
+
+| ตรวจอัตโนมัติได้ดี | ต้องใช้ Human/Runtime evidence |
+| --- | --- |
+| Syntax, formatting, unused code, known unsafe calls | Requirement และ Business rule ถูกต้องหรือไม่ |
+| Known dependency CVE/secret pattern | Authorization model และ Abuse case ครบหรือไม่ |
+| Data-flow pattern ที่ Engine รองรับ | Finding ใช้งานได้จริง/กระทบ Business แค่ไหน |
+| Duplicate/complexity metric | Abstraction/complexity เหมาะกับ Domain หรือไม่ |
+| Test coverage calculation | Test assertion และ Acceptance coverage มีคุณภาพหรือไม่ |
+| Configuration pattern ในไฟล์ที่ Scan | Runtime/Cloud/Environment config จริงปลอดภัยหรือไม่ |
+
+## Triage finding
+
+1. ยืนยัน File/line, Rule, Tool version และ Scan scope
+2. สร้าง Scenario หรือ Test ที่พิสูจน์/หักล้าง Finding เมื่อปลอดภัย
+3. จัด Security severity และ Engineering priority แยกกัน
+4. แก้ Root cause หรือบันทึก False positive/Accepted risk พร้อม Evidence
+5. ปรับ Rule/Profile เฉพาะเมื่อมี Pattern ซ้ำและ Review โดย Owner
+6. Re-run บน Commit ที่จะ Merge
+
+## ตัวอย่างคำสั่ง
+
+ใช้เมื่อ Project ติดตั้งและ Config Tool ไว้แล้วเท่านั้น:
+
+```bash
+ruff check .
+ruff format --check .
+python -m bandit -r src
+npx eslint .
+```
+
+คำสั่งเป็นตัวอย่าง ไม่ยืนยันว่าใช้ได้กับทุก Repository และไม่ได้ถูกเรียกใน Engineering Hub นี้
+
+## แหล่งอ้างอิงทางการ
+
+- [SonarQube Cloud — Quality standards](https://docs.sonarsource.com/sonarqube-cloud/standards)
+- [Ruff Linter](https://docs.astral.sh/ruff/linter/) และ [Ruff Formatter](https://docs.astral.sh/ruff/formatter/)
+- [ESLint Documentation](https://eslint.org/docs/latest/)
+- [Bandit Documentation](https://bandit.readthedocs.io/)
+- [Semgrep Documentation](https://semgrep.dev/docs/)
+- [GitHub CodeQL code scanning](https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql)
+
+## อ่านต่อ
+
+- [Quality Gates & CI/CD](/engineering-standards/code-review-coding-standards/quality-gates-cicd)
+- [Findings & Severity](/engineering-standards/code-review-coding-standards/findings-severity)
+- [GitHub Actions & CI](/technology-guides/devops/github-actions)

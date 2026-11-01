@@ -115,7 +115,9 @@ async function inspectDirectory(directory) {
     pages.set(route, { filename, prose, metadata })
     const sections = prose.split('\n').filter(line => line.startsWith('## '))
     const hasSection = (heading, thaiHeading) => sections.some(
-      line => line.includes(`(${heading})`) || line.trim() === `## ${thaiHeading}`
+      line => line.includes(`(${heading})`)
+        || line.trim() === `## ${heading}`
+        || line.trim() === `## ${thaiHeading}`
     )
     if (!hasSection('Overview', 'เรื่องนี้คืออะไร?')) {
       errors.push(`${filename}: missing Overview / เรื่องนี้คืออะไร? section`)

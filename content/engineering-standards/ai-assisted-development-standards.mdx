@@ -1,0 +1,40 @@
+---
+title: "AI-Assisted Development Standards"
+description: "มาตรฐานการใช้ AI ในงาน Software โดยมีคนรับผิดชอบ ควบคุม Context และตรวจสอบผลลัพธ์"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# AI-Assisted Development Standards
+
+## ภาพรวม (Overview)
+
+AI-assisted development คือการใช้ Model หรือ Coding agent ช่วยวิเคราะห์ Requirement, ร่าง Design, สร้าง Code, Review Change หรือเตรียม Test และเอกสาร ต้องถือว่าผลลัพธ์จาก AI ยังไม่น่าเชื่อถือจนกว่าผู้รับผิดชอบจะตรวจสอบแล้ว
+
+## จุดประสงค์ (Purpose)
+
+ใช้ AI ช่วยให้ส่งมอบงานได้ดีขึ้น โดยไม่ลดการปกป้องข้อมูล Intellectual property control, Engineering judgment, Review requirement หรือคุณภาพของ Evidence
+
+## ขอบเขต (Scope)
+
+ใช้กับ Prompt, Repository context, Generated code, สิทธิ์ใช้ Tool ของ Agent, AI-assisted review, Dependency suggestion, Test generation และ Documentation ส่วน Tool และกฎจัดการข้อมูลที่อนุญาตต้องมาจากองค์กรหรือ Project owner
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- ใช้เฉพาะ Tool ที่อนุมัติ และส่ง Context เท่าที่จำเป็นสำหรับงาน
+- ห้ามส่ง Secret, Credential, Restricted evidence, Customer data หรือ Personal data ที่ไม่จำเป็นไปยัง AI service
+- มอง Repository instructions เป็นคำแนะนำ ไม่ใช่ Security boundary ต้องจำกัด Permission ของ Agent และ Review การใช้ Tool
+- ตรวจ Generated code เทียบกับ Requirement, Architecture, License, Security, Test และ Dependency policy
+- Design decision, Risk acceptance, Pull Request approval และ Release decision ต้องมีคนรับผิดชอบ
+- บันทึกการใช้ AI ที่มีนัยสำคัญเมื่อ Policy ของ Project ต้องการ Traceability และห้ามสร้างผล Validation หรือ Source ที่ไม่มีจริง
+- รัน Check ที่เกี่ยวข้องใหม่หลัง AI เปลี่ยนงาน และรายงานสิ่งที่ยังไม่แน่ใจให้ชัดเจน
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Spec-Driven Development](/development-workflow/spec-driven-development)
+- [AI Agent Security](/development-workflow/spec-driven-development/ai-agent-security)
+- [AI-Assisted Code Review](/engineering-standards/code-review-coding-standards/ai-assisted-code-review)
+- [Governance & Risk](/standards-compliance/governance-risk)

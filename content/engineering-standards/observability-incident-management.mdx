@@ -1,0 +1,40 @@
+---
+title: "Observability & Incident Management"
+description: "มาตรฐานกลางสำหรับ Telemetry การตอบสนอง Incident การกู้คืน และการเรียนรู้"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Observability & Incident Management
+
+## ภาพรวม (Overview)
+
+Observability ใช้ Log, Metric, Trace และ Health signal เพื่อทำความเข้าใจระบบจากสิ่งที่ระบบส่งออกมา ส่วน Incident Management ประสานการตรวจพบ การตอบสนอง การกู้คืน การสื่อสาร และการเรียนรู้เมื่อ Service มีปัญหาหรือมี Risk
+
+## จุดประสงค์ (Purpose)
+
+ตรวจปัญหาที่มีความหมายให้เร็ว ลดเวลาการกู้คืน รักษาหลักฐาน และเปลี่ยน Incident ให้เป็นงานปรับปรุงที่จัดลำดับได้ แทนการปล่อยให้ปัญหาเดิมเกิดซ้ำ
+
+## ขอบเขต (Scope)
+
+ครอบคลุม Telemetry design, Alert, Dashboard, Health check, On-call handoff, Severity, Response role, Communication, Evidence, Post-incident review และ Follow-up action ส่วนระบบและช่องทางติดต่อจริงต้องอยู่ใน Runbook ของ Project
+
+## มาตรฐานสำคัญ (Key Standards)
+
+- เก็บ Signal ของ Critical user journey, Dependency, Error, Latency, Capacity และ Business impact
+- ใช้ Structured telemetry ที่เชื่อมโยงกันได้ โดยไม่เก็บ Secret, Credential หรือ Personal data ที่ไม่จำเป็น
+- สร้าง Alert ที่ลงมือทำต่อได้ โดยมี Owner, Condition, Impact และ Response path พร้อม Review Alert ที่ดังเกินไปหรือไม่มีคนใช้
+- กำหนด Incident severity, Coordination role, Escalation, Communication และ Decision authority ของแต่ละ Project
+- เก็บ Timeline และ Operational evidence ตามข้อเท็จจริง โดยไม่ทำให้การ Contain และ Recovery ที่เร่งด่วนล่าช้า
+- ทำ Review ตามระดับความรุนแรง โดยไม่กล่าวโทษบุคคล และเน้นปรับปรุงระบบกับ Process
+- ติดตาม Corrective action พร้อม Owner และ Verification เชื่อม Incident ที่เกิดซ้ำเข้ากับ Technical debt และ Planning
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Operations & Incident Guide](/technology-guides/devops/operations)
+- [Deployment Workflow](/technology-guides/devops/deployment-workflow)
+- [Technical Debt](/engineering-standards/code-review-coding-standards/technical-debt)
+- [Audit & Compliance](/standards-compliance/audit-compliance)
