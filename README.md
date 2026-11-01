@@ -43,7 +43,7 @@ npm run build
 npm run dev
 ```
 
-ห้ามรัน Build กับ Dev พร้อมกันบน `.next/` เดียวกัน `postbuild` สร้าง Pagefind Index จากผล Build โดยอัตโนมัติ: Local ใช้ `public/_pagefind` ส่วน Vercel ใช้ `.vercel/output/static/_pagefind` และ Generated files ไม่เก็บใน Git
+ห้ามรัน Build กับ Dev พร้อมกันบน `.next/` เดียวกัน `prebuild` สร้าง Pagefind Index จาก MDX ไปที่ `public/_pagefind` โดยอัตโนมัติ เพื่อให้ Local และ Vercel ใช้ Index ชุดเดียวกัน และ Generated files ไม่เก็บใน Git
 
 ## Production build / Validation
 
