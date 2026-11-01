@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
+    "postbuild": "node scripts/build-search-index.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "postinstall": "node scripts/patch-nextra.mjs",
