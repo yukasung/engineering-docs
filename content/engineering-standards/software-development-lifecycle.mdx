@@ -1,0 +1,48 @@
+---
+title: "Software Development Lifecycle"
+description: "มาตรฐานกลางสำหรับการวางแผน พัฒนา ตรวจสอบ ส่งมอบ และปรับปรุง Software ตลอดวงจรชีวิต"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {}
+---
+
+# Software Development Lifecycle
+
+## ภาพรวม (Overview)
+
+Software Development Lifecycle (SDLC) คือกรอบการทำงานที่เชื่อม Requirement, Design, Implementation, Testing, Release, Operation และ Improvement เข้าด้วยกัน จุดสำคัญคือทุกขั้นมีข้อมูลสำหรับตัดสินใจ ผู้รับผิดชอบ และหลักฐานที่ตามรอยได้
+
+SDLC ไม่ได้บังคับให้ทุก Project ใช้ Process แบบเดียวกัน Project สามารถใช้ Agile, Iterative หรือวิธีอื่นได้ แต่ต้องรักษา Quality, Security และ Traceability ให้เหมาะกับ Risk
+
+## จุดประสงค์ (Purpose)
+
+- ทำให้ทีมเข้าใจว่างานเริ่มจากอะไร ต้องตรวจเมื่อไร และจบเมื่อใด
+- ลดการแก้ปัญหาช่วงท้ายด้วยการตรวจ Requirement, Design และ Risk ตั้งแต่ต้น
+- เชื่อม Requirement, Code, Test, Release และ Incident ให้ตามกลับได้
+- ทำให้การส่งมอบและดูแลระบบเป็นความรับผิดชอบต่อเนื่อง ไม่จบเพียง Merge Code
+
+## ขอบเขต (Scope)
+
+มาตรฐานนี้ใช้กับการเปลี่ยนแปลง Software ตั้งแต่ Feature ใหม่, Bug fix, Architecture change, Database migration จนถึง Emergency fix ระดับเอกสาร การ Review และ Approval ต้องปรับตามผลกระทบและ Risk ของแต่ละ Change
+
+## มาตรฐานสำคัญ (Key Standards)
+
+1. **Plan:** ระบุ Objective, Scope, Stakeholder, Requirement, Acceptance criteria และ Risk ที่สำคัญ
+2. **Design:** กำหนด Architecture, Data, Interface, Security และ Failure behavior ที่เกี่ยวข้อง
+3. **Implement:** พัฒนาผ่าน Version control ตาม Coding Standards และเก็บ Change ให้ Review ได้
+4. **Verify:** ตรวจด้วย Test, Static analysis, Security check และ Human review ตาม Risk
+5. **Release:** ใช้ Artifact ที่ตามรอยได้ พร้อม Approval, Migration plan และ Recovery plan
+6. **Operate:** ดู Health, Log, Metric, Incident และผลกระทบต่อผู้ใช้จริง
+7. **Improve:** นำ Feedback, Defect, Incident และ Technical debt กลับเข้าสู่ Planning
+
+รายละเอียดขั้นตอน Git, Pull Request, Review และการส่ง Artifact ไปยัง Environment ให้อ้างอิง [Development Workflow](/development-workflow) เพื่อไม่ทำเนื้อหาซ้ำ
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Development Workflow](/development-workflow)
+- [Spec-Driven Development](/development-workflow/spec-driven-development)
+- [Architecture & Design Standards](/engineering-standards/architecture-design-standards)
+- [Testing & Quality Assurance](/engineering-standards/testing-quality-assurance)
+- [CI/CD & Release Management](/engineering-standards/cicd-release-management)

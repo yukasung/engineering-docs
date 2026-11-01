@@ -1,9 +1,6 @@
 export default {
   "index": "Overview",
-  "software-development-lifecycle": {
-    "title": "Software Development Lifecycle",
-    "href": "/development-workflow"
-  },
+  "software-development-lifecycle": "Software Development Lifecycle",
   "architecture-design-standards": "Architecture & Design Standards",
   "code-review-coding-standards": "Code Review & Coding Standards",
   "git-branching-strategy": "Git & Branching Strategy",
