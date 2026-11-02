@@ -1,0 +1,37 @@
+---
+title: "Django Coding Standards"
+description: "จุดรวมมาตรฐานการจัดโครงสร้าง Code, Module boundaries และการออกแบบ Django Application"
+documentType: "Landing"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"Python": "3.12", "Django": "5.2.18", "DRF": "3.18.3", "PostgreSQL": "17"}
+---
+
+# Django Coding Standards
+
+## ภาพรวม (Overview)
+
+หมวดนี้เชื่อมมาตรฐาน Engineering กลางเข้ากับการออกแบบ Django Application โดยเน้นโครงสร้างที่ทีมอ่าน เข้าใจ และเปลี่ยนได้อย่างปลอดภัย ไม่บังคับให้ทุก Project เพิ่ม Layer หรือ Django App จำนวนมากตั้งแต่เริ่มต้น
+
+## เริ่มอ่านตรงไหน?
+
+1. [Modular Monolith Architecture](/technology-guides/django-python/coding-standards/modular-monolith-architecture) — แบ่งระบบตาม Business Domain กำหนด Module boundaries, Dependency rules, Transaction และแนวทางทดสอบ
+2. [Project Structure](/technology-guides/django-python/project-structure) — โครงสร้างแบบเรียบง่ายสำหรับตัวอย่างหรือระบบที่ยังมี Domain ไม่มาก
+3. [General Coding Standards](/engineering-standards/code-review-coding-standards/general-coding-standards) — กฎกลางด้าน Naming, Error, Logging, Configuration และ Maintainability
+4. [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards) — กฎ Security ที่ต้องพิจารณาร่วมกับ Django และ DRF
+
+## ขอบเขต
+
+- Coding Standards บอกหลักและ Boundary ที่ Code ควรรักษา
+- Technology Guides อธิบายวิธีใช้ Django, DRF และ PostgreSQL
+- Project documentation ต้องระบุ Module ownership, Public interfaces, Exceptions และ Tool configuration ที่ใช้จริง
+
+เอกสารในหมวดนี้ยังเป็น Draft ไม่ใช่นโยบายที่อนุมัติแล้วทุก Project
+
+## เอกสารที่เกี่ยวข้อง (Related Documentation)
+
+- [Architecture & Design Standards](/engineering-standards/architecture-design-standards)
+- [Django Testing](/technology-guides/django-python/testing)
+- [Database & Data Management](/engineering-standards/database-data-management)
+- [Code Review Checklist](/engineering-standards/code-review-coding-standards/code-review-checklist)

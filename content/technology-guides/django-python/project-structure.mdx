@@ -18,6 +18,8 @@ Django Project รวมค่าตั้งกับทางเข้าเ�
 
 ใช้เริ่มงานหรือก่อนเพิ่มฟังก์ชัน เพื่อให้คนถัดไปรู้ว่าต้องแก้ตรงไหนและทดสอบอะไร
 
+โครงสร้างหน้านี้เหมาะกับตัวอย่างหรือระบบที่ยังมี Domain ไม่มาก หากเป็นระบบขนาดกลางถึงใหญ่และมีหลายทีม ให้ใช้ [Modular Monolith Architecture](/technology-guides/django-python/coding-standards/modular-monolith-architecture) เพื่อกำหนด Module boundary, Ownership และ Dependency rules เพิ่มเติม
+
 ## ตัวอย่าง Code
 
 ```text
@@ -81,6 +83,8 @@ View ควรสั้นและอ่านเส้นทางได้ �
 
 ## อ่านต่อ
 
+- [Django Coding Standards](/technology-guides/django-python/coding-standards)
+- [Modular Monolith Architecture](/technology-guides/django-python/coding-standards/modular-monolith-architecture)
 - [Models & ORM](/technology-guides/django-python/models-and-orm)
 - [REST API](/technology-guides/django-python/rest-api)
 - [Django applications](https://docs.djangoproject.com/en/5.2/ref/applications/)

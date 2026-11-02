@@ -132,6 +132,17 @@ All documentation must:
 - Keep cross-links to PostgreSQL and Docker accurate. Do not mix the Task Django migration state with the Order SQL lab or imply older Docker snippets implement the same API contract.
 - Execute examples only in isolated disposable test fixtures when appropriate. Report exact tested versions, database/runtime scope, and unexecuted Browser/Production behavior; never claim tests or integrations were run when they were not.
 
+## Django Modular Monolith Documentation
+- Keep canonical Django Modular Monolith guidance under `content/technology-guides/django-python/coding-standards/`; cross-technology Architecture and Code Review standards should link to it instead of copying Django-specific rules.
+- Before changing a Django module, inspect its documented Business Domain, ownership, Public Interface, dependencies, migrations, and tests. Do not invent an owner when none is recorded.
+- Do not create a Django App only to mirror a Database table or technical layer. Create one when a distinct Business Domain has clear responsibility, language, data ownership, and change reasons.
+- Preserve Module boundaries and acyclic dependencies. Cross-module operations must use an explicit Public Interface or Application Service; do not import another module's internal models, selectors, or helpers as a shortcut.
+- Keep complex Business Logic out of Views and Serializers. Add `services.py`, `selectors.py`, `public.py`, or other layers only when they clarify a real use case; these files are conventions, not Django requirements.
+- Do not use Django Signals as the primary orchestration mechanism for ordered Business Workflows. Prefer explicit calls; use `transaction.atomic()`, `transaction.on_commit()`, and an Outbox only for the guarantees each mechanism actually provides.
+- When Business Logic or a Public Interface changes, update relevant Unit, Integration, API, Transaction, and Architecture tests. Review effects on dependent modules before changing the interface.
+- Review Django ORM queries, Migrations, Database constraints, locking, transaction scope, side effects, rollback behavior, and Production compatibility. Application rollback does not automatically roll back data.
+- Keep tool configuration project-specific. Recommend Ruff, pytest-django, or Import Linter only after confirming compatibility and recording the versions and CI commands actually selected by the Project.
+
 ## Kubernetes Documentation
 - Keep beginner-friendly Thai Kubernetes guidance under `content/technology-guides/kubernetes/`; explain terms and kubectl commands and preserve the existing canonical section URL.
 - Keep manifests, application prerequisites, and configuration examples in MDX for documentation-only tasks. Do not create/delete clusters or deploy resources without separate explicit requirements.
