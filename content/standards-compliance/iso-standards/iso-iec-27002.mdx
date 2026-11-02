@@ -1,0 +1,95 @@
+---
+title: "ISO/IEC 27002 — Information Security Controls"
+description: "แนวทางเลือกและประยุกต์ Information Security Controls สำหรับ Software Development ตาม ISO/IEC 27002:2022"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 27002": "2022 corrected version 2022-03"}
+---
+
+# ISO/IEC 27002 — Information Security Controls
+
+## Overview
+
+ISO/IEC 27002:2022 ให้ Guidance สำหรับ Information Security controls และวิธีนำไปใช้ ช่วยสนับสนุน ISMS ของ ISO/IEC 27001 แต่ไม่ใช่มาตรฐาน Certification โดยลำพัง เอกสารนี้สรุปแนวคิดด้วยภาษาของทีมโดยไม่คัดลอก Control text
+
+## Purpose
+
+ช่วยองค์กรเลือก Control ตาม Risk, Contract และ Law พร้อมกำหนด Implementation, Verification และ Evidence ที่เหมาะกับบริบท ไม่ได้บังคับให้ทุก Project ใช้ Control เหมือนกัน
+
+## Scope
+
+ใช้กับ People, Process, Physical และ Technology controls หน้านี้เน้นส่วนที่เกี่ยวข้องกับ Software Development, Environments, Source code, Deployment และ Operation
+
+## Key Principles
+
+- Authentication ยืนยันตัวตน ส่วน Authorization ตัดสินสิทธิ์ ต้องออกแบบและทดสอบแยกกัน
+- ใช้ Least privilege, Segregation of duties และ Access lifecycle ตาม Risk
+- ปกป้อง Data in transit/at rest ตาม Classification และ Threat model
+- เก็บ Secret ในระบบที่อนุมัติ ไม่ฝังใน Code, Image, Log หรือ Build artifact
+- แยก DEV/SIT/UAT/PROD ตาม Risk และป้องกัน Production data/credential รั่วไป Environment อื่น
+- Change และ Deployment ต้องมี Traceability, Approval และ Verification ตาม Process จริง
+
+## Software Development Practices
+
+| Control area | แนวทางสำหรับทีม |
+| --- | --- |
+| Authentication/RBAC | ใช้ Framework ที่ดูแลได้ บังคับสิทธิ์ฝั่ง Backend และทดสอบ Negative cases |
+| Password | ใช้ Password hasher ของ Framework พร้อม Parameter/upgrade policy ห้ามเข้ารหัสแบบย้อนกลับแทน Hash |
+| Cryptography | ใช้ Algorithm/Library ที่องค์กรอนุมัติและมี Key lifecycle; อย่าสร้าง Crypto เอง |
+| Secrets | Inject ตอน Runtime, จำกัดสิทธิ์, Rotate และตรวจ Secret leakage |
+| Source code | จำกัด Repository/Branch/Artifact access และรักษา Review/audit trail |
+| Configuration | Secure defaults, Version control สำหรับ non-secret config และ Environment-specific secret references |
+| Security testing | ผสม Review, SAST, dependency/secret scan และ Test ตาม Threat; Tool เดียวไม่ครอบคลุมทั้งหมด |
+| Secure deployment | ใช้ Tested immutable artifact, Verify provenance และแยก Configuration/Secrets |
+
+## Practical Examples
+
+**ตัวอย่าง: RBAC สำหรับ API**
+
+- ปัญหา: ผู้ใช้แก้ Resource ของคนอื่นหรือเรียก Admin endpoint
+- แนวทาง: ตรวจ Authentication, Role/permission และ Object ownership ฝั่ง API ทุก Request
+- ISO ที่เกี่ยวข้อง: ISO/IEC 27002 control guidance และ Risk treatment ภายใต้ ISO/IEC 27001
+- วิธีตรวจ: Unit/API tests สำหรับ Allowed และ Denied cases รวม Direct URL/API call
+- Evidence: Permission matrix ที่อนุมัติ, Code review, Test report และ Access review reference
+
+**ตัวอย่าง: CI/CD Secrets**
+
+- ปัญหา: Token หลุดใน Repository, Log หรือ Pull Request จาก Fork
+- แนวทาง: ใช้ Secret store, Environment protection, Least privilege และ Rotate เมื่อสงสัยว่ารั่ว
+- วิธีตรวจ: Secret scan, Pipeline permission review และทดสอบว่า Log ไม่แสดงค่า
+
+## Best Practices
+
+- บันทึก Control objective, Risk, Owner, Implementation และ Test แยกจากกัน
+- ให้ Exception มีเหตุผล Compensating control ผู้อนุมัติและวันหมดอายุ/ทบทวน
+- ใช้ Secure baseline ต่อ Environment และตรวจ Drift
+- เชื่อม Change record กับ Commit, PR, Test, Artifact และ Deployment
+
+## Common Mistakes
+
+- เก็บ Sensitive token ใน `localStorage` หรือ Source code โดยไม่มี Threat assessment
+- ปิด TLS/CSRF/Certificate verification เพื่อให้ตัวอย่างทำงานง่าย
+- ใช้ Shared admin account หรือ Production credential ใน DEV/UAT
+- ถือว่า Encryption แก้ Authorization, Retention หรือ Data minimization ได้
+
+## Checklist
+
+- [ ] Authentication, Authorization และ Object ownership มี Tests แยกกัน
+- [ ] Password, Key และ Secret lifecycle ใช้ Mechanism ที่อนุมัติ
+- [ ] Environment และ Production data/credential แยกตาม Risk
+- [ ] Source, Build artifact, Change และ Deployment ตามรอยได้
+- [ ] Security tests ระบุ Tool scope, Result, Gap และ Residual risk
+
+## References
+
+- [ISO/IEC 27002:2022](https://www.iso.org/standard/75652.html)
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)
+- [DEV / UAT / Production](/development-workflow/environments)
+- [CI/CD & Operations](/technology-guides/devops)
+
+## Related Documentation
+
+- [ISO/IEC 27001](/standards-compliance/iso-standards/iso-iec-27001)
+- [ISO Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines)

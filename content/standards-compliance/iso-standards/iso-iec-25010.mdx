@@ -1,0 +1,93 @@
+---
+title: "ISO/IEC 25010 — Software Product Quality"
+description: "ใช้ Product quality model ของ ISO/IEC 25010:2023 กำหนดและประเมิน Quality Requirements ที่วัดได้"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 25010": "2023 edition 2"}
+---
+
+# ISO/IEC 25010 — Software Product Quality
+
+## Overview
+
+ISO/IEC 25010:2023 ให้ Product quality model สำหรับ ICT และ Software products มี 9 Quality Characteristics ใช้เป็นภาษากลางในการกำหนด Requirement, Test objective และ Acceptance criteria ไม่ใช่ Management system หรือ Product certification
+
+## Purpose
+
+ช่วยทีมถามเรื่องคุณภาพให้ครบและแปลงคำกว้าง เช่น “เร็ว”, “ปลอดภัย” หรือ “ดูแลง่าย” เป็นเงื่อนไขที่วัดได้ภายใต้ Environment และ Workload ที่ระบุ
+
+## Scope
+
+ใช้ตลอด Product lifecycle ตั้งแต่ Requirements, Architecture, Development, QA, Acceptance ถึง Operation แต่ต้องเลือก Characteristic ที่เกี่ยวข้องกับ Product และ Risk จริง ไม่จำเป็นต้องตั้ง Metric ทุกข้อเท่ากัน
+
+## Key Principles
+
+ชื่อ Characteristic ตามฉบับ 2023 คือ:
+
+| Characteristic | คำถามสำหรับ Software Team | ตัวอย่างเกณฑ์ที่ต้องกำหนดให้ชัด |
+| --- | --- | --- |
+| Functional suitability | Function ครบ ถูกต้อง และเหมาะกับงานหรือไม่ | Acceptance criteria และ Business-rule tests |
+| Performance efficiency | เวลาและ Resource เหมาะกับ Workload หรือไม่ | Response percentile, throughput, CPU/memory ภายใต้ Load |
+| Compatibility | อยู่ร่วมและแลกเปลี่ยนข้อมูลกับระบบอื่นได้หรือไม่ | API/schema compatibility และ supported clients |
+| Interaction capability | ผู้ใช้เรียนรู้ ใช้งาน และหลีกเลี่ยงความผิดพลาดได้หรือไม่ | Task completion, accessibility และ error recovery |
+| Reliability | ทำงานต่อเนื่อง ทน Fault และ Recover ได้หรือไม่ | Availability target, retry/failover และ recovery test |
+| Security | ปกป้องข้อมูลและการกระทำตาม Risk หรือไม่ | AuthN/AuthZ, confidentiality, integrity และ auditability tests |
+| Maintainability | วิเคราะห์ แก้ ทดสอบ และนำ Code กลับใช้ได้หรือไม่ | Change lead time, modularity และ regression safety |
+| Flexibility | ปรับ ย้าย ติดตั้ง แทนที่ หรือ Scale ตามบริบทได้หรือไม่ | Supported platform/configuration และ scaling verification |
+| Safety | ลดความเสี่ยงที่ระบบก่ออันตรายต่อคน ทรัพย์สิน หรือ Environment หรือไม่ | Hazard analysis, fail-safe และ warning behavior |
+
+ฉบับ 2023 ใช้ **Interaction capability** แทน Usability และ **Flexibility** แทน Portability ของฉบับ 2011 พร้อมเพิ่ม Safety ห้ามผสมชื่อเก่ากับ Edition ใหม่โดยไม่อธิบาย
+
+## Software Development Practices
+
+1. เลือก Characteristic จาก Business goal, User, Risk และ System context
+2. ระบุ Measure, Threshold, Workload, Environment, Dataset และช่วงเวลาที่ใช้
+3. เชื่อม Requirement กับ Architecture decision และ Test level
+4. เก็บ Baseline/Result จากการรันจริง และบอกส่วนที่ไม่ได้ทดสอบ
+5. ทบทวน Trade-off เช่น Security กับ Interaction capability หรือ Performance กับ Reliability
+
+## Practical Examples
+
+**ตัวอย่าง: Task API ก่อน Production**
+
+- ปัญหา: Requirement เขียนเพียง “API ต้องเร็วและเสถียร” จึงตรวจรับไม่ได้
+- แนวทาง: ระบุ Endpoint, Payload, Concurrent users, Response percentile, Error rate, Database state และ Recovery behavior
+- ISO ที่เกี่ยวข้อง: ISO/IEC 25010 สำหรับ Quality model; ISO/IEC 27001/27034 เมื่อมี Security risk
+- วิธีตรวจ: Functional/API/load/recovery tests ใน Environment ที่บันทึกไว้
+- Evidence: Approved NFR, Test configuration, Raw result, Analysis และ Known limitations
+
+## Best Practices
+
+- ใช้ Quality Scenario: Source → Stimulus → Environment → Response → Measure
+- ระบุ Baseline ก่อนตั้ง Threshold และให้ Owner อนุมัติตาม Business impact
+- แยก Target, Measurement result และ Production observation
+- ใช้ Safety เฉพาะตาม Hazard context ไม่สร้างคำกล่าวอ้าง Safety โดยไม่มีการวิเคราะห์
+
+## Common Mistakes
+
+- เขียน “ระบบต้องใช้งานง่าย/เร็ว/ปลอดภัย” โดยไม่มี Measure
+- ใช้ Metric เดียวแทนทั้ง Characteristic เช่น Coverage แทน Maintainability
+- ทดสอบ Laptop แล้วอ้าง Production performance
+- ใช้ชื่อ 8 Characteristics ของฉบับ 2011 แต่ระบุ Edition 2023
+
+## Checklist
+
+- [ ] ระบุ Product scope, Stakeholders และ Quality characteristics ที่เลือก
+- [ ] ทุก Quality requirement มี Measure, Context และ Acceptance owner
+- [ ] Architecture/Test trace กลับไปยัง Requirement ได้
+- [ ] Result ระบุ Version, Environment, Data และข้อจำกัด
+- [ ] Trade-off และ Residual risk ถูก Review ตาม Scope
+
+## References
+
+- [ISO/IEC 25010:2023](https://www.iso.org/standard/78176.html)
+- [Testing & Quality Assurance](/engineering-standards/testing-quality-assurance)
+- [Architecture & Design Standards](/engineering-standards/architecture-design-standards)
+- [Observability & Incident Management](/engineering-standards/observability-incident-management)
+
+## Related Documentation
+
+- [ISO 9001](/standards-compliance/iso-standards/iso-9001)
+- [ISO Compliance Checklist](/standards-compliance/iso-standards/compliance-checklist)

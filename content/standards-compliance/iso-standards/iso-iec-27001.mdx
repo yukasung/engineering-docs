@@ -1,0 +1,90 @@
+---
+title: "ISO/IEC 27001 — Information Security Management"
+description: "แนวทางใช้ ISO/IEC 27001:2022 กับ ISMS, Risk treatment และ Software Development โดยไม่แทนมาตรฐานฉบับลิขสิทธิ์"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 27001": "2022 + Amd 1:2024"}
+---
+
+# ISO/IEC 27001 — Information Security Management
+
+## Overview
+
+ISO/IEC 27001:2022 ระบุ Requirements สำหรับ Information Security Management System (ISMS) หรือระบบบริหารความมั่นคงปลอดภัยสารสนเทศ ครอบคลุม Governance, Risk, People, Process และ Technology ไม่ใช่เพียงการตั้งค่า Security ใน Application
+
+## Purpose
+
+สร้างวิธีบริหาร Confidentiality, Integrity และ Availability ที่อิง Risk กำหนดผู้รับผิดชอบ วัดผล แก้ Nonconformity และปรับปรุงต่อเนื่อง Certification เป็นทางเลือกและมีผลเฉพาะ Scope ที่ระบุใน Certificate
+
+## Scope
+
+องค์กรต้องกำหนดขอบเขตจริง เช่น Business unit, Product, Location, Cloud account, Supplier, Data และ Interface ที่เกี่ยวข้อง Project ห้ามใช้คำว่า “ISO 27001 compliant” โดยไม่ระบุ Edition, Scope, Criteria และ Evidence
+
+## Key Principles
+
+- เริ่มจาก Context, Interested parties, Scope และ Information Security objectives
+- ประเมิน Risk ด้วยเกณฑ์ที่องค์กรกำหนดและระบุ Risk owner
+- เลือก Risk treatment พร้อมเหตุผลและบันทึก Applicable controls
+- กำหนด Competence, Communication, Document control และ Operating criteria
+- Monitor, Internal audit, Management review และ Corrective action ตามรอบจริง
+- พิจารณา Amendment 1:2024 เรื่อง Climate action ตาม Context ขององค์กร ไม่สร้างคำตอบสมมติ
+
+## Software Development Practices
+
+| พื้นที่ | แนวทางประยุกต์ใช้ |
+| --- | --- |
+| Security policy | เชื่อม Policy ที่อนุมัติแล้วกับ Requirements, Definition of Done และ Exception process |
+| Risk assessment | ทำ Threat/Risk assessment ตาม Scope และทบทวนเมื่อ Architecture หรือ Data เปลี่ยน |
+| Access control | ใช้ Least privilege, Joiner-Mover-Leaver และ Access review ตามความเสี่ยง |
+| Secure development | Trace Security requirements ไป Design, Code review, Tests และ Release evidence |
+| Vulnerability | มี Intake, Triage, Remediation, Exception และ Re-test ที่ระบุ Owner |
+| Logging/monitoring | กำหนด Security events, Retention, Alert ownership และป้องกัน Sensitive data |
+| Backup/recovery | กำหนด Recovery requirements และทดสอบ Restore ไม่ใช้สถานะ Backup สำเร็จแทนผล Restore |
+| Incident/continuity | เชื่อม Detection, Escalation, Containment, Recovery และ Lessons learned |
+
+## Practical Examples
+
+**ตัวอย่าง: Production Login service**
+
+- ปัญหา: Account takeover และสิทธิ์ผู้ดูแลเกินจำเป็น
+- แนวทาง: ระบุ Risk owner, ใช้ MFA/Least privilege ตาม Risk, ตรวจ Access และเก็บ Audit event ที่ปลอดภัย
+- ISO ที่เกี่ยวข้อง: ISO/IEC 27001 สำหรับ ISMS/Risk treatment และ ISO/IEC 27002 สำหรับ Control guidance
+- วิธีตรวจ: Review Risk record, Test Authentication/Authorization และสุ่มตรวจ Access review evidence
+- Evidence: Requirement, Approved design, PR/Test result, Access review และ Incident procedure จากระบบที่จำกัดสิทธิ์
+
+## Best Practices
+
+- ใช้ Requirement-to-control mapping ชุดเดียวและ Link ไป Evidence จริง
+- แยก Control design, Control operation และ Control effectiveness
+- ระบุ Residual risk และผู้มีอำนาจยอมรับตาม Policy
+- ทบทวน Supplier, Secrets, Logging, Backup และ Recovery เป็นส่วนหนึ่งของ System boundary
+
+## Common Mistakes
+
+- เริ่มจาก Copy controls ทั้งหมดโดยไม่ทำ Risk assessment
+- ถือว่า Vulnerability scan ผ่านแล้ว ISMS มีประสิทธิผล
+- สร้าง Policy แต่ไม่มี Owner, Training, Operation หรือ Evidence
+- เก็บ Secret, Personal data หรือ Exploit detail ใน Evidence repository ที่เข้าถึงกว้าง
+
+## Checklist
+
+- [ ] ระบุ Edition, Amendment, ISMS scope และผู้รับผิดชอบจริง
+- [ ] Risk criteria, Risk assessment และ Treatment decision ตามรอยได้
+- [ ] Security requirements เชื่อมกับ Design, Test, Change และ Operation
+- [ ] Access, Incident, Vulnerability, Logging, Backup และ Continuity มี Owner
+- [ ] Internal review และ Corrective action อ้างอิง Evidence ที่เกิดขึ้นจริง
+
+## References
+
+- [ISO/IEC 27001:2022](https://www.iso.org/standard/27001)
+- [ISO/IEC 27001:2022/Amd 1:2024](https://www.iso.org/standard/88435.html)
+- [ISO/IEC 27000 family](https://www.iso.org/standard/iso-iec-27000-family)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [Observability & Incident Management](/engineering-standards/observability-incident-management)
+
+## Related Documentation
+
+- [ISO Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines)
+- [ISO Compliance Checklist](/standards-compliance/iso-standards/compliance-checklist)

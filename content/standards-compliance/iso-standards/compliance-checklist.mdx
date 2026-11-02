@@ -1,0 +1,104 @@
+---
+title: "ISO Software Development Compliance Checklist"
+description: "Checklist กลางสำหรับ Software Development และ Production Readiness พร้อม Verification, Evidence และสถานะ"
+documentType: "Template"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO": "editions listed in ISO Standards References; project applicability not selected"}
+---
+
+# ISO Software Development Compliance Checklist
+
+## Overview
+
+Checklist นี้เป็น Template สำหรับ Gap assessment และ Readiness review ไม่ใช่ผล Audit, Approval หรือ Certification ทุกแถวต้องยืนยัน Source, Scope, Owner และเกณฑ์จริงก่อนใช้
+
+ค่าเริ่มต้นของ Status คือ `Not reviewed` ห้ามเปลี่ยนเป็น Pass โดยไม่มี Evidence ที่ตรวจแล้ว
+
+## Information Security
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| ระบุ ISMS/System scope, Asset, Risk และ Treatment owner | ISO/IEC 27001 | Scope/Risk review | Approved scope และ Risk record reference | Not reviewed |
+| Incident, Vulnerability และ Continuity process เชื่อมกับระบบ | 27001, 27002 | Procedure + exercise review | Incident/restore/exercise record reference | Not reviewed |
+
+## Application Security
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Security requirements และ Threat model ครอบคลุม Trust boundaries | ISO/IEC 27034 | Design review | Requirements, data flow, threat decisions | Not reviewed |
+| Auth, input, API, file และ error risks มี Negative tests | 27034, 27002 | Code/API/security tests | PR, test result และ Finding disposition | Not reviewed |
+
+## Access Control
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Authentication, Role และ Object ownership บังคับฝั่ง Backend | ISO/IEC 27002, 27034 | Permission/API tests | Matrix, test report, review record | Not reviewed |
+| Privileged access ใช้ Least privilege และ Review ตามรอบ | 27001, 27002 | IAM/access review | Approved access และ review result | Not reviewed |
+
+## Data Protection & Privacy
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Data inventory ระบุ Purpose, Classification, Access และ Supplier | ISO/IEC 27701, 27001 | Data-flow/privacy review | Inventory และ decision reference | Not reviewed |
+| Retention, Deletion และ Data subject workflow ผ่านการยืนยัน | 27701 + applicable law | Procedure/test + Legal/DPO review | Approved rule และ test/reference | Not reviewed |
+
+## Software Quality
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Quality requirements ใช้ชื่อ Characteristic ของ Edition ที่เลือก | ISO/IEC 25010 | Requirements review | Approved NFR/quality scenarios | Not reviewed |
+| Performance, Reliability และ Compatibility มี Context/Measure | 25010 | Test/result review | Environment, workload, raw result, analysis | Not reviewed |
+
+## Testing & QA
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Test strategy เชื่อม Requirement/Risk กับ Test level | ISO 9001, 25010, 27034 | Traceability review | Requirement-test mapping และ results | Not reviewed |
+| Defect/Finding มี Severity, Owner, Decision และ Re-test | 9001, 27001 | Sample issue review | Finding, fix/exception และ closure evidence | Not reviewed |
+
+## Change Management
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Change ตามรอย Source → PR → Test → Artifact → Environment | ISO 9001, 27001, 27002 | Trace sample | Change/PR/test/artifact/deployment references | Not reviewed |
+| Emergency change มี Review, Approval และ Sync กลับ Main history | 9001, 27001 | Process/sample review | Emergency record และ follow-up PR | Not reviewed |
+
+## Deployment Security
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Promote tested immutable artifact และแยก Secret/Configuration | ISO/IEC 27002, 27034 | Pipeline/config review | Artifact digest, deployment/config references | Not reviewed |
+| Production access, health verification และ rollback/forward fix พร้อม | 27001, 27002, 9001 | Readiness review | Access, runbook และ verification records | Not reviewed |
+
+## Logging & Monitoring
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Security/quality events ไม่มี Secret/PII เกินจำเป็น | ISO/IEC 27001, 27002, 27701 | Log schema/sample review | Redacted sample และ retention/access config | Not reviewed |
+| Alert มี Threshold, Owner, Escalation และทดสอบเส้นทางแล้ว | 27001, 25010 | Alert/incident exercise | Alert test และ runbook reference | Not reviewed |
+
+## Backup & Recovery
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Backup scope/frequency/retention ตรง Recovery requirement | ISO/IEC 27001, 27002 | Configuration review | Approved requirements และ job/config reference | Not reviewed |
+| Restore ได้จริงใน Scope/Target ที่กำหนด | 27001, 25010 | Restore exercise | Timestamped restore result, gap และ action | Not reviewed |
+
+## Documentation & Audit Evidence
+
+| Requirement | Related ISO Standard | Verification Method | Required Evidence | Status |
+| --- | --- | --- | --- | --- |
+| Document ระบุ Version, Owner, Approval/Review และ Retention | ISO 9001, 27001, 27701 | Document-control sample | Controlled record reference | Not reviewed |
+| Evidence ระบุ Source, Scope, Period, Integrity และ Access | 9001, 27001 | Evidence sampling | Restricted evidence reference และ reviewer | Not reviewed |
+
+## วิธีบันทึกผล
+
+Project ควร Copy รายการที่ Applicable ไปยังระบบงานที่มี Access control แล้วเพิ่ม Requirement ID, Scope, Owner, Due date, Evidence reference, Gap และ Reviewer ห้ามใส่ Secret, Personal data, Customer evidence หรือ Vulnerability detail ลงใน Hub
+
+## อ่านต่อ
+
+- [Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines)
+- [Audit & Compliance](/standards-compliance/audit-compliance)
+- [Compliance Checklist กลาง](/standards-compliance/compliance-checklist)

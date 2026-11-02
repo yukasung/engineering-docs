@@ -1,0 +1,90 @@
+---
+title: "ISO/IEC 27701 — Privacy Information Management"
+description: "แนวทางใช้ ISO/IEC 27701:2025 กับ PIMS, Privacy by Design และ Thailand PDPA considerations"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 27701": "2025 edition 2", "Thailand PDPA": "applicability requires Legal/DPO confirmation"}
+---
+
+# ISO/IEC 27701 — Privacy Information Management
+
+## Overview
+
+ISO/IEC 27701:2025 ระบุ Requirements และ Guidance สำหรับ Privacy Information Management System (PIMS) เพื่อบริหาร Personally Identifiable Information (PII) สำหรับองค์กรที่ทำหน้าที่ Controller หรือ Processor ฉบับ 2025 เป็น Edition 2 และเป็น Management system standard ที่ใช้ได้อย่างอิสระ
+
+## Purpose
+
+ช่วยให้องค์กรบริหาร Privacy risk, Accountability, PII lifecycle, Third parties และ Evidence อย่างเป็นระบบ โดยยังต้องปฏิบัติตามกฎหมายที่เกี่ยวข้องแยกต่างหาก
+
+## Scope
+
+ต้องระบุ Organization, Processing activities, Systems, Data subjects, Locations, Suppliers, Controller/Processor roles และ Interfaces ที่อยู่ใน PIMS scope คำว่า PII ใน ISO และ Personal Data ตาม PDPA อาจมีนิยาม/Applicability ต่างกัน ต้องให้ Legal/DPO ยืนยัน
+
+## Key Principles
+
+- ระบุ Purpose, Lawful basis/authority และบทบาทก่อนเก็บหรือใช้ข้อมูล
+- Data minimization และ Privacy by Design ตั้งแต่ Requirements
+- Classification, Access, Retention, Deletion และ Disclosure ตาม Lifecycle
+- รองรับ Data subject rights ด้วย Identity verification และ Audit trail ที่เหมาะสม
+- จัดการ Processor/Supplier และ Cross-border questions ตามกฎหมาย/สัญญา
+- เตรียม Privacy incident/breach workflow และ Evidence ที่ปลอดภัย
+
+## Software Development Practices
+
+| พื้นที่ | แนวทางประยุกต์ใช้ |
+| --- | --- |
+| Data inventory | ระบุ Field, Purpose, Source, Recipient, Storage, Retention และ Owner |
+| Data minimization | เก็บเฉพาะ Field ที่ Requirement ใช้ ห้าม Copy Production data มา Test เป็นปกติ |
+| Privacy by Design | Review Data flow, Default visibility, Search/export, Logging และ Admin access |
+| Retention/deletion | กำหนด Rule, Legal hold, Backup impact และ Verification ที่สอดคล้องกัน |
+| Data subject request | Authenticate requester, Track scope/deadline และ Review disclosure |
+| Incident | Detect, preserve evidence, assess impact และ Escalate ให้ DPO/Legal ตาม Procedure |
+| Supplier | ระบุ Controller/Processor responsibility, Security, Return/deletion และ Subprocessor |
+
+## Practical Examples
+
+**ตัวอย่าง: Export ข้อมูลลูกค้า**
+
+- ปัญหา: User ส่งออกข้อมูลเกินสิทธิ์หรือไฟล์คงอยู่เกินจำเป็น
+- แนวทาง: ตรวจ Role/Object scope, จำกัด Field, สร้างไฟล์ชั่วคราว, ป้องกัน URL และบันทึก Audit event ที่ไม่เก็บข้อมูลเกินจำเป็น
+- ISO ที่เกี่ยวข้อง: ISO/IEC 27701 สำหรับ PIMS; ISO/IEC 27001/27002 สำหรับ Security controls
+- วิธีตรวจ: Authorization/negative tests, Retention/deletion test และ Audit-log review
+- Evidence: Approved data inventory, Requirement, Privacy/security review และ Test result
+
+**Thailand PDPA consideration:** Purpose, Legal basis, Notice, Consent (เมื่อเกี่ยวข้อง), Rights, Retention, Processor และ Breach duties ต้องยืนยันกับ Legal/DPO จากตัวบทและประกาศปัจจุบัน เอกสารนี้ไม่ใช่คำปรึกษากฎหมาย
+
+## Best Practices
+
+- ใช้ Data flow และ Record of processing ที่ Owner ตรวจได้
+- ทำ Privacy review เมื่อเพิ่ม Field, Analytics, AI, Integration หรือ Supplier
+- แยก Identifier ใน Log และจำกัด Debug payload
+- ออกแบบ Deletion ให้ครอบคลุม Search index, Cache, Export และ Backup policy ตาม Requirement
+
+## Common Mistakes
+
+- ถือว่า Consent เป็นฐานเดียวสำหรับทุก Processing
+- เก็บข้อมูล “เผื่อใช้” โดยไม่มี Purpose/Retention
+- Log Request body, Token หรือ Personal data เพื่อ Debug โดยค่าเริ่มต้น
+- อ้าง ISO/IEC 27701 แทนการตรวจ PDPA และกฎหมายพื้นที่อื่น
+
+## Checklist
+
+- [ ] ระบุ PIMS scope, Controller/Processor roles และ Processing inventory
+- [ ] Purpose, Data minimization, Access, Retention และ Deletion มี Owner
+- [ ] Data subject rights และ Identity verification มี Procedure/Test
+- [ ] Supplier/Transfer/Incident questions ผ่าน Legal/DPO ตาม Scope
+- [ ] Evidence ป้องกัน PII และเก็บเฉพาะ Reference ใน Hub
+
+## References
+
+- [ISO/IEC 27701:2025](https://www.iso.org/standard/27701)
+- [Thailand PDPA](/standards-compliance/laws-regulations/pdpa)
+- [Data Governance](/standards-compliance/data-governance)
+- [Secure Coding Standards](/engineering-standards/code-review-coding-standards/secure-coding-standards)
+
+## Related Documentation
+
+- [ISO/IEC 27001](/standards-compliance/iso-standards/iso-iec-27001)
+- [ISO Compliance Checklist](/standards-compliance/iso-standards/compliance-checklist)

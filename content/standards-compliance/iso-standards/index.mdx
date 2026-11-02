@@ -1,70 +1,65 @@
 ---
-title: "ISO Standards"
-description: "เลือก ISO Standard, Edition, Scope และ Evidence ให้ตรงกับข้อกำหนดจริง โดยไม่คัดลอกมาตรฐานฉบับเต็ม"
-documentType: "Guide"
+title: "ISO Standards for Software Development"
+description: "จุดเริ่มต้นสำหรับนำมาตรฐาน ISO ด้าน Security, Privacy และ Quality มาประยุกต์ใช้กับ Software Development"
+documentType: "Landing"
 owner: null
 status: "Draft"
 lastReviewed: null
-applicableVersions: {"ISO/IEC 27001": "2022 + Amd 1:2024", "ISO/IEC 27002": "2022", "ISO/IEC 27701": "2025", "ISO 9001": "2026", "ISO/IEC 20000-1": "2018 + Amd 1:2024", "ISO 22301": "2019 + Amd 1:2024", "ISO/IEC 25010": "2023"}
+applicableVersions: {"ISO/IEC 27001": "2022 + Amd 1:2024", "ISO/IEC 27002": "2022", "ISO/IEC 27034-1": "2011 + Cor 1:2014; confirmed 2022", "ISO/IEC 25010": "2023", "ISO 9001": "2026", "ISO/IEC 27701": "2025"}
 ---
 
-# ISO Standards
+# ISO Standards for Software Development
 
-## เรื่องนี้คืออะไร?
+## ภาพรวม (Overview)
 
-ISO Standards ช่วยให้องค์กรจัดการงานอย่างเป็นระบบ แต่แต่ละฉบับมีเป้าหมายและสถานะต่างกัน Project ต้องยืนยันว่า Standard ใดมาจากสัญญา กฎหมาย นโยบาย หรือ Certification scope จริงก่อนสร้าง Checklist
+หมวดนี้ช่วยทีมพัฒนา, QA, DevOps และผู้ดูแลสถาปัตยกรรม แปลงมาตรฐาน ISO เป็น Requirement, Control, Test และ Evidence ที่ตรวจสอบย้อนกลับได้ โดยใช้ได้กับหลาย Technology Stack
 
-การใช้แนวทางบางส่วนเพื่อปรับปรุงงาน ไม่เท่ากับการรับรอง Certification และ ISO ไม่ใช่ผู้ตรวจรับรององค์กร
+เอกสารเป็น **แนวทางเริ่มต้น** ไม่ใช่ข้อความมาตรฐานฉบับเต็ม ไม่ใช่ผล Audit และไม่ใช่หลักฐานว่าองค์กรผ่าน Certification หรือ Compliance แล้ว Project ต้องยืนยัน Standard, Edition, Scope, Owner และข้อกำหนดจริงกับผู้รับผิดชอบก่อนใช้เป็นนโยบายบังคับ
 
 ## เลือกอ่านตามงาน
 
-| กลุ่ม | ใช้ตอบคำถาม | อ่านต่อ |
+| Standard | ใช้ตอบคำถามหลัก | สถานะของเอกสาร |
 | --- | --- | --- |
-| Information Security และ Privacy | จัดการความเสี่ยงข้อมูล, Security controls และ Personal data | [Security & Privacy Standards](/standards-compliance/iso-standards/security-privacy) |
-| Quality, Service และ Continuity | คุณภาพงาน, บริการ IT, ความต่อเนื่อง และคุณภาพ Software | [Quality, Service & Continuity Standards](/standards-compliance/iso-standards/quality-service-continuity) |
+| [ISO/IEC 27001](/standards-compliance/iso-standards/iso-iec-27001) | จะบริหาร Information Security Risk และ ISMS อย่างไร | Requirements; รองรับ Certification ใน Scope ที่กำหนด |
+| [ISO/IEC 27002](/standards-compliance/iso-standards/iso-iec-27002) | จะเลือกและนำ Information Security Controls ไปใช้อย่างไร | Guidance; ไม่ใช้ Certification โดยลำพัง |
+| [ISO/IEC 27034](/standards-compliance/iso-standards/iso-iec-27034) | จะฝัง Application Security ใน Lifecycle อย่างไร | Guidance หลาย Part; ไม่ใช่ Product certificate |
+| [ISO/IEC 25010](/standards-compliance/iso-standards/iso-iec-25010) | Product quality ควรกำหนดและประเมินด้านใดบ้าง | Product quality model |
+| [ISO 9001](/standards-compliance/iso-standards/iso-9001) | จะบริหาร Quality Management System อย่างไร | Requirements; รองรับ Certification |
+| [ISO/IEC 27701](/standards-compliance/iso-standards/iso-iec-27701) | จะบริหาร Privacy Information และ PII อย่างไร | Requirements และ Guidance สำหรับ PIMS |
 
-## Requirement หรือ Guidance?
+## เส้นทางใช้งาน
 
-- Standard ที่มีคำว่า **Requirements** มักใช้เป็นเกณฑ์ตรวจความสอดคล้องใน Scope ที่กำหนด และบางฉบับรองรับ Certification
-- Standard แบบ **Guidance** หรือ **Model** ใช้ช่วยออกแบบและประเมิน แต่ไม่ควรอ้างว่า Certified ต่อ Standard นั้นโดยลำพัง
-- Contract อาจบังคับ Standard บางฉบับ แม้กฎหมายไม่ได้บังคับ
-- Project ต้องบันทึก Edition และ Amendment ที่ใช้ เพราะเลข Standard เดิมอาจมีฉบับใหม่
+1. ยืนยัน Standard, Edition, Contract, Law และ Scope ที่เกี่ยวข้อง
+2. ระบุ System, Data flow, Supplier, Environment และผู้รับผิดชอบ
+3. แปลง Requirement และ Risk เป็น Control กับ Acceptance criteria
+4. ใช้ [Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines) เชื่อมกับ Workflow และ Technology Guide
+5. ใช้ [Compliance Checklist](/standards-compliance/iso-standards/compliance-checklist) บันทึก Verification, Evidence และ Gap ตามจริง
+6. Review เมื่อ Standard, Law, Contract, Architecture หรือ Threat เปลี่ยน
 
-## ต้องบันทึกอะไร?
+## Compliance กับ Certification ต่างกันอย่างไร?
 
-- Standard และ Edition ที่ใช้
-- Organization/Project/System scope
-- Policy หรือ Contract ที่อ้างถึง
-- Control owner และผู้ Review จริง
-- Evidence source, Retention และ Access
-- Gap, Risk treatment และสถานะที่ยืนยันแล้ว
+- **Compliance/Conformity** คือการแสดงว่าขอบเขตที่ระบุตรงกับ Requirement หรือ Criteria ที่เลือก โดยต้องมี Evidence
+- **Certification** คือการรับรองโดย Certification body ภายใต้ Scheme และ Scope ที่กำหนด ไม่เกิดขึ้นเพียงเพราะทีมทำ Checklist ครบ
+- ISO/IEC 27002, ISO/IEC 27034 และ ISO/IEC 25010 ใช้เป็น Guidance หรือ Model ไม่ควรอ้างว่า Product หรือองค์กร “Certified” ต่อมาตรฐานเหล่านี้โดยลำพัง
 
-## ตัวอย่างการใช้งานจริง
+## ขอบเขตของ Hub
 
-Customer Management เก็บข้อมูลผู้ติดต่อและให้บริการลูกค้า ทีมเริ่มจากตรวจสัญญาและ Data flow แล้วเลือก ISO/IEC 27001 สำหรับ ISMS scope, ISO/IEC 27701 เมื่อ Privacy management อยู่ใน Scope และ ISO/IEC 25010 เพื่อช่วยตั้ง Quality criteria ของ Software การเลือกนี้ยังเป็น Proposal จนกว่า Owner จะยืนยัน
+- **Engineering Standards:** กฎกลางที่ทีมต้องปฏิบัติ
+- **Technology Guides:** วิธีใช้ Framework, Database และ Tool
+- **Standards & Compliance:** Source, Scope, Requirement mapping, Control intent และ Evidence expectation
+- **Projects:** Implementation, Owner, Exception, Evidence reference และสถานะจริงของแต่ละระบบ
 
 ## ข้อควรระวัง
 
-- ห้ามคัดลอกเนื้อหามาตรฐานที่มีลิขสิทธิ์ลง Hub โดยไม่มีสิทธิ์
-- ห้ามอ้างว่า Certified, Compliant หรือ Approved หากไม่มีหลักฐานจริง
-- Security checklist ทางเทคนิคอย่างเดียวไม่เท่ากับ Management system
-- Edition และ Amendment เปลี่ยนได้ ต้องตรวจ Source ทางการ
-- ห้ามใช้คำว่า “ISO compliant” โดยไม่บอก Standard, Edition, Scope และหลักฐาน
-
-## สรุป
-
-- เลือก Standard/Edition/Scope ก่อนทำ Checklist
-- เก็บ Link ไป Source ที่ได้รับอนุญาต
-- ระบุ Owner และ Evidence จริง
-- ไม่อ้าง Certification จากเอกสาร Draft
-
-## แหล่งอ้างอิงทางการ
-
-- [ISO — Management system standards](https://www.iso.org/management-system-standards.html)
-- [ISO — Standards](https://www.iso.org/standards.html)
+- ไม่คัดลอก Clause หรือ Control text ที่มีลิขสิทธิ์ลง Hub
+- ไม่สร้าง Clause ID, Control ID หรือ Audit result จากความจำ
+- Automated scan ผ่าน ไม่เท่ากับ Control มีประสิทธิผล
+- เก็บเฉพาะ Reference ไปยัง Evidence ที่จำกัดสิทธิ์ ไม่เก็บ Secret, Personal data หรือ Vulnerability detail ใน Hub
+- ข้อกฎหมายและ PDPA ต้องให้ Legal, DPO หรือผู้รับผิดชอบยืนยัน Applicability
 
 ## อ่านต่อ
 
-- [Compliance Checklist](/standards-compliance/compliance-checklist)
+- [References และ Edition](/standards-compliance/iso-standards/references)
 - [Audit & Compliance](/standards-compliance/audit-compliance)
-- [Frameworks](/standards-compliance/frameworks)
+- [Governance & Risk](/standards-compliance/governance-risk)
+- [PDPA](/standards-compliance/laws-regulations/pdpa)

@@ -1,0 +1,97 @@
+---
+title: "ISO/IEC 27034 — Application Security"
+description: "แนวทางฝัง Application Security ใน Software Lifecycle โดยอ้างอิง ISO/IEC 27034 series และไม่สร้าง Clause สมมติ"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO/IEC 27034-1": "2011 + Cor 1:2014; confirmed 2022", "ISO/IEC 27034 series": "verify applicable parts before use"}
+---
+
+# ISO/IEC 27034 — Application Security
+
+## Overview
+
+ISO/IEC 27034 เป็นมาตรฐานหลาย Part สำหรับฝัง Application Security เข้าไปใน Process ที่ใช้พัฒนา จัดหา ใช้งาน และดูแล Application หน้านี้ใช้ Part 1 เป็นภาพรวม และต้องยืนยัน Part อื่นกับมาตรฐานฉบับที่องค์กรมีสิทธิ์ใช้ก่อนอ้าง Requirement เฉพาะ
+
+## Purpose
+
+ทำให้ Security requirements, Application context, Controls และ Verification อยู่ตลอด Lifecycle ไม่ใช่รอ Scan ก่อน Production เท่านั้น
+
+## Scope
+
+ใช้ได้กับ Application ที่พัฒนาเอง ซื้อจาก Supplier หรือ Outsource รวม Web application, API, Mobile, Database-backed system และ Integration แต่ไม่ใช่ Certificate ว่า Application “ปลอดภัย”
+
+## Key Principles
+
+- ระบุ Application Security Requirements จาก Business, Risk, Law, Contract และ Architecture
+- ใช้ Secure architecture, Threat modeling และ Design review ก่อน Implement
+- เลือก Controls และ Verification ที่เหมาะกับ Application context
+- ตรวจ Input, Authentication, Authorization, Session, Error และ Data handling
+- Review Code/Dependency/Configuration และทดสอบหลายวิธีตาม Risk
+- จัดการ Findings, Exceptions และ Residual risk จนถึง Operation
+
+OWASP Top 10 และ OWASP API Security Top 10 เป็น Community guidance ที่ช่วยหา Threat category แต่ไม่ใช่ ISO requirements และไม่ครอบคลุม Security ทั้งหมด
+
+## Software Development Practices
+
+| Phase | Practice และ Evidence ที่ควรมี |
+| --- | --- |
+| Requirements | Security acceptance criteria, Data classification และ Abuse cases |
+| Architecture | Trust boundaries, Data flow, Threat model และ Security decisions |
+| Implementation | Secure coding, Input validation, Output encoding และ Framework-safe APIs |
+| Review | Human review ที่เน้น Auth, Access, Data, Error, File และ Dependency changes |
+| Validation | Unit/API security tests, SAST, DAST, dependency/secret scan ตาม Scope |
+| Release | Approved findings, Artifact traceability, Secure config และ Rollback/forward-fix plan |
+| Operation | Monitoring, Incident response, Patch/vulnerability management และ Re-assessment |
+
+## Practical Examples
+
+**ตัวอย่าง: Secure file upload**
+
+- ปัญหา: Path traversal, Malware, Oversized file, Content-type spoofing และ Public access
+- แนวทาง: Allowlist type/size, สร้างชื่อไฟล์ฝั่ง Server, เก็บนอก Web root, Scan ตาม Risk และควบคุม Download authorization
+- ISO ที่เกี่ยวข้อง: ISO/IEC 27034 สำหรับ Application Security process; ISO/IEC 27002 สำหรับ Control guidance
+- วิธีตรวจ: Negative tests ด้วยชื่อ/ชนิด/ขนาดผิด, Authorization tests และ Storage configuration review
+- Evidence: Approved requirement, Threat model, Test result และ Finding disposition
+
+**ตัวอย่าง: API error handling**
+
+- ปัญหา: Response/Log เปิดเผย Stack trace, Query, Token หรือ Personal data
+- แนวทาง: ใช้ Error envelope ที่ปลอดภัย, Correlation ID และ Log เฉพาะข้อมูลจำเป็น
+- วิธีตรวจ: API tests และ Log review โดยใช้ข้อมูลจำลอง
+
+## Best Practices
+
+- Threat model เฉพาะ Flow ที่เสี่ยงและอัปเดตเมื่อ Trust boundary เปลี่ยน
+- บังคับ Authorization ฝั่ง Backend แม้ Frontend ซ่อนปุ่มแล้ว
+- ใช้ Parameterized query/ORM และ Schema validation
+- Report Tool coverage, Exclusions, False-positive disposition และส่วนที่ไม่ได้ทดสอบ
+
+## Common Mistakes
+
+- ใช้ OWASP Top 10 เป็น Checklist เดียวแล้วประกาศว่าระบบ Secure
+- ให้ SAST/DAST แทน Human review และ Authorization tests
+- Scan หลัง Merge โดยไม่มี Owner หรือ Remediation workflow
+- ปิด Security control เพื่อให้ Automated test ผ่าน
+
+## Checklist
+
+- [ ] Security requirements และ Abuse cases เชื่อมกับ Business/Risk
+- [ ] Data flow, Trust boundaries และ Threat model Review แล้วตาม Scope
+- [ ] Authentication, Authorization, Input, File, Error และ API behavior มี Negative tests
+- [ ] SAST/DAST/Dependency scans ระบุ Scope และ Limitations
+- [ ] Findings, Exceptions, Residual risk และ Release decision ตามรอยได้
+
+## References
+
+- [ISO/IEC 27034-1:2011](https://www.iso.org/standard/44378.html)
+- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
+- [OWASP API Security Top 10](https://owasp.org/API-Security/)
+- [AI Agent Security ใน SDD](/development-workflow/spec-driven-development/ai-agent-security)
+- [Static Code Analysis](/engineering-standards/code-review-coding-standards/static-code-analysis)
+
+## Related Documentation
+
+- [ISO/IEC 27002](/standards-compliance/iso-standards/iso-iec-27002)
+- [ISO Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines)

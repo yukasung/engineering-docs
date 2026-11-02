@@ -1,0 +1,90 @@
+---
+title: "ISO 9001 — Quality Management"
+description: "ประยุกต์ ISO 9001:2026 กับ Software Development Process, Requirements, QA, Change และ Continuous Improvement"
+documentType: "Standard"
+owner: null
+status: "Draft"
+lastReviewed: null
+applicableVersions: {"ISO 9001": "2026 edition 6"}
+---
+
+# ISO 9001 — Quality Management
+
+## Overview
+
+ISO 9001:2026 ระบุ Requirements สำหรับ Quality Management System (QMS) ขององค์กร ใช้ได้หลายอุตสาหกรรมและไม่ใช่มาตรฐาน Software โดยเฉพาะ ทีมพัฒนาต้องแปลง QMS requirements และ Process ที่องค์กรอนุมัติเป็นวิธีทำงานที่เหมาะกับ Product
+
+## Purpose
+
+ช่วยให้องค์กรส่งมอบผลลัพธ์ที่สม่ำเสมอ ตรง Customer และ Applicable requirements จัดการ Process/Risk/Opportunity และปรับปรุง QMS อย่างต่อเนื่อง Certification เป็นทางเลือก
+
+## Scope
+
+QMS scope อาจครอบคลุมทั้งองค์กรหรือหน่วยงานที่ระบุ Software lifecycle เป็นเพียงส่วนหนึ่ง ต้องเชื่อมกับ Leadership, Competence, Supplier, Customer feedback, Measurement และ Improvement
+
+## Key Principles
+
+- Customer focus และผลลัพธ์ที่ตอบ Requirement
+- Leadership, Quality culture, Ethical behaviour และ Accountability
+- Process approach และการเชื่อมโยง Input/Output ระหว่างทีม
+- Risk และ Opportunity ที่สัมพันธ์กับ Business context
+- Evidence-based decisions และ Continual improvement
+- Controlled documented information ตามความจำเป็น
+
+## Software Development Practices
+
+| Process | การประยุกต์ใช้ |
+| --- | --- |
+| Requirements | ยืนยัน Source, Acceptance criteria, Change และ Traceability |
+| Document control | ระบุ Version, Owner, Review/Approval และป้องกันเอกสารล้าสมัย |
+| Code review | Review กับ Requirement, Architecture, Security, Tests และ Documentation |
+| QA/Testing | วาง Test ตาม Risk บันทึก Result/Environment และจัดการ Defect |
+| Defect management | Triage, Root cause, Corrective action และ Verify closure ตามผลกระทบ |
+| Change control | Trace Commit, PR, Test, Artifact, Approval และ Release |
+| Supplier | ระบุ Criteria, Responsibility, Deliverable และ Performance review |
+| Improvement | ใช้ Defect/Incident/Feedback/Metric หาเหตุและปรับ Process |
+
+## Practical Examples
+
+**ตัวอย่าง: Requirement เปลี่ยนก่อน Release**
+
+- ปัญหา: ทีมแก้ Code ตามข้อความแชต แต่ Test และคู่มือยังเป็น Requirement เก่า
+- แนวทาง: บันทึก Change source, Impact, Acceptance criteria, Approval path และอัปเดต Code/Test/Docs ใน Change เดียวกัน
+- ISO ที่เกี่ยวข้อง: ISO 9001 สำหรับ QMS/process control; ISO/IEC 25010 สำหรับ Product quality criteria
+- วิธีตรวจ: Trace Requirement → Decision → PR → Test → Artifact → Release record
+- Evidence: Approved requirement/change, Review record, Test result และ Release record จริง
+
+## Best Practices
+
+- ทำ Process ให้พอดีกับ Risk ไม่สร้างเอกสารที่ไม่มีผู้ใช้
+- เก็บ Objective/Metric ที่นำไปตัดสินใจได้ ไม่วัดเพื่อรายงานอย่างเดียว
+- แยก Correction ที่แก้อาการออกจาก Corrective action ที่แก้ Root cause
+- ใช้ Retrospective, Defect trend และ Customer feedback เป็น Input ของ Improvement
+
+## Common Mistakes
+
+- คิดว่า ISO 9001 คือ Template เอกสารจำนวนมาก
+- ใช้ Test pass แทนการยืนยัน Customer/Regulatory requirements ทั้งหมด
+- ปิด Defect เมื่อแก้ Code แต่ยังไม่ Re-test หรือวิเคราะห์ผลกระทบ
+- เปลี่ยนจาก ISO 9001:2015 เป็น 2026 ในสัญญาหรือ Certificate เองโดยไม่ตรวจ Transition
+
+## Checklist
+
+- [ ] ระบุ QMS scope, Process owner และ Customer/applicable requirements
+- [ ] Requirements, Documents และ Changes มี Version/Review ที่ตามรอยได้
+- [ ] Competence, QA, Defect และ Supplier controls เหมาะกับ Scope
+- [ ] Metrics/Feedback เชื่อมกับ Objective และ Decision
+- [ ] Nonconformity และ Corrective action มี Root cause และ Verification
+
+## References
+
+- [ISO 9001:2026](https://www.iso.org/standard/9001)
+- [ISO — ISO 9001:2026 overview](https://www.iso.org/quality-management/iso-9001-2026)
+- [Software Development Lifecycle](/engineering-standards/software-development-lifecycle)
+- [Code Review Process](/engineering-standards/code-review-coding-standards/code-review-process)
+- [CI/CD & Release Management](/engineering-standards/cicd-release-management)
+
+## Related Documentation
+
+- [ISO/IEC 25010](/standards-compliance/iso-standards/iso-iec-25010)
+- [ISO Implementation Guidelines](/standards-compliance/iso-standards/implementation-guidelines)
